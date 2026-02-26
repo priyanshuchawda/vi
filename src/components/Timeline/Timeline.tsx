@@ -11,7 +11,7 @@ const formatTime = (seconds: number) => {
 };
 
 const Timeline = () => {
-  const { clips, activeClipId, currentTime, setCurrentTime, updateClip, selectedClipIds, toggleClipSelection, mergeSelectedClips, splitClip, removeClip, copyClips, setClipVolume, toggleClipMute, snapToGrid, setSnapToGrid, gridSize, getTotalDuration, moveClipToTime, setClipSpeed } = useProjectStore();
+  const { clips, activeClipId, currentTime, setCurrentTime, updateClip, selectedClipIds, toggleClipSelection, mergeSelectedClips, splitClip, removeClip, copyClips, pasteClips, setClipVolume, toggleClipMute, snapToGrid, setSnapToGrid, gridSize, getTotalDuration, moveClipToTime, setClipSpeed, undo, redo, canUndo, canRedo } = useProjectStore();
   const [pixelsPerSecond, setPixelsPerSecond] = useState(10);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null);
   const [speedInput, setSpeedInput] = useState<{ clipId: string; value: string } | null>(null);
@@ -187,16 +187,16 @@ const Timeline = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-bg-secondary">
+    <div className="flex-1 flex flex-col overflow-hidden">
       {/* Timeline Header with Controls */}
-      <div className="h-10 border-b border-[#262626] flex items-center justify-between px-4 bg-bg-elevated shadow-sm">
-        <div className="flex items-center gap-3">
+      <div className="h-12 border-b border-white/5 flex items-center justify-between px-6 bg-bg-elevated/50 backdrop-blur-sm">
+        <div className="flex items-center gap-4">
           {/* Timeline Icon & Label */}
           <div className="flex items-center gap-2">
             <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
             </svg>
-            <div className="text-[10px] uppercase tracking-wider text-text-primary font-bold">
+            <div className="text-xs font-semibold text-text-primary tracking-wide">
               Timeline
             </div>
           </div>
@@ -215,6 +215,85 @@ const Timeline = () => {
             <span className="text-xs font-mono text-text-secondary">
               {formatTime(totalDuration)}
             </span>
+          </div>
+          
+          <div className="h-4 w-px bg-border-primary"></div>
+          
+          {/* Edit Buttons */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={undo}
+              disabled={!canUndo}
+              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
+              title="Undo (Ctrl+Z)"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo}
+              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
+              title="Redo (Ctrl+Y)"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
+              </svg>
+            </button>
+            <div className="h-4 w-px bg-border-primary"></div>
+            <button
+              onClick={() => activeClipId && splitClip(activeClipId, currentTime)}
+              disabled={!activeClipId}
+              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
+              title="Split (S)"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => {
+                selectedClipIds.forEach(clipId => removeClip(clipId));
+              }}
+              disabled={selectedClipIds.length === 0}
+              className="p-1.5 text-text-muted hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition"
+              title="Delete (Del)"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+            <button
+              onClick={mergeSelectedClips}
+              disabled={selectedClipIds.length < 2}
+              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
+              title="Merge"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </button>
+            <div className="h-4 w-px bg-border-primary"></div>
+            <button
+              onClick={() => copyClips(selectedClipIds)}
+              disabled={selectedClipIds.length === 0}
+              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
+              title="Copy (Ctrl+C)"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </button>
+            <button
+              onClick={pasteClips}
+              className="p-1.5 text-text-muted hover:text-text-primary transition"
+              title="Paste (Ctrl+V)"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </button>
           </div>
           
           {activeClipId && (() => {
@@ -323,7 +402,7 @@ const Timeline = () => {
       </div>
 
       {/* Time Ruler */}
-      <div className="h-8 border-b border-border-primary bg-bg-elevated/30 overflow-x-auto flex items-end relative" ref={timelineRef}>
+      <div className="h-10 border-b border-white/5 bg-bg-elevated/30 overflow-x-auto flex items-end relative" ref={timelineRef}>
         <div style={{ width: `${timelineWidth}px`, height: '100%', position: 'relative' }}>
           {/* Time markers */}
           {Array.from({ length: Math.ceil(totalDuration) + 1 }, (_, i) => (

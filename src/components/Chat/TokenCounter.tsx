@@ -51,16 +51,16 @@ export const TokenCounter: React.FC = () => {
             {/* Compact Display */}
             <div className={`flex items-center gap-2 text-sm ${getContextColor()} cursor-help`}>
                 {stats.totalTokens > 0 && (
-                    <span className="font-mono">🔢 {formatTokens(stats.totalTokens)}</span>
+                    <span className="font-mono">T {formatTokens(stats.totalTokens)}</span>
                 )}
                 {hasCachedTokens && (
-                    <span className="text-xs text-blue-400">💾{formatTokens(stats.totalCachedTokens)}</span>
+                    <span className="text-xs text-blue-400">C {formatTokens(stats.totalCachedTokens)}</span>
                 )}
                 <span className={`text-xs font-mono ${getRpdColor()}`}>
                     {rateStats.requestsToday}/{rateStats.rpdLimit}
                 </span>
                 {rateStats.isThrottled && (
-                    <span className="text-xs text-orange-400 animate-pulse">⏳</span>
+                    <span className="text-xs text-orange-400 animate-pulse">wait</span>
                 )}
             </div>
 
@@ -75,21 +75,21 @@ export const TokenCounter: React.FC = () => {
                     {stats.totalTokens > 0 && (
                         <div className="space-y-1">
                             <div className="flex justify-between">
-                                <span className="text-gray-400">📥 Input:</span>
+                                <span className="text-gray-400">Input:</span>
                                 <span className="text-white font-mono">{stats.totalPromptTokens.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-gray-400">📤 Output:</span>
+                                <span className="text-gray-400">Output:</span>
                                 <span className="text-white font-mono">{stats.totalResponseTokens.toLocaleString()}</span>
                             </div>
                             {hasCachedTokens && (
                                 <div className="flex justify-between">
-                                    <span className="text-blue-400">💾 Cached:</span>
+                                    <span className="text-blue-400">Cached:</span>
                                     <span className="text-blue-400 font-mono">{stats.totalCachedTokens.toLocaleString()}</span>
                                 </div>
                             )}
                             <div className="flex justify-between font-semibold pt-1 border-t border-gray-700">
-                                <span className="text-gray-300">📊 Total:</span>
+                                <span className="text-gray-300">Total:</span>
                                 <span className="text-white font-mono">{stats.totalTokens.toLocaleString()}</span>
                             </div>
                         </div>
@@ -99,21 +99,21 @@ export const TokenCounter: React.FC = () => {
                     {stats.totalTokens > 0 && (
                         <div className="pt-1 border-t border-gray-700 space-y-1">
                             <div className="flex justify-between">
-                                <span className="text-gray-400">💰 Est. Cost:</span>
+                                <span className="text-gray-400">Est. Cost:</span>
                                 <span className="text-green-400 font-mono">{formatCost(stats.estimatedCost)}</span>
                             </div>
                             {hasCachedTokens && (
                                 <div className="flex justify-between">
-                                    <span className="text-gray-400">💸 Saved:</span>
+                                    <span className="text-gray-400">Saved:</span>
                                     <span className="text-blue-400 font-mono">{formatCost(stats.cachedSavings || 0)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between">
-                                <span className="text-gray-400">📈 Context:</span>
+                                <span className="text-gray-400">Context:</span>
                                 <span className={`font-mono ${getContextColor()}`}>{contextUsagePercent.toFixed(2)}%</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-gray-400">💬 Messages:</span>
+                                <span className="text-gray-400">Messages:</span>
                                 <span className="text-white font-mono">{stats.messageCount}</span>
                             </div>
                             {/* Context window bar */}
@@ -128,7 +128,7 @@ export const TokenCounter: React.FC = () => {
 
                     {/* Rate limit section */}
                     <div className="pt-1 border-t border-gray-700 space-y-1">
-                        <div className="text-gray-300 font-semibold">⚡ Rate Limits</div>
+                        <div className="text-gray-300 font-semibold">Rate Limits</div>
 
                         {/* RPM */}
                         <div className="flex justify-between items-center">
@@ -160,7 +160,7 @@ export const TokenCounter: React.FC = () => {
 
                         {rateStats.isThrottled && (
                             <div className="text-orange-400 text-[10px]">
-                                ⏳ Rate limited — waiting {(rateStats.msUntilNextSlot / 1000).toFixed(1)}s
+                                Rate limited, waiting {(rateStats.msUntilNextSlot / 1000).toFixed(1)}s
                             </div>
                         )}
                     </div>

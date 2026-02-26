@@ -9,8 +9,31 @@ import TypingIndicator from './TypingIndicator';
 import { TokenCounter } from './TokenCounter';
 import type { MediaAttachment } from '../../types/chat';
 
+interface SessionLogEntry {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  timestamp: number;
+  content: string;
+  tokenTotal?: number;
+  isError?: boolean;
+}
+
 const ChatPanel = () => {
-  const { isOpen, messages, isTyping, togglePanel, addMessage, updateLastMessage, updateMessageTokens, clearChat, setIsTyping, autoExecute, toggleAutoExecute } = useChatStore();
+  const {
+    isOpen,
+    messages,
+    isTyping,
+    togglePanel,
+    addMessage,
+    updateLastMessage,
+    updateMessageTokens,
+    clearChat,
+    setIsTyping,
+    autoExecute,
+    toggleAutoExecute,
+    panelWidth,
+    setPanelWidth,
+  } = useChatStore();
   const { clips, currentTime } = useProjectStore();
   const { analysisData } = useOnboardingStore();
   const { entries } = useAiMemoryStore();
@@ -18,6 +41,14 @@ const ChatPanel = () => {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [showMemoryDetails, setShowMemoryDetails] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
+  const [sessionLogs, setSessionLogs] = useState<SessionLogEntry[]>([]);
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
+  const isResizingRef = useRef(false);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWidthRef = useRef(panelWidth);
+  const hasInitializedLogsRef = useRef(false);
+  const seenLogIdsRef = useRef(new Set<string>());
 
   // Tool calling state
   const [pendingToolCalls, setPendingToolCalls] = useState<{
@@ -51,10 +82,78 @@ const ChatPanel = () => {
     }
   }, [messages, isTyping, uploadStatus]);
 
+  // Temporary in-memory log collector (not persisted)
+  useEffect(() => {
+    if (!hasInitializedLogsRef.current) {
+      messages.forEach((m) => seenLogIdsRef.current.add(m.id));
+      hasInitializedLogsRef.current = true;
+      return;
+    }
+
+    const newMessages = messages.filter((m) => !seenLogIdsRef.current.has(m.id));
+    if (newMessages.length === 0) return;
+
+    newMessages.forEach((m) => seenLogIdsRef.current.add(m.id));
+
+    setSessionLogs((prev) => {
+      const next = [
+        ...prev,
+        ...newMessages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          timestamp: m.timestamp,
+          content: m.content,
+          tokenTotal: m.tokens?.totalTokens,
+          isError: m.metadata?.error === true,
+        })),
+      ];
+      return next.slice(-200);
+    });
+  }, [messages]);
+
   // Update context when clips or time changes
   useEffect(() => {
     // Context will be used when AI is integrated
   }, [clips, currentTime]);
+
+  useEffect(() => {
+    const onResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    const onPointerMove = (event: PointerEvent) => {
+      if (!isResizingRef.current) return;
+      const deltaX = resizeStartXRef.current - event.clientX;
+      setPanelWidth(resizeStartWidthRef.current + deltaX);
+    };
+
+    const stopResize = () => {
+      isResizingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', stopResize);
+    window.addEventListener('pointercancel', stopResize);
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', stopResize);
+      window.removeEventListener('pointercancel', stopResize);
+    };
+  }, [setPanelWidth]);
+
+  const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDesktop) return;
+    event.preventDefault();
+    isResizingRef.current = true;
+    resizeStartXRef.current = event.clientX;
+    resizeStartWidthRef.current = panelWidth;
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+  };
 
   const handleSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
     // Add user message with attachments
@@ -65,10 +164,17 @@ const ChatPanel = () => {
     try {
       // Import intent classifier (zero-cost, local)
       const { classifyIntent, detectContextNeeds } = await import('../../lib/intentClassifier');
-      const intent = classifyIntent(content);
+      let intent = classifyIntent(content);
+      const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant')?.content || '';
+      if (
+        (isExecutionConfirmation(content) && looksLikeEditPlan(lastAssistantMessage)) ||
+        (isAmbiguousContinuation(content) && hasRecentEditingContext(messages))
+      ) {
+        intent = 'edit';
+      }
       const contextFlags = detectContextNeeds(content, intent);
 
-      console.log(`🧠 Intent: ${intent} | Context: T=${contextFlags.includeTimeline} M=${contextFlags.includeMemory} C=${contextFlags.includeChannel}`);
+      console.log(`Intent: ${intent} | Context: T=${contextFlags.includeTimeline} M=${contextFlags.includeMemory} C=${contextFlags.includeChannel}`);
 
       // Import services
       const { convertToAIHistory } = await import('../../lib/aiService');
@@ -83,9 +189,9 @@ const ChatPanel = () => {
         setIsGeneratingPlan(true);
         const { generateCompletePlan } = await import('../../lib/aiPlanningService');
 
-        addMessage('assistant', '🤔 Analyzing your request and generating execution plan...');
+        addMessage('assistant', 'Analyzing your request and generating execution plan...');
         
-        const plan = await generateCompletePlan(content, aiHistory, 5);
+        const plan = await generateCompletePlan(content, aiHistory, 3);
 
         setIsGeneratingPlan(false);
 
@@ -96,9 +202,30 @@ const ChatPanel = () => {
             messages: currentMessages.slice(0, -1)
           });
 
-          // Auto-execute if enabled
-          if (autoExecute) {
-            addMessage('assistant', `⚡ Auto-executing ${plan.operations.length} operation${plan.operations.length > 1 ? 's' : ''}...`);
+          const hasValidationIssues = plan.validation && plan.validation.valid === false;
+          if (hasValidationIssues) {
+            const issuePreview = (plan.validation.issues || [])
+              .slice(0, 3)
+              .map((issue: any) => `- ${issue.toolName}: ${issue.message}`)
+              .join('\n');
+            addMessage(
+              'assistant',
+              `Plan needs fixes before execution.\n\n${issuePreview || 'Validation failed.'}\n\nI kept the draft plan visible so you can review and adjust.`,
+              { error: true }
+            );
+            setExecutionPlan({
+              plan,
+              originalMessage: content,
+              history: aiHistory,
+            });
+            setIsTyping(false);
+            return;
+          }
+
+          // Auto-execute if enabled OR no approval is required (read-only plans)
+          if (autoExecute || !plan.requiresApproval) {
+            const readOnlyNotice = !plan.requiresApproval ? ' (read-only plan)' : '';
+            addMessage('assistant', `Auto-executing ${plan.operations.length} operation${plan.operations.length > 1 ? 's' : ''}${readOnlyNotice}...`);
             
             try {
               const { executePlan } = await import('../../lib/aiPlanningService');
@@ -125,7 +252,7 @@ const ChatPanel = () => {
               addMessage('assistant', finalResponse);
             } catch (error) {
               console.error('Auto-execution error:', error);
-              let errorMessage = '⚠️ Error during auto-execution:\n\n';
+              let errorMessage = 'Error during auto-execution:\n\n';
               if (error instanceof Error) {
                 errorMessage += error.message;
               } else {
@@ -149,11 +276,17 @@ const ChatPanel = () => {
           return;
         }
 
-        // Plan returned no operations — fall through to chat response
+        // Plan returned no executable operations — fail safe instead of fabricating edits
         const currentMessages = useChatStore.getState().messages;
         useChatStore.setState({
           messages: currentMessages.slice(0, -1)
         });
+        addMessage(
+          'assistant',
+          "I couldn't generate executable edit operations from that. Please confirm exactly what to apply (clips/timestamps), and I'll execute it with tools."
+        );
+        setIsTyping(false);
+        return;
       }
 
       // ── CHAT INTENT: Direct text response (no planning, no tools) ──
@@ -172,10 +305,52 @@ const ChatPanel = () => {
         if (chunk.type === 'upload_progress' && chunk.uploadProgress) {
           setUploadStatus(`Uploading ${chunk.uploadProgress.fileName}...`);
         } else if (chunk.type === 'tool_plan') {
-          // Shouldn't happen for chat intent, but handle it
+          // Auto-execute read-only tools without approval prompt.
+          const functionCalls = chunk.functionCalls || [];
+          if (functionCalls.length > 0 && functionCalls.every(isReadOnlyToolCall)) {
+            const { ToolExecutor } = await import('../../lib/toolExecutor');
+            const { sendToolResultsToAI } = await import('../../lib/aiService');
+
+            const results = await ToolExecutor.executeWithPolicy(
+              functionCalls,
+              {
+                mode: 'hybrid',
+                maxReadOnlyBatchSize: 3,
+                stopOnFailure: true,
+              }
+            );
+            let followupText = '';
+            let first = true;
+            let currentMessageId = '';
+
+            for await (const followupChunk of sendToolResultsToAI(
+              aiHistory,
+              chunk.modelContent,
+              results
+            )) {
+              if (followupChunk.type === 'text' && followupChunk.text) {
+                followupText += followupChunk.text;
+                if (first) {
+                  addMessage('assistant', followupText);
+                  const last = useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
+                  currentMessageId = last.id;
+                  first = false;
+                } else {
+                  updateLastMessage(followupText);
+                }
+              } else if (followupChunk.type === 'metadata' && followupChunk.tokens && currentMessageId) {
+                updateMessageTokens(currentMessageId, followupChunk.tokens);
+              }
+            }
+
+            setIsTyping(false);
+            return;
+          }
+
+          // Non-read-only calls require approval.
           setUploadStatus(null);
           setPendingToolCalls({
-            functionCalls: chunk.functionCalls || [],
+            functionCalls,
             modelContent: chunk.modelContent,
             history: aiHistory,
           });
@@ -202,7 +377,7 @@ const ChatPanel = () => {
 
     } catch (error) {
       console.error('Error communicating with AI:', error);
-      let errorMessage = '⚠️ Error: ';
+      let errorMessage = 'Error: ';
 
       if (error instanceof Error) {
         if (error.message.includes('credentials') || error.message.includes('API key')) {
@@ -230,8 +405,55 @@ const ChatPanel = () => {
     }
   };
 
+  const handleCopyLogs = async () => {
+    if (sessionLogs.length === 0) return;
+    const payload = sessionLogs
+      .map((entry) => {
+        const time = new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        const tokenInfo = entry.tokenTotal ? ` | tokens=${entry.tokenTotal}` : '';
+        const errorInfo = entry.isError ? ' | error=true' : '';
+        return `[${time}] ${entry.role}${tokenInfo}${errorInfo}\n${entry.content}`;
+      })
+      .join('\n\n---\n\n');
+    try {
+      await navigator.clipboard.writeText(payload);
+    } catch {
+      // no-op
+    }
+  };
+
+  const handleClearLogs = () => {
+    setSessionLogs([]);
+  };
+
+  const handleCopyExecutionPlan = async () => {
+    if (!executionPlan) return;
+
+    const payload = {
+      understanding: executionPlan.plan.understanding,
+      executionPolicy: executionPlan.plan.executionPolicy,
+      validation: executionPlan.plan.validation,
+      operations: executionPlan.plan.operations,
+      steps: executionPlan.plan.steps,
+    };
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    } catch {
+      // no-op
+    }
+  };
+
   const handleExecutePlan = async () => {
     if (!executionPlan) return;
+    if (executionPlan.plan.validation && executionPlan.plan.validation.valid === false) {
+      addMessage(
+        'assistant',
+        'Execution blocked: plan has validation issues. Please update the request or regenerate the plan.',
+        { error: true }
+      );
+      return;
+    }
     
     setIsExecutingTools(true);
     setIsTyping(true);
@@ -262,11 +484,11 @@ const ChatPanel = () => {
     } catch (error) {
       console.error('Plan execution error:', error);
       
-      let errorMessage = '⚠️ Error executing plan:\n\n';
+      let errorMessage = 'Error executing plan:\n\n';
       if (error instanceof Error) {
         // If error contains multiple operation failures, format them nicely
         if (error.message.includes('Some operations failed:')) {
-          errorMessage = '⚠️ Some operations failed:\n\n' + 
+          errorMessage = 'Some operations failed:\n\n' + 
             error.message.replace('Some operations failed:\n', '');
         } else {
           errorMessage += error.message;
@@ -284,7 +506,7 @@ const ChatPanel = () => {
   };
 
   const handleRejectPlan = () => {
-    addMessage('assistant', '❌ Execution plan rejected. How else can I help you?');
+    addMessage('assistant', 'Execution plan rejected. How else can I help you?');
     setExecutionPlan(null);
   };
 
@@ -299,8 +521,13 @@ const ChatPanel = () => {
       const { ToolExecutor } = await import('../../lib/toolExecutor');
       
       // Execute all tools with progress
-      const results = await ToolExecutor.executeAll(
+      const results = await ToolExecutor.executeWithPolicy(
         pendingToolCalls.functionCalls,
+        {
+          mode: 'hybrid',
+          maxReadOnlyBatchSize: 3,
+          stopOnFailure: true,
+        },
         (current, total, result) => {
           setToolExecutionProgress({
             current,
@@ -344,7 +571,7 @@ const ChatPanel = () => {
       
     } catch (error) {
       console.error('Tool execution error:', error);
-      addMessage('assistant', '⚠️ Error executing operations: ' + (error as Error).message, { error: true });
+      addMessage('assistant', 'Error executing operations: ' + (error as Error).message, { error: true });
     } finally {
       setIsExecutingTools(false);
       setIsTyping(false);
@@ -426,7 +653,7 @@ const ChatPanel = () => {
     return (
       <button
         onClick={togglePanel}
-        className="fixed left-4 top-1/2 -translate-y-1/2 bg-accent hover:bg-accent-hover text-white p-3 rounded-r-xl shadow-2xl transition-all z-50 group"
+        className="fixed right-4 top-1/2 -translate-y-1/2 bg-accent hover:bg-accent-hover text-white p-3 rounded-l-xl shadow-2xl transition-all z-50 group"
         title="Open AI Chat (Ctrl+K)"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -437,7 +664,24 @@ const ChatPanel = () => {
   }
 
   return (
-    <div className="fixed left-0 top-0 bottom-0 w-80 bg-bg-elevated border-r border-border-primary flex flex-col z-40 shadow-2xl animate-slide-in">
+    <div
+      className="fixed right-0 top-0 bottom-0 bg-bg-elevated border-l border-border-primary flex flex-col z-[60] shadow-2xl animate-slide-in-right"
+      style={{
+        width: isDesktop ? panelWidth : '85vw',
+        maxWidth: isDesktop ? 520 : 360,
+        minWidth: isDesktop ? 280 : undefined,
+      }}
+    >
+      {isDesktop && (
+        <div
+          onPointerDown={startResize}
+          className="absolute top-0 left-0 h-full w-3 cursor-ew-resize bg-accent/10 hover:bg-accent/35 transition-colors touch-none"
+          title="Drag to resize chat panel"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize chat panel"
+        />
+      )}
       {/* Header */}
       <div className="border-b border-border-primary p-4 flex items-center justify-between bg-bg-secondary">
         <div className="flex items-center gap-3">
@@ -453,6 +697,15 @@ const ChatPanel = () => {
           <TokenCounter />
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => setShowLogs((v) => !v)}
+            className={`p-2 rounded transition ${showLogs ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text-primary hover:bg-bg-surface'}`}
+            title="Toggle session logs"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17h6M9 13h6M9 9h6M5 5h14v14H5z" />
+            </svg>
+          </button>
           <button
             onClick={toggleAutoExecute}
             className={`p-2 rounded transition ${autoExecute ? 'text-green-400 bg-green-500/10 hover:bg-green-500/20' : 'text-text-muted hover:text-text-primary hover:bg-bg-surface'}`}
@@ -496,7 +749,7 @@ const ChatPanel = () => {
             <svg className="w-3.5 h-3.5 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
             </svg>
-            <span>⚡ Auto-execute enabled • Operations will run automatically without approval</span>
+            <span>Auto-execute enabled. Operations will run automatically without approval.</span>
           </div>
         </div>
       )}
@@ -524,7 +777,7 @@ const ChatPanel = () => {
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
               </svg>
-              <span>🧠 Memory active • {completedMemoryEntries.length} analyzed media file{completedMemoryEntries.length !== 1 ? 's' : ''} in context</span>
+              <span>Memory active. {completedMemoryEntries.length} analyzed media file{completedMemoryEntries.length !== 1 ? 's' : ''} in context.</span>
             </div>
             <svg
               className={`w-4 h-4 text-purple-400 transition-transform ${showMemoryDetails ? 'rotate-180' : ''}`}
@@ -584,6 +837,49 @@ const ChatPanel = () => {
         </div>
       </div>
 
+      {/* Temporary session logs */}
+      {showLogs && (
+        <div className="border-b border-border-primary bg-bg-surface/40">
+          <div className="px-4 py-2 flex items-center justify-between">
+            <div className="text-xs text-text-secondary">
+              Session Logs ({sessionLogs.length}) • Temporary (not persisted)
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCopyLogs}
+                className="text-[11px] px-2 py-1 rounded bg-bg-elevated border border-border-primary hover:bg-bg-surface text-text-secondary"
+              >
+                Copy All
+              </button>
+              <button
+                onClick={handleClearLogs}
+                className="text-[11px] px-2 py-1 rounded bg-bg-elevated border border-border-primary hover:bg-bg-surface text-text-secondary"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div className="max-h-40 overflow-y-auto px-4 pb-2 custom-scrollbar">
+            {sessionLogs.length === 0 ? (
+              <div className="text-[11px] text-text-muted py-2">No logs captured yet in this session.</div>
+            ) : (
+              sessionLogs.slice().reverse().map((entry) => (
+                <div key={entry.id} className="text-[11px] py-1 border-t border-border-primary/40 first:border-t-0">
+                  <div className="text-text-muted">
+                    {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} • {entry.role}
+                    {entry.tokenTotal ? ` • ${entry.tokenTotal}t` : ''}
+                    {entry.isError ? ' • error' : ''}
+                  </div>
+                  <div className="text-text-secondary whitespace-pre-wrap break-words line-clamp-2">
+                    {entry.content}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Context Info */}
       {clips.length > 0 && (
         <div className="px-4 py-2 bg-bg-surface/30 border-b border-border-primary">
@@ -609,7 +905,6 @@ const ChatPanel = () => {
         {pendingToolCalls && (
           <div className="mb-4 border-2 border-accent-blue rounded-lg p-4 bg-bg-secondary shadow-lg">
             <div className="flex items-start gap-3">
-              <div className="text-2xl">🤖</div>
               <div className="flex-1">
                 <h3 className="font-semibold text-text-primary mb-2">
                   AI Video Editing Plan
@@ -640,14 +935,14 @@ const ChatPanel = () => {
                   <button
                     onClick={handleExecuteTools}
                     disabled={isExecutingTools}
-                    className="px-4 py-2 bg-accent-blue text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                    className="px-3 py-1.5 text-sm bg-accent-blue text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
                   >
                     {isExecutingTools ? 'Executing...' : `Execute All (${pendingToolCalls.functionCalls.length})`}
                   </button>
                   <button
                     onClick={() => setPendingToolCalls(null)}
                     disabled={isExecutingTools}
-                    className="px-4 py-2 border border-border-primary rounded-lg hover:bg-bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="px-3 py-1.5 text-sm border border-border-primary rounded-lg hover:bg-bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Cancel
                   </button>
@@ -678,7 +973,6 @@ const ChatPanel = () => {
         {executionPlan && (
           <div className="mb-4 border-2 border-purple-500 rounded-lg p-4 bg-bg-secondary shadow-lg">
             <div className="flex items-start gap-3">
-              <div className="text-2xl">📋</div>
               <div className="flex-1">
                 <h3 className="font-semibold text-text-primary mb-2 flex items-center gap-2">
                   Complete Execution Plan
@@ -689,8 +983,87 @@ const ChatPanel = () => {
                 <p className="text-text-secondary text-sm mb-3">
                   AI has analyzed your request and planned {executionPlan.plan.operations.length} operation{executionPlan.plan.operations.length > 1 ? 's' : ''} across multiple steps:
                 </p>
+
+                {executionPlan.plan.understanding && (
+                  <div className="mb-3 bg-bg-primary border border-purple-500/25 rounded-lg p-3">
+                    <div className="text-xs text-purple-300 uppercase mb-1">Goal Understanding</div>
+                    <div className="text-sm text-text-primary mb-2">
+                      {executionPlan.plan.understanding.goal}
+                    </div>
+                    {Array.isArray(executionPlan.plan.understanding.constraints) && executionPlan.plan.understanding.constraints.length > 0 && (
+                      <div className="space-y-1">
+                        {executionPlan.plan.understanding.constraints.map((constraint: string, index: number) => (
+                          <div key={index} className="text-xs text-text-muted">
+                            • {constraint}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {executionPlan.plan.executionPolicy && (
+                      <div className="mt-2 text-[11px] text-purple-300">
+                        Execution policy: {executionPlan.plan.executionPolicy.mode} (read-only batch up to {executionPlan.plan.executionPolicy.maxReadOnlyBatchSize})
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {executionPlan.plan.validation && (
+                  <div className={`mb-3 rounded-lg border p-3 ${
+                    executionPlan.plan.validation.valid
+                      ? 'bg-green-500/10 border-green-500/20'
+                      : 'bg-orange-500/10 border-orange-500/30'
+                  }`}>
+                    <div className={`text-xs font-semibold mb-1 ${
+                      executionPlan.plan.validation.valid ? 'text-green-300' : 'text-orange-300'
+                    }`}>
+                      {executionPlan.plan.validation.valid ? 'Validation Passed' : 'Validation Needs Attention'}
+                    </div>
+                    {Array.isArray(executionPlan.plan.validation.corrections) && executionPlan.plan.validation.corrections.length > 0 && (
+                      <div className="mb-2">
+                        <div className="text-[11px] text-text-secondary mb-1">Auto-corrections</div>
+                        {executionPlan.plan.validation.corrections.map((correction: string, index: number) => (
+                          <div key={index} className="text-xs text-text-muted">• {correction}</div>
+                        ))}
+                      </div>
+                    )}
+                    {Array.isArray(executionPlan.plan.validation.issues) && executionPlan.plan.validation.issues.length > 0 && (
+                      <div>
+                        <div className="text-[11px] text-text-secondary mb-1">Issues</div>
+                        {executionPlan.plan.validation.issues.slice(0, 4).map((issue: any, index: number) => (
+                          <div key={index} className="text-xs text-orange-200">
+                            • [{issue.category}] {issue.toolName}: {issue.message}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 <div className="space-y-3 mb-4 max-h-96 overflow-y-auto custom-scrollbar">
+                  {Array.isArray(executionPlan.plan.steps) && executionPlan.plan.steps.length > 0 && (
+                    <div className="bg-bg-primary rounded-lg p-3 border border-purple-500/30">
+                      <div className="text-purple-400 font-semibold text-sm mb-2">Planned Steps</div>
+                      <div className="space-y-2">
+                        {executionPlan.plan.steps.slice(0, 8).map((step: any) => (
+                          <div key={step.order} className="text-xs text-text-secondary border border-border-primary rounded p-2">
+                            <div className="text-text-primary font-medium">
+                              {step.order}. {step.description}
+                            </div>
+                            <div className="mt-1 text-text-muted">
+                              Preconditions: {Array.isArray(step.preconditions) ? step.preconditions.join('; ') : 'n/a'}
+                            </div>
+                            <div className="text-text-muted">Expected: {step.expectedResult}</div>
+                          </div>
+                        ))}
+                        {executionPlan.plan.steps.length > 8 && (
+                          <div className="text-xs text-text-muted">
+                            +{executionPlan.plan.steps.length - 8} more step(s)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Group operations by round */}
                   {Array.from(new Set<number>(executionPlan.plan.operations.map((op: any) => op.round))).map((round) => {
                     const roundOps = executionPlan.plan.operations.filter((op: any) => op.round === round);
@@ -709,7 +1082,7 @@ const ChatPanel = () => {
                           {roundOps.map((op: any, i: number) => (
                             <div key={i} className="flex items-start gap-2 pl-2">
                               <span className="text-purple-300 text-sm mt-0.5">
-                                {op.isReadOnly ? '📖' : '✏️'}
+                                {op.isReadOnly ? 'Read' : 'Edit'}
                               </span>
                               <div className="flex-1">
                                 <div className="text-sm text-text-primary">
@@ -736,16 +1109,23 @@ const ChatPanel = () => {
                   <button
                     onClick={handleExecutePlan}
                     disabled={isExecutingTools}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors flex items-center gap-2"
+                    className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors flex items-center gap-2"
                   >
-                    {isExecutingTools ? '⏳ Executing...' : `✅ Approve & Execute All (${executionPlan.plan.operations.length})`}
+                    {isExecutingTools ? 'Executing...' : `Approve & Execute (${executionPlan.plan.operations.length})`}
+                  </button>
+                  <button
+                    onClick={handleCopyExecutionPlan}
+                    disabled={isExecutingTools}
+                    className="px-3 py-1.5 text-sm border border-border-primary rounded-lg hover:bg-bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Copy Plan
                   </button>
                   <button
                     onClick={handleRejectPlan}
                     disabled={isExecutingTools}
-                    className="px-4 py-2 border border-border-primary rounded-lg hover:bg-bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="px-3 py-1.5 text-sm border border-border-primary rounded-lg hover:bg-bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    ❌ Reject
+                    Reject
                   </button>
                 </div>
                 
@@ -767,7 +1147,7 @@ const ChatPanel = () => {
                 )}
                 
                 <div className="mt-3 text-xs text-text-muted bg-purple-500/10 rounded p-2">
-                  💡 <strong>Note:</strong> This plan was generated by analyzing all necessary steps. Operations marked with ✏️ will modify your timeline.
+                  <strong>Note:</strong> This plan was generated by analyzing all necessary steps. Operations marked with Edit will modify your timeline.
                 </div>
               </div>
             </div>
@@ -795,7 +1175,7 @@ const ChatPanel = () => {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span>🤔 Generating complete execution plan...</span>
+              <span>Generating complete execution plan...</span>
             </div>
           </div>
         )}
@@ -811,3 +1191,49 @@ const ChatPanel = () => {
 };
 
 export default ChatPanel;
+
+function isExecutionConfirmation(input: string): boolean {
+  const text = input.toLowerCase().trim();
+  return /\b(do it|go ahead|execute|apply (it|that)|proceed|make it)\b/.test(text);
+}
+
+function looksLikeEditPlan(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('step-by-step') ||
+    lower.includes('editing process') ||
+    lower.includes('execution plan') ||
+    lower.includes('timeline') ||
+    lower.includes('split') ||
+    lower.includes('clip')
+  );
+}
+
+function isAmbiguousContinuation(input: string): boolean {
+  const text = input.toLowerCase().trim();
+  return (
+    /\b(yes|ok|okay|sure|continue|next|step by step|move next)\b/.test(text) &&
+    text.length <= 60
+  );
+}
+
+function hasRecentEditingContext(
+  messages: Array<{ role: string; content: string }>
+): boolean {
+  const recent = messages.slice(-8).map((m) => m.content.toLowerCase()).join(" ");
+  return /\b(edit|timeline|clip|split|trim|merge|subtitle|caption|transcribe|youtube video|execution plan)\b/.test(recent);
+}
+
+function isReadOnlyToolCall(call: { name: string }): boolean {
+  const readOnlyTools = new Set([
+    'get_timeline_info',
+    'get_clip_details',
+    'get_subtitles',
+    'get_transcription',
+    'get_project_info',
+    'get_clip_analysis',
+    'get_all_media_analysis',
+    'search_clips_by_content',
+  ]);
+  return readOnlyTools.has(call.name);
+}

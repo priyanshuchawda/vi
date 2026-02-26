@@ -468,7 +468,7 @@ export const exportVideo = async (
               
               if (isFullClip && isCompatibleCodec) {
                 canUseStreamCopy = true;
-                console.log('✅ Using stream copy (no re-encoding needed)');
+                console.log(' Using stream copy (no re-encoding needed)');
               }
             }
             resolveCheck();

@@ -860,5 +860,8 @@ export interface ToolResult {
     message: string;
     data?: any;
     error?: string;
+    errorType?: 'plan_error' | 'validation_error' | 'execution_error' | 'media_limit' | 'tool_missing' | 'constraint_violation';
+    recoveryHint?: string;
+    adjustments?: string[];
   };
 }

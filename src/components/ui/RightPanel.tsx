@@ -55,7 +55,7 @@ const RightPanel = () => {
         className={`fixed right-4 top-1/2 -translate-y-1/2 bg-accent hover:bg-accent-hover text-white px-4 py-6 rounded-l-xl shadow-2xl transition-all flex flex-col items-center gap-2 z-50 group ${
           hasTranscriptReady ? 'animate-pulse' : ''
         }`}
-        title={hasTranscriptReady ? "✨ Transcript ready! Click to edit" : "Open Panel"}
+        title={hasTranscriptReady ? " Transcript ready! Click to edit" : "Open Panel"}
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />

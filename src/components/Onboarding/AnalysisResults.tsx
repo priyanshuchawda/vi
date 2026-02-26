@@ -54,7 +54,7 @@ export function AnalysisResults({ data, onComplete }: AnalysisResultsProps) {
         {/* Channel Summary */}
         <div className="bg-gray-700/50 rounded-lg p-4">
           <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-            <span>📊</span> Channel Overview
+            <span></span> Channel Overview
           </h3>
           <p className="text-gray-300 text-sm leading-relaxed">
             {analysis.channel_summary}
@@ -64,12 +64,12 @@ export function AnalysisResults({ data, onComplete }: AnalysisResultsProps) {
         {/* Strengths */}
         <div className="bg-gray-700/50 rounded-lg p-4">
           <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-            <span>💪</span> Content Strengths
+            <span></span> Content Strengths
           </h3>
           <ul className="space-y-2">
             {analysis.content_strengths.map((strength, idx) => (
               <li key={idx} className="text-gray-300 text-sm flex items-start gap-2">
-                <span className="text-green-500 mt-0.5">✓</span>
+                <span className="text-green-500 mt-0.5"></span>
                 <span>{strength}</span>
               </li>
             ))}
@@ -79,7 +79,7 @@ export function AnalysisResults({ data, onComplete }: AnalysisResultsProps) {
         {/* Editing Recommendations */}
         <div className="bg-gray-700/50 rounded-lg p-4">
           <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-            <span>✂️</span> Editing Style Tips
+            <span></span> Editing Style Tips
           </h3>
           <ul className="space-y-2">
             {analysis.editing_style_recommendations.map((tip, idx) => (
@@ -94,12 +94,12 @@ export function AnalysisResults({ data, onComplete }: AnalysisResultsProps) {
         {/* Growth Suggestions */}
         <div className="bg-gray-700/50 rounded-lg p-4">
           <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-            <span>📈</span> Growth Opportunities
+            <span></span> Growth Opportunities
           </h3>
           <ul className="space-y-2">
             {analysis.growth_suggestions.map((suggestion, idx) => (
               <li key={idx} className="text-gray-300 text-sm flex items-start gap-2">
-                <span className="text-purple-500 mt-0.5">★</span>
+                <span className="text-purple-500 mt-0.5"></span>
                 <span>{suggestion}</span>
               </li>
             ))}
@@ -109,7 +109,7 @@ export function AnalysisResults({ data, onComplete }: AnalysisResultsProps) {
         {/* Audience Insights */}
         <div className="bg-gray-700/50 rounded-lg p-4">
           <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-            <span>👥</span> Audience Insights
+            <span></span> Audience Insights
           </h3>
           <ul className="space-y-2">
             {analysis.audience_insights.map((insight, idx) => (
@@ -125,7 +125,7 @@ export function AnalysisResults({ data, onComplete }: AnalysisResultsProps) {
         {analysis.weaknesses.length > 0 && (
           <div className="bg-gray-700/50 rounded-lg p-4">
             <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-              <span>🎯</span> Areas to Focus On
+              <span></span> Areas to Focus On
             </h3>
             <ul className="space-y-2">
               {analysis.weaknesses.map((weakness, idx) => (

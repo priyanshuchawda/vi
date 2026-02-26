@@ -205,12 +205,12 @@ const MediaTab = () => {
           {isAnalyzing && (
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20" title={`AI is analyzing ${analyzingCount} file(s)...`}>
               <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-              <span className="text-[10px] font-medium text-purple-300">🧠 {analyzingCount}</span>
+              <span className="text-[10px] font-medium text-purple-300"> {analyzingCount}</span>
             </div>
           )}
           {!isAnalyzing && memoryEntries.filter(e => e.status === 'completed').length > 0 && (
             <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20" title={`AI has analyzed ${memoryEntries.filter(e => e.status === 'completed').length} file(s)`}>
-              <span className="text-[10px] font-medium text-emerald-300">🧠 {memoryEntries.filter(e => e.status === 'completed').length}</span>
+              <span className="text-[10px] font-medium text-emerald-300"> {memoryEntries.filter(e => e.status === 'completed').length}</span>
             </div>
           )}
         </div>
@@ -306,10 +306,10 @@ const MediaTab = () => {
                 )}
                 {/* Media type badge */}
                 <div className="absolute top-0.5 right-0.5 px-1 py-0.5 bg-bg-primary/90 rounded text-[8px] font-bold uppercase tracking-wide">
-                  {clip.mediaType === 'audio' && <span title="Audio">🎵</span>}
-                  {clip.mediaType === 'image' && <span title="Image">🖼️</span>}
-                  {clip.mediaType === 'video' && <span title="Video">🎬</span>}
-                  {clip.mediaType === 'text' && <span title="Text">📝</span>}
+                  {clip.mediaType === 'audio' && <span title="Audio"></span>}
+                  {clip.mediaType === 'image' && <span title="Image"></span>}
+                  {clip.mediaType === 'video' && <span title="Video"></span>}
+                  {clip.mediaType === 'text' && <span title="Text"></span>}
                 </div>
               </div>
 

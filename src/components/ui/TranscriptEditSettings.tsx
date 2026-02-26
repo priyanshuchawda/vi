@@ -231,7 +231,7 @@ const TranscriptEditSettings = ({ isOpen, onClose }: TranscriptEditSettingsProps
                 })}
                 className="px-3 py-2 bg-bg-surface hover:bg-bg-primary border border-border-primary rounded text-xs text-text-primary transition"
               >
-                🚀 Fast (Less processing)
+                 Fast (Less processing)
               </button>
               <button
                 onClick={() => setSettings({
@@ -245,7 +245,7 @@ const TranscriptEditSettings = ({ isOpen, onClose }: TranscriptEditSettingsProps
                 })}
                 className="px-3 py-2 bg-accent/20 hover:bg-accent/30 border border-accent/50 rounded text-xs text-accent font-semibold transition"
               >
-                ⭐ Balanced (Recommended)
+                 Balanced (Recommended)
               </button>
               <button
                 onClick={() => setSettings({
@@ -259,7 +259,7 @@ const TranscriptEditSettings = ({ isOpen, onClose }: TranscriptEditSettingsProps
                 })}
                 className="px-3 py-2 bg-bg-surface hover:bg-bg-primary border border-border-primary rounded text-xs text-text-primary transition"
               >
-                💎 Premium (Best quality)
+                 Premium (Best quality)
               </button>
             </div>
           </div>

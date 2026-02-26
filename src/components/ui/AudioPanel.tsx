@@ -124,7 +124,7 @@ const AudioPanel = () => {
         {/* Audio Tips */}
         <div className="bg-bg-secondary rounded-lg p-3 border border-border-primary">
           <h4 className="text-xs font-bold text-text-primary mb-2 flex items-center gap-2">
-            <span>💡</span>
+            <span></span>
             <span>Audio Tips</span>
           </h4>
           <ul className="space-y-1.5 text-xs text-text-muted">

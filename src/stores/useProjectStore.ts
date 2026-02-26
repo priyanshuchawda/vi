@@ -834,7 +834,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         
         if (isNoAudioError) {
           // Fall back to AI-based caption generation
-          console.log('⚠️ No audio track detected, attempting AI fallback...');
+          console.log(' No audio track detected, attempting AI fallback...');
           set({ transcriptionProgress: { status: 'Using AI for transcription...', progress: 50 } });
           
           try {
@@ -927,7 +927,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         
         if (isNoAudioError) {
           // Fall back to AI-based caption generation
-          console.log('⚠️ No audio track detected, attempting AI fallback...');
+          console.log(' No audio track detected, attempting AI fallback...');
           set({ transcriptionProgress: { status: 'Using AI for transcription...', progress: 50 } });
           
           try {

@@ -11,17 +11,17 @@ const statusColors: Record<string, string> = {
 };
 
 const statusIcons: Record<string, string> = {
-    pending: '⏳',
-    analyzing: '🔄',
-    completed: '✅',
-    failed: '❌',
+    pending: '',
+    analyzing: '',
+    completed: '',
+    failed: '',
 };
 
 const mediaIcons: Record<string, string> = {
-    video: '🎬',
-    audio: '🎵',
-    image: '🖼️',
-    document: '📄',
+    video: '',
+    audio: '',
+    image: '',
+    document: '',
 };
 
 function MemoryEntryCard({ entry }: { entry: MediaAnalysisEntry }) {
@@ -76,7 +76,7 @@ function MemoryEntryCard({ entry }: { entry: MediaAnalysisEntry }) {
                     className="text-text-muted hover:text-red-400 transition-colors text-xs p-1 flex-shrink-0"
                     title="Remove from memory"
                 >
-                    ✕
+                    
                 </button>
             </div>
 
@@ -211,7 +211,7 @@ export default function AIMemoryPanel() {
             <div className="p-4 border-b border-border-primary flex-shrink-0">
                 <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
-                        <span className="text-lg">🧠</span>
+                        <span className="text-lg"></span>
                         <h3 className="text-sm font-bold text-text-primary">AI Memory</h3>
                     </div>
                     {isAnalyzing && (
@@ -245,7 +245,7 @@ export default function AIMemoryPanel() {
                             : 'bg-bg-elevated text-text-muted hover:text-text-primary'
                             }`}
                     >
-                        ✅ {completedCount}
+                         {completedCount}
                     </button>
                     <button
                         onClick={() => setFilterStatus('pending')}
@@ -254,7 +254,7 @@ export default function AIMemoryPanel() {
                             : 'bg-bg-elevated text-text-muted hover:text-text-primary'
                             }`}
                     >
-                        ⏳ {pendingCount}
+                         {pendingCount}
                     </button>
                     <button
                         onClick={() => setFilterStatus('failed')}
@@ -263,7 +263,7 @@ export default function AIMemoryPanel() {
                             : 'bg-bg-elevated text-text-muted hover:text-text-primary'
                             }`}
                     >
-                        ❌ {failedCount}
+                         {failedCount}
                     </button>
                 </div>
             </div>
@@ -272,7 +272,7 @@ export default function AIMemoryPanel() {
             <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
                 {filteredEntries.length === 0 ? (
                     <div className="text-center text-text-muted text-sm mt-10">
-                        <div className="text-3xl mb-2">🧠</div>
+                        <div className="text-3xl mb-2"></div>
                         <p className="mb-1">
                             {entries.length === 0
                                 ? 'No media analyzed yet'
@@ -298,7 +298,7 @@ export default function AIMemoryPanel() {
                         onClick={clearMemory}
                         className="w-full text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 py-2 rounded transition-colors font-medium"
                     >
-                        🗑️ Clear All Memory
+                         Clear All Memory
                     </button>
                     <p className="text-[10px] text-text-muted/60 text-center mt-2">
                         Memory will be saved when you save the project

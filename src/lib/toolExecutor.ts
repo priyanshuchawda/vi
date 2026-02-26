@@ -1,6 +1,37 @@
 import { useProjectStore } from "../stores/useProjectStore";
 import { useAiMemoryStore } from "../stores/useAiMemoryStore";
 import type { FunctionCall, ToolResult } from "./videoEditingTools";
+import { isReadOnlyTool } from "./toolCapabilityMatrix";
+
+type ToolErrorCategory =
+  | "plan_error"
+  | "validation_error"
+  | "execution_error"
+  | "media_limit"
+  | "tool_missing"
+  | "constraint_violation";
+
+interface ValidationResult {
+  valid: boolean;
+  error?: string;
+  errorType?: ToolErrorCategory;
+  recoveryHint?: string;
+  adjustments?: string[];
+}
+
+interface PreflightIssue {
+  index: number;
+  name: string;
+  message: string;
+  errorType: ToolErrorCategory;
+  recoveryHint?: string;
+}
+
+interface ExecutionPolicy {
+  mode?: "strict_sequential" | "hybrid";
+  maxReadOnlyBatchSize?: number;
+  stopOnFailure?: boolean;
+}
 
 /**
  * Tool Executor - Maps AI function calls to actual video editing operations
@@ -10,12 +41,89 @@ import type { FunctionCall, ToolResult } from "./videoEditingTools";
  */
 export class ToolExecutor {
   /**
-   * Validate a function call before execution
+   * Normalize clip bounds to valid source ranges.
+   * This prevents hard failures when AI asks to extend beyond source media.
    */
-  private static validateFunctionCall(call: FunctionCall): {
+  private static normalizeClipBounds(
+    clip: any,
+    newStart?: number,
+    newEnd?: number,
+  ): {
     valid: boolean;
     error?: string;
+    start: number;
+    end: number;
+    adjusted: boolean;
+    adjustmentNotes: string[];
   } {
+    const notes: string[] = [];
+    let start = newStart !== undefined ? Number(newStart) : Number(clip.start);
+    let end = newEnd !== undefined ? Number(newEnd) : Number(clip.end);
+    const max = Number(clip.sourceDuration);
+
+    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+      return {
+        valid: false,
+        error: "new_start/new_end must be finite numbers",
+        start: clip.start,
+        end: clip.end,
+        adjusted: false,
+        adjustmentNotes: [],
+      };
+    }
+
+    // Clamp to valid source range
+    if (start < 0) {
+      notes.push(`new_start ${start.toFixed(1)}s clamped to 0.0s`);
+      start = 0;
+    }
+    if (start > max) {
+      notes.push(`new_start ${start.toFixed(1)}s clamped to ${max.toFixed(1)}s`);
+      start = max;
+    }
+    if (end < 0) {
+      notes.push(`new_end ${end.toFixed(1)}s clamped to 0.0s`);
+      end = 0;
+    }
+    if (end > max) {
+      notes.push(`new_end ${end.toFixed(1)}s clamped to ${max.toFixed(1)}s`);
+      end = max;
+    }
+
+    // Ensure strictly positive duration after clamping.
+    if (start >= end) {
+      const epsilon = 0.1;
+      if (newStart !== undefined && newEnd === undefined) {
+        end = Math.min(max, start + epsilon);
+        notes.push(`new_end auto-adjusted to ${end.toFixed(1)}s to keep positive duration`);
+      } else if (newEnd !== undefined && newStart === undefined) {
+        start = Math.max(0, end - epsilon);
+        notes.push(`new_start auto-adjusted to ${start.toFixed(1)}s to keep positive duration`);
+      } else {
+        return {
+          valid: false,
+          error: "Resulting clip bounds are invalid after normalization (start must be less than end)",
+          start,
+          end,
+          adjusted: notes.length > 0,
+          adjustmentNotes: notes,
+        };
+      }
+    }
+
+    return {
+      valid: true,
+      start,
+      end,
+      adjusted: notes.length > 0,
+      adjustmentNotes: notes,
+    };
+  }
+
+  /**
+   * Validate a function call before execution
+   */
+  private static validateFunctionCall(call: FunctionCall): ValidationResult {
     const state = useProjectStore.getState();
 
     switch (call.name) {
@@ -187,13 +295,20 @@ export class ToolExecutor {
       case "set_playhead_position": {
         const { time } = call.args;
         if (time < 0) {
-          return { valid: false, error: "Time cannot be negative" };
+          return {
+            valid: false,
+            error: "Time cannot be negative",
+            errorType: "constraint_violation",
+            recoveryHint: "Use time >= 0.",
+          };
         }
         const totalDuration = state.getTotalDuration();
         if (time > totalDuration) {
           return {
             valid: false,
             error: `Time ${time.toFixed(1)}s exceeds timeline duration ${totalDuration.toFixed(1)}s`,
+            errorType: "constraint_violation",
+            recoveryHint: `Use a time between 0 and ${totalDuration.toFixed(1)}s.`,
           };
         }
         return { valid: true };
@@ -203,32 +318,30 @@ export class ToolExecutor {
         const { clip_id, new_start, new_end } = call.args;
         const clip = state.clips.find((c) => c.id === clip_id);
         if (!clip)
-          return { valid: false, error: `Clip with ID "${clip_id}" not found` };
+          return {
+            valid: false,
+            error: `Clip with ID "${clip_id}" not found`,
+            errorType: "validation_error",
+            recoveryHint: "Call get_timeline_info first and use a valid clip_id.",
+          };
 
-        if (new_start !== undefined) {
-          if (new_start < 0 || new_start >= clip.sourceDuration) {
-            return {
-              valid: false,
-              error: `new_start must be between 0 and ${clip.sourceDuration.toFixed(1)}s`,
-            };
-          }
+        const normalized = this.normalizeClipBounds(clip, new_start, new_end);
+        if (!normalized.valid) {
+          return {
+            valid: false,
+            error: normalized.error,
+            errorType: "constraint_violation",
+            recoveryHint: "Adjust new_start/new_end to a valid source range.",
+          };
         }
-        if (new_end !== undefined) {
-          if (new_end <= 0 || new_end > clip.sourceDuration) {
-            return {
-              valid: false,
-              error: `new_end must be between 0 and ${clip.sourceDuration.toFixed(1)}s`,
-            };
-          }
-        }
-        if (
-          new_start !== undefined &&
-          new_end !== undefined &&
-          new_start >= new_end
-        ) {
-          return { valid: false, error: "new_start must be less than new_end" };
-        }
-        return { valid: true };
+
+        // Mutate call args to normalized values so execution uses safe bounds.
+        call.args.new_start = normalized.start;
+        call.args.new_end = normalized.end;
+        return {
+          valid: true,
+          adjustments: normalized.adjustmentNotes,
+        };
       }
 
       case "get_clip_details": {
@@ -414,7 +527,12 @@ export class ToolExecutor {
       }
 
       default:
-        return { valid: false, error: `Unknown function: ${call.name}` };
+        return {
+          valid: false,
+          error: `Unknown function: ${call.name}`,
+          errorType: "tool_missing",
+          recoveryHint: "Use only supported tools from toolConfig.",
+        };
     }
   }
 
@@ -651,27 +769,31 @@ export class ToolExecutor {
           const clip = store.clips.find((c) => c.id === clip_id);
           if (!clip) throw new Error(`Clip ${clip_id} not found`);
 
-          const updates: Partial<typeof clip> = {};
-
-          if (new_start !== undefined) {
-            updates.start = new_start;
+          const normalized = this.normalizeClipBounds(clip, new_start, new_end);
+          if (!normalized.valid) {
+            throw new Error(
+              normalized.error ||
+                `Failed to normalize clip bounds for "${clip.name}"`,
+            );
           }
-          if (new_end !== undefined) {
-            updates.end = new_end;
-          }
 
-          // Recalculate duration
-          const finalStart = new_start !== undefined ? new_start : clip.start;
-          const finalEnd = new_end !== undefined ? new_end : clip.end;
-          updates.duration = finalEnd - finalStart;
+          const updates: Partial<typeof clip> = {
+            start: normalized.start,
+            end: normalized.end,
+            duration: normalized.end - normalized.start,
+          };
 
           store.updateClip(clip_id, updates);
+
+          const adjustmentSuffix = normalized.adjusted
+            ? ` (auto-adjusted: ${normalized.adjustmentNotes.join("; ")})`
+            : "";
 
           return {
             name: call.name,
             result: {
               success: true,
-              message: `Updated bounds for "${clip.name}" (duration: ${updates.duration?.toFixed(1)}s)`,
+              message: `Updated bounds for "${clip.name}" (duration: ${updates.duration?.toFixed(1)}s)${adjustmentSuffix}`,
             },
           };
         }
@@ -1197,6 +1319,8 @@ export class ToolExecutor {
                 success: false,
                 message:
                   "No transcription or media analysis available. Please transcribe the timeline first.",
+                errorType: "constraint_violation",
+                recoveryHint: "Run transcribe_timeline or import analyzed media, then retry.",
               },
             };
           }
@@ -1225,6 +1349,8 @@ export class ToolExecutor {
                 success: false,
                 message:
                   "Could not generate chapters — transcript too short or no content breaks found.",
+                errorType: "execution_error",
+                recoveryHint: "Try a smaller min_chapter_duration or transcribe richer content first.",
               },
             };
           }
@@ -1236,7 +1362,7 @@ export class ToolExecutor {
               index: existingSubs.length + i + 1,
               startTime: ch.time,
               endTime: ch.time + 3,
-              text: `📌 ${ch.title}`,
+              text: `Chapter: ${ch.title}`,
             }));
             store.setSubtitles([...existingSubs, ...newSubs]);
           } else {
@@ -1250,7 +1376,7 @@ export class ToolExecutor {
                 duration: 3,
                 sourceDuration: 3,
                 textProperties: {
-                  text: `📌 ${ch.title}`,
+                  text: `Chapter: ${ch.title}`,
                   fontSize: 28,
                   color: "#FFFFFF",
                   position: "top",
@@ -1281,9 +1407,171 @@ export class ToolExecutor {
           success: false,
           message: "Execution failed",
           error: error instanceof Error ? error.message : "Unknown error",
+          errorType: "execution_error",
+          recoveryHint: "Inspect tool arguments and current timeline state, then retry.",
         },
       };
     }
+  }
+
+  private static buildValidationFailureResult(
+    call: FunctionCall,
+    validation: ValidationResult,
+  ): ToolResult {
+    return {
+      name: call.name,
+      result: {
+        success: false,
+        message: "Validation failed",
+        error: validation.error,
+        errorType: validation.errorType || "validation_error",
+        recoveryHint:
+          validation.recoveryHint ||
+          "Re-check IDs, required args, and numeric ranges before retrying.",
+        adjustments: validation.adjustments,
+      },
+    };
+  }
+
+  static preflightPlan(calls: FunctionCall[]): {
+    valid: boolean;
+    normalizedCalls: FunctionCall[];
+    corrections: string[];
+    issues: PreflightIssue[];
+  } {
+    const normalizedCalls: FunctionCall[] = [];
+    const corrections: string[] = [];
+    const issues: PreflightIssue[] = [];
+
+    for (const [index, original] of calls.entries()) {
+      const call: FunctionCall = {
+        name: original.name,
+        args: { ...(original.args || {}) },
+        id: original.id,
+      };
+      const validation = this.validateFunctionCall(call);
+
+      if (!validation.valid) {
+        issues.push({
+          index,
+          name: call.name,
+          message: validation.error || "Validation failed",
+          errorType: validation.errorType || "validation_error",
+          recoveryHint: validation.recoveryHint,
+        });
+      }
+
+      if (validation.adjustments && validation.adjustments.length > 0) {
+        corrections.push(
+          `${call.name}: ${validation.adjustments.join("; ")}`,
+        );
+      }
+
+      normalizedCalls.push(call);
+    }
+
+    return {
+      valid: issues.length === 0,
+      normalizedCalls,
+      corrections,
+      issues,
+    };
+  }
+
+  static async executeWithPolicy(
+    calls: FunctionCall[],
+    policy: ExecutionPolicy = {},
+    onProgress?: (index: number, total: number, result: ToolResult) => void,
+  ): Promise<ToolResult[]> {
+    const mode = policy.mode || "strict_sequential";
+    const maxReadOnlyBatchSize = Math.max(
+      1,
+      Math.min(3, policy.maxReadOnlyBatchSize || 3),
+    );
+    const stopOnFailure = policy.stopOnFailure ?? true;
+
+    if (mode !== "hybrid") {
+      return this.executeAll(calls, onProgress);
+    }
+
+    const results: ToolResult[] = [];
+    let completed = 0;
+    let i = 0;
+
+    while (i < calls.length) {
+      const current = calls[i];
+
+      if (!isReadOnlyTool(current.name)) {
+        const validation = this.validateFunctionCall(current);
+        if (!validation.valid) {
+          const failed = this.buildValidationFailureResult(current, validation);
+          results.push(failed);
+          completed++;
+          onProgress?.(completed, calls.length, failed);
+          if (stopOnFailure) break;
+          i++;
+          continue;
+        }
+
+        const result = this.executeSingle(current);
+        results.push(result);
+        completed++;
+        onProgress?.(completed, calls.length, result);
+        if (stopOnFailure && !result.result.success) break;
+        i++;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        continue;
+      }
+
+      const batch: FunctionCall[] = [current];
+      let cursor = i + 1;
+      while (
+        cursor < calls.length &&
+        isReadOnlyTool(calls[cursor].name) &&
+        batch.length < maxReadOnlyBatchSize
+      ) {
+        batch.push(calls[cursor]);
+        cursor++;
+      }
+
+      const validationFailures: ToolResult[] = [];
+      for (const call of batch) {
+        const validation = this.validateFunctionCall(call);
+        if (!validation.valid) {
+          validationFailures.push(
+            this.buildValidationFailureResult(call, validation),
+          );
+        }
+      }
+      if (validationFailures.length > 0) {
+        for (const failed of validationFailures) {
+          results.push(failed);
+          completed++;
+          onProgress?.(completed, calls.length, failed);
+        }
+        if (stopOnFailure) break;
+        i = cursor;
+        continue;
+      }
+
+      const batchResults = await Promise.all(
+        batch.map(async (call) => this.executeSingle(call)),
+      );
+
+      for (const result of batchResults) {
+        results.push(result);
+        completed++;
+        onProgress?.(completed, calls.length, result);
+      }
+      if (stopOnFailure && batchResults.some((result) => !result.result.success)) {
+        break;
+      }
+
+      i = cursor;
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    }
+
+    return results;
   }
 
   /**
@@ -1301,17 +1589,10 @@ export class ToolExecutor {
       // Validate first
       const validation = this.validateFunctionCall(call);
       if (!validation.valid) {
-        const result: ToolResult = {
-          name: call.name,
-          result: {
-            success: false,
-            message: "Validation failed",
-            error: validation.error,
-          },
-        };
+        const result = this.buildValidationFailureResult(call, validation);
         results.push(result);
         onProgress?.(i + 1, calls.length, result);
-        continue;
+        break;
       }
 
       // Execute
@@ -1320,6 +1601,11 @@ export class ToolExecutor {
 
       // Progress callback
       onProgress?.(i + 1, calls.length, result);
+
+      // Enforce step-by-step safety: stop immediately on first failed execution.
+      if (!result.result.success) {
+        break;
+      }
 
       // Small delay for UI updates
       await new Promise((resolve) => setTimeout(resolve, 50));

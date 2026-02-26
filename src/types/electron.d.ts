@@ -90,7 +90,7 @@ export interface ElectronAPI {
   memoryLoad: (projectId?: string) => Promise<{ success: boolean; data?: any; error?: string }>;
   memorySaveMarkdown: (entry: any, projectId?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
   memoryGetDir: () => Promise<{ dir: string; index: string; analyses: string }>;
-  // 🧪 Testing mode - load existing memory
+  //  Testing mode - load existing memory
   invoke: (channel: string, ...args: any[]) => Promise<any>;
 }
 

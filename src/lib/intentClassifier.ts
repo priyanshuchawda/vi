@@ -68,6 +68,10 @@ const EDIT_PATTERNS = [
   /\bclip\s*\d+\b/i, // "clip 1", "clip 2"
   /\btrack\s*\d+\b/i, // "track 0", "track 1"
   /\b\d+%\s*(volume|loud|quiet)\b/i, // "50% volume"
+  /\b(make|create|build)\s+(a\s+)?(youtube\s+)?video\b/i, // "make a youtube video"
+  /\bstep\s*by\s*step\b/i, // "step by step"
+  /\bmove\s+next\b/i, // "move next"
+  /\bnext\s+step\b/i, // "next step"
 ];
 
 // Chat-only indicators — even if edit keywords appear, these override
@@ -76,6 +80,12 @@ const CHAT_OVERRIDE_PATTERNS = [
   /\b(what is|what are|how does|how do|explain|tell me about|can you describe)\b/i,
   /\b(recommend|suggest|tip|advice|best practice|tutorial)\b/i,
   /\b(why|when should|difference between)\b/i,
+];
+
+// Short execution confirmations that should trigger editing flow
+const EXECUTION_CONFIRM_PATTERNS = [
+  /\b(do it|go ahead|execute|apply (it|that)|proceed|make it)\b/i,
+  /\bstart editing\b/i,
 ];
 
 /**
@@ -88,6 +98,14 @@ const CHAT_OVERRIDE_PATTERNS = [
  */
 export function classifyIntent(message: string): MessageIntent {
   const lower = message.toLowerCase().trim();
+
+  // If user explicitly asks to execute/apply, route to edit.
+  // This handles short follow-ups like "ok do it".
+  for (const pattern of EXECUTION_CONFIRM_PATTERNS) {
+    if (pattern.test(lower)) {
+      return "edit";
+    }
+  }
 
   // Short greetings are always chat
   if (lower.length < 15) {

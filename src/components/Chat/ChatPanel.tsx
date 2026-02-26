@@ -1,0 +1,813 @@
+import { useEffect, useRef, useState } from 'react';
+import { useChatStore } from '../../stores/useChatStore';
+import { useProjectStore } from '../../stores/useProjectStore';
+import { useOnboardingStore } from '../../stores/useOnboardingStore';
+import { useAiMemoryStore } from '../../stores/useAiMemoryStore';
+import ChatMessage from './ChatMessage';
+import ChatInput from './ChatInput';
+import TypingIndicator from './TypingIndicator';
+import { TokenCounter } from './TokenCounter';
+import type { MediaAttachment } from '../../types/chat';
+
+const ChatPanel = () => {
+  const { isOpen, messages, isTyping, togglePanel, addMessage, updateLastMessage, updateMessageTokens, clearChat, setIsTyping, autoExecute, toggleAutoExecute } = useChatStore();
+  const { clips, currentTime } = useProjectStore();
+  const { analysisData } = useOnboardingStore();
+  const { entries } = useAiMemoryStore();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [showMemoryDetails, setShowMemoryDetails] = useState(false);
+
+  // Tool calling state
+  const [pendingToolCalls, setPendingToolCalls] = useState<{
+    functionCalls: any[];
+    modelContent: any;
+    history: any[];
+  } | null>(null);
+  const [isExecutingTools, setIsExecutingTools] = useState(false);
+  const [toolExecutionProgress, setToolExecutionProgress] = useState<{
+    current: number;
+    total: number;
+    message: string;
+  } | null>(null);
+
+  // Planning state
+  const [executionPlan, setExecutionPlan] = useState<{
+    plan: any;
+    originalMessage: string;
+    history: any[];
+  } | null>(null);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+
+  // Get memory stats
+  const completedMemoryEntries = entries.filter(e => e.status === 'completed');
+  const hasMemory = completedMemoryEntries.length > 0;
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isTyping, uploadStatus]);
+
+  // Update context when clips or time changes
+  useEffect(() => {
+    // Context will be used when AI is integrated
+  }, [clips, currentTime]);
+
+  const handleSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
+    // Add user message with attachments
+    addMessage('user', content, undefined, attachments);
+    setIsTyping(true);
+    setUploadStatus(null);
+
+    try {
+      // Import intent classifier (zero-cost, local)
+      const { classifyIntent, detectContextNeeds } = await import('../../lib/intentClassifier');
+      const intent = classifyIntent(content);
+      const contextFlags = detectContextNeeds(content, intent);
+
+      console.log(`🧠 Intent: ${intent} | Context: T=${contextFlags.includeTimeline} M=${contextFlags.includeMemory} C=${contextFlags.includeChannel}`);
+
+      // Import services
+      const { convertToAIHistory } = await import('../../lib/aiService');
+
+      // Convert chat history to Bedrock format (exclude system messages)
+      const aiHistory = convertToAIHistory(
+        messages.filter(m => m.role !== 'system')
+      );
+
+      // ── EDIT INTENT: Use planning pipeline ──────────────────────────
+      if (intent === 'edit') {
+        setIsGeneratingPlan(true);
+        const { generateCompletePlan } = await import('../../lib/aiPlanningService');
+
+        addMessage('assistant', '🤔 Analyzing your request and generating execution plan...');
+        
+        const plan = await generateCompletePlan(content, aiHistory, 5);
+
+        setIsGeneratingPlan(false);
+
+        if (plan.operations.length > 0) {
+          // Remove the "analyzing" message
+          const currentMessages = useChatStore.getState().messages;
+          useChatStore.setState({
+            messages: currentMessages.slice(0, -1)
+          });
+
+          // Auto-execute if enabled
+          if (autoExecute) {
+            addMessage('assistant', `⚡ Auto-executing ${plan.operations.length} operation${plan.operations.length > 1 ? 's' : ''}...`);
+            
+            try {
+              const { executePlan } = await import('../../lib/aiPlanningService');
+              
+              const finalResponse = await executePlan(
+                plan,
+                aiHistory,
+                content,
+                (current, total, operation) => {
+                  setToolExecutionProgress({
+                    current,
+                    total,
+                    message: operation.description
+                  });
+                }
+              );
+              
+              setToolExecutionProgress(null);
+              
+              const msgs = useChatStore.getState().messages;
+              useChatStore.setState({
+                messages: msgs.slice(0, -1)
+              });
+              addMessage('assistant', finalResponse);
+            } catch (error) {
+              console.error('Auto-execution error:', error);
+              let errorMessage = '⚠️ Error during auto-execution:\n\n';
+              if (error instanceof Error) {
+                errorMessage += error.message;
+              } else {
+                errorMessage += 'Unknown error occurred';
+              }
+              addMessage('assistant', errorMessage, { error: true });
+            } finally {
+              setIsTyping(false);
+              setToolExecutionProgress(null);
+            }
+            return;
+          }
+
+          // Show for approval if auto-execute is disabled
+          setExecutionPlan({
+            plan,
+            originalMessage: content,
+            history: aiHistory,
+          });
+          setIsTyping(false);
+          return;
+        }
+
+        // Plan returned no operations — fall through to chat response
+        const currentMessages = useChatStore.getState().messages;
+        useChatStore.setState({
+          messages: currentMessages.slice(0, -1)
+        });
+      }
+
+      // ── CHAT INTENT: Direct text response (no planning, no tools) ──
+      const { sendMessageWithHistoryStream } = await import('../../lib/aiService');
+      
+      let fullResponse = '';
+      let isFirstChunk = true;
+      let currentMessageId = '';
+
+      // For chat intent: skip tools + selective context = huge token savings
+      const streamOptions = intent === 'chat'
+        ? { includeTools: false, contextFlags }
+        : { includeTools: true, contextFlags };
+
+      for await (const chunk of sendMessageWithHistoryStream(content, aiHistory, attachments, streamOptions)) {
+        if (chunk.type === 'upload_progress' && chunk.uploadProgress) {
+          setUploadStatus(`Uploading ${chunk.uploadProgress.fileName}...`);
+        } else if (chunk.type === 'tool_plan') {
+          // Shouldn't happen for chat intent, but handle it
+          setUploadStatus(null);
+          setPendingToolCalls({
+            functionCalls: chunk.functionCalls || [],
+            modelContent: chunk.modelContent,
+            history: aiHistory,
+          });
+          setIsTyping(false);
+          return;
+        } else if (chunk.type === 'text' && chunk.text) {
+          setUploadStatus(null);
+          fullResponse += chunk.text;
+
+          if (isFirstChunk) {
+            addMessage('assistant', fullResponse);
+            const lastMessage = useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
+            currentMessageId = lastMessage.id;
+            isFirstChunk = false;
+          } else {
+            updateLastMessage(fullResponse);
+          }
+        } else if (chunk.type === 'metadata' && chunk.tokens) {
+          if (currentMessageId) {
+            updateMessageTokens(currentMessageId, chunk.tokens);
+          }
+        }
+      }
+
+    } catch (error) {
+      console.error('Error communicating with AI:', error);
+      let errorMessage = '⚠️ Error: ';
+
+      if (error instanceof Error) {
+        if (error.message.includes('credentials') || error.message.includes('API key')) {
+          errorMessage += 'Please configure your AWS credentials in the .env file.';
+        } else if (error.message.includes('too large')) {
+          errorMessage += 'The file is too large. Try a smaller file or compress it first.';
+        } else {
+          errorMessage += error.message;
+        }
+      } else {
+        errorMessage += 'Failed to communicate with AI.';
+      }
+
+      addMessage('assistant', errorMessage, { error: true });
+    } finally {
+      setIsTyping(false);
+      setIsGeneratingPlan(false);
+      setUploadStatus(null);
+    }
+  };
+
+  const handleClearChat = () => {
+    if (confirm('Clear all chat messages?')) {
+      clearChat();
+    }
+  };
+
+  const handleExecutePlan = async () => {
+    if (!executionPlan) return;
+    
+    setIsExecutingTools(true);
+    setIsTyping(true);
+    
+    try {
+      const { executePlan } = await import('../../lib/aiPlanningService');
+      
+      // Execute the complete plan
+      const finalResponse = await executePlan(
+        executionPlan.plan,
+        executionPlan.history,
+        executionPlan.originalMessage,
+        (current, total, operation) => {
+          setToolExecutionProgress({
+            current,
+            total,
+            message: operation.description
+          });
+        }
+      );
+      
+      // Clear progress
+      setToolExecutionProgress(null);
+      
+      // Add final response
+      addMessage('assistant', finalResponse);
+      
+    } catch (error) {
+      console.error('Plan execution error:', error);
+      
+      let errorMessage = '⚠️ Error executing plan:\n\n';
+      if (error instanceof Error) {
+        // If error contains multiple operation failures, format them nicely
+        if (error.message.includes('Some operations failed:')) {
+          errorMessage = '⚠️ Some operations failed:\n\n' + 
+            error.message.replace('Some operations failed:\n', '');
+        } else {
+          errorMessage += error.message;
+        }
+      } else {
+        errorMessage += 'Unknown error occurred';
+      }
+      
+      addMessage('assistant', errorMessage, { error: true });
+    } finally {
+      setIsExecutingTools(false);
+      setIsTyping(false);
+      setExecutionPlan(null);
+    }
+  };
+
+  const handleRejectPlan = () => {
+    addMessage('assistant', '❌ Execution plan rejected. How else can I help you?');
+    setExecutionPlan(null);
+  };
+
+  const handleExecuteTools = async () => {
+    if (!pendingToolCalls) return;
+    
+    setIsExecutingTools(true);
+    setIsTyping(true);
+    
+    try {
+      // Import ToolExecutor
+      const { ToolExecutor } = await import('../../lib/toolExecutor');
+      
+      // Execute all tools with progress
+      const results = await ToolExecutor.executeAll(
+        pendingToolCalls.functionCalls,
+        (current, total, result) => {
+          setToolExecutionProgress({
+            current,
+            total,
+            message: result.result.message
+          });
+        }
+      );
+      
+      // Clear progress
+      setToolExecutionProgress(null);
+      
+      // Send results back to AI for final response
+      const { sendToolResultsToAI } = await import('../../lib/aiService');
+      
+      let fullResponse = '';
+      let isFirstChunk = true;
+      let currentMessageId = '';
+      
+      for await (const chunk of sendToolResultsToAI(
+        pendingToolCalls.history,
+        pendingToolCalls.modelContent,
+        results
+      )) {
+        if (chunk.type === 'text' && chunk.text) {
+          fullResponse += chunk.text;
+          if (isFirstChunk) {
+            addMessage('assistant', fullResponse);
+            const lastMessage = useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
+            currentMessageId = lastMessage.id;
+            isFirstChunk = false;
+          } else {
+            updateLastMessage(fullResponse);
+          }
+        } else if (chunk.type === 'metadata' && chunk.tokens) {
+          if (currentMessageId) {
+            updateMessageTokens(currentMessageId, chunk.tokens);
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error('Tool execution error:', error);
+      addMessage('assistant', '⚠️ Error executing operations: ' + (error as Error).message, { error: true });
+    } finally {
+      setIsExecutingTools(false);
+      setIsTyping(false);
+      setPendingToolCalls(null);
+    }
+  };
+
+  const getToolDescription = (call: { name: string; args: any }): string => {
+    const state = useProjectStore.getState();
+    
+    switch (call.name) {
+      case 'split_clip': {
+        const clip = state.clips.find(c => c.id === call.args.clip_id);
+        return `Split "${clip?.name || 'clip'}" at ${call.args.time_in_clip}s`;
+      }
+      case 'set_clip_volume': {
+        const clipCount = call.args.clip_ids.includes('all') 
+          ? state.clips.length 
+          : call.args.clip_ids.length;
+        const volumePct = Math.round(call.args.volume * 100);
+        return `Set volume to ${volumePct}% for ${clipCount} clip(s)`;
+      }
+      case 'delete_clips': {
+        const clipNames = call.args.clip_ids.map((id: string) => 
+          state.clips.find(c => c.id === id)?.name || id
+        ).join(', ');
+        return `Delete: ${clipNames}`;
+      }
+      case 'move_clip': {
+        const clip = state.clips.find(c => c.id === call.args.clip_id);
+        return `Move "${clip?.name || 'clip'}" to ${call.args.start_time}s`;
+      }
+      case 'merge_clips': {
+        const clipNames = call.args.clip_ids.map((id: string) => 
+          state.clips.find(c => c.id === id)?.name || id
+        ).join(', ');
+        return `Merge: ${clipNames}`;
+      }
+      case 'toggle_clip_mute': {
+        return `Toggle mute for ${call.args.clip_ids.length} clip(s)`;
+      }
+      case 'select_clips': {
+        const count = call.args.clip_ids.includes('all') ? state.clips.length : call.args.clip_ids.length;
+        return `Select ${count} clip(s)`;
+      }
+      case 'copy_clips': {
+        return `Copy ${call.args.clip_ids.length} clip(s)`;
+      }
+      case 'paste_clips': {
+        return `Paste clips from clipboard`;
+      }
+      case 'undo_action': {
+        return `Undo last action`;
+      }
+      case 'redo_action': {
+        return `Redo last action`;
+      }
+      case 'set_playhead_position': {
+        return `Move playhead to ${call.args.time}s`;
+      }
+      case 'update_clip_bounds': {
+        const clip = state.clips.find(c => c.id === call.args.clip_id);
+        return `Trim "${clip?.name || 'clip'}"`;
+      }
+      case 'get_clip_details': {
+        const clip = state.clips.find(c => c.id === call.args.clip_id);
+        return `Get details for "${clip?.name || 'clip'}"`;
+      }
+      case 'get_timeline_info': {
+        return `Get timeline information`;
+      }
+      default:
+        return `Execute ${call.name}`;
+    }
+  };
+
+  // Toggle button when closed
+  if (!isOpen) {
+    return (
+      <button
+        onClick={togglePanel}
+        className="fixed left-4 top-1/2 -translate-y-1/2 bg-accent hover:bg-accent-hover text-white p-3 rounded-r-xl shadow-2xl transition-all z-50 group"
+        title="Open AI Chat (Ctrl+K)"
+      >
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+      </button>
+    );
+  }
+
+  return (
+    <div className="fixed left-0 top-0 bottom-0 w-80 bg-bg-elevated border-r border-border-primary flex flex-col z-40 shadow-2xl animate-slide-in">
+      {/* Header */}
+      <div className="border-b border-border-primary p-4 flex items-center justify-between bg-bg-secondary">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-accent/10 rounded-lg">
+            <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-text-primary">AI Assistant</h2>
+            <p className="text-[10px] text-text-muted">Powered by AI 2.5 • Multimodal</p>
+          </div>
+          <TokenCounter />
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={toggleAutoExecute}
+            className={`p-2 rounded transition ${autoExecute ? 'text-green-400 bg-green-500/10 hover:bg-green-500/20' : 'text-text-muted hover:text-text-primary hover:bg-bg-surface'}`}
+            title={autoExecute ? "Auto-execute enabled (operations run automatically)" : "Auto-execute disabled (requires approval)"}
+          >
+            {autoExecute ? (
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            )}
+          </button>
+          <button
+            onClick={handleClearChat}
+            className="p-2 text-text-muted hover:text-text-primary hover:bg-bg-surface rounded transition"
+            title="Clear chat"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+          <button
+            onClick={togglePanel}
+            className="p-2 text-text-muted hover:text-text-primary hover:bg-bg-surface rounded transition"
+            title="Close panel (Ctrl+K)"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Auto-Execute Mode Banner */}
+      {autoExecute && (
+        <div className="px-4 py-2 bg-green-500/10 border-b border-green-500/20">
+          <div className="flex items-center gap-2 text-xs text-green-400">
+            <svg className="w-3.5 h-3.5 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+            </svg>
+            <span>⚡ Auto-execute enabled • Operations will run automatically without approval</span>
+          </div>
+        </div>
+      )}
+
+      {/* Channel Analysis Context Banner */}
+      {analysisData && (
+        <div className="px-4 py-2 bg-blue-500/10 border-b border-blue-500/20">
+          <div className="flex items-center gap-2 text-xs text-blue-400">
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3h.5a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-.5a1.5 1.5 0 00-3 0v.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1h-.5a1.5 1.5 0 010-3H4a1 1 0 001-1V6a1 1 0 011-1h3a1 1 0 001-1v-.5z" />
+            </svg>
+            <span>Channel insights loaded • AI has context about {analysisData.channel.title}</span>
+          </div>
+        </div>
+      )}
+
+      {/* AI Memory Context Banner */}
+      {hasMemory && (
+        <div className="bg-purple-500/10 border-b border-purple-500/20">
+          <button
+            onClick={() => setShowMemoryDetails(!showMemoryDetails)}
+            className="w-full px-4 py-2 flex items-center justify-between hover:bg-purple-500/5 transition-colors"
+          >
+            <div className="flex items-center gap-2 text-xs text-purple-400">
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+              </svg>
+              <span>🧠 Memory active • {completedMemoryEntries.length} analyzed media file{completedMemoryEntries.length !== 1 ? 's' : ''} in context</span>
+            </div>
+            <svg
+              className={`w-4 h-4 text-purple-400 transition-transform ${showMemoryDetails ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {/* Memory Details Dropdown */}
+          {showMemoryDetails && (
+            <div className="px-4 pb-3 space-y-1.5 max-h-48 overflow-y-auto">
+              {completedMemoryEntries.map((entry, idx) => (
+                <div key={entry.id} className="text-[11px] bg-purple-500/5 border border-purple-500/10 rounded p-2">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-purple-300 font-semibold">{idx + 1}.</span>
+                    <span className="text-purple-200 truncate flex-1">{entry.fileName}</span>
+                    <span className="text-purple-400/60 text-[9px] uppercase">{entry.mediaType}</span>
+                  </div>
+                  <p className="text-purple-300/80 text-[10px] line-clamp-2">{entry.summary}</p>
+                  {entry.tags && entry.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {entry.tags.slice(0, 5).map((tag, i) => (
+                        <span key={i} className="text-[8px] px-1 py-0.5 bg-purple-500/20 text-purple-300 rounded">
+                          {tag}
+                        </span>
+                      ))}
+                      {entry.tags.length > 5 && (
+                        <span className="text-[8px] text-purple-400/60">+{entry.tags.length - 5}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Multimodal capability banner */}
+      <div className="px-4 py-1.5 bg-gradient-to-r from-emerald-500/5 via-purple-500/5 to-amber-500/5 border-b border-border-primary/50">
+        <div className="flex items-center gap-2 text-[10px] text-text-muted/60">
+          <span className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/60"></span>Images
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-400/60"></span>Videos
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400/60"></span>Audio
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400/60"></span>PDFs
+          </span>
+        </div>
+      </div>
+
+      {/* Context Info */}
+      {clips.length > 0 && (
+        <div className="px-4 py-2 bg-bg-surface/30 border-b border-border-primary">
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <span>{clips.length} clip{clips.length !== 1 ? 's' : ''} in project</span>
+          </div>
+        </div>
+      )}
+
+      {/* Messages */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar bg-bg-primary"
+      >
+        {messages.map((message) => (
+          <ChatMessage key={message.id} message={message} />
+        ))}
+
+        {/* Tool Approval UI */}
+        {pendingToolCalls && (
+          <div className="mb-4 border-2 border-accent-blue rounded-lg p-4 bg-bg-secondary shadow-lg">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">🤖</div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-text-primary mb-2">
+                  AI Video Editing Plan
+                </h3>
+                <p className="text-text-secondary text-sm mb-3">
+                  AI suggests the following operations:
+                </p>
+                
+                <div className="space-y-2 mb-4 max-h-64 overflow-y-auto custom-scrollbar">
+                  {pendingToolCalls.functionCalls.map((call, i) => (
+                    <div key={i} className="bg-bg-primary rounded p-3 border border-border-primary">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-accent-blue font-semibold text-sm">
+                          {i + 1}. {call.name.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <div className="text-xs text-text-muted font-mono bg-bg-surface rounded p-2 mb-2 overflow-x-auto">
+                        {JSON.stringify(call.args, null, 2)}
+                      </div>
+                      <div className="text-sm text-text-secondary">
+                        {getToolDescription(call)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleExecuteTools}
+                    disabled={isExecutingTools}
+                    className="px-4 py-2 bg-accent-blue text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                  >
+                    {isExecutingTools ? 'Executing...' : `Execute All (${pendingToolCalls.functionCalls.length})`}
+                  </button>
+                  <button
+                    onClick={() => setPendingToolCalls(null)}
+                    disabled={isExecutingTools}
+                    className="px-4 py-2 border border-border-primary rounded-lg hover:bg-bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                
+                {toolExecutionProgress && (
+                  <div className="mt-3">
+                    <div className="text-sm text-text-secondary mb-1">
+                      Progress: {toolExecutionProgress.current} / {toolExecutionProgress.total}
+                    </div>
+                    <div className="w-full bg-bg-primary rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-accent-blue h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${(toolExecutionProgress.current / toolExecutionProgress.total) * 100}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-text-muted mt-1">
+                      {toolExecutionProgress.message}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Execution Plan UI - New queuing system */}
+        {executionPlan && (
+          <div className="mb-4 border-2 border-purple-500 rounded-lg p-4 bg-bg-secondary shadow-lg">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">📋</div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-text-primary mb-2 flex items-center gap-2">
+                  Complete Execution Plan
+                  <span className="text-xs font-normal text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded">
+                    {executionPlan.plan.totalRounds} round{executionPlan.plan.totalRounds > 1 ? 's' : ''}
+                  </span>
+                </h3>
+                <p className="text-text-secondary text-sm mb-3">
+                  AI has analyzed your request and planned {executionPlan.plan.operations.length} operation{executionPlan.plan.operations.length > 1 ? 's' : ''} across multiple steps:
+                </p>
+                
+                <div className="space-y-3 mb-4 max-h-96 overflow-y-auto custom-scrollbar">
+                  {/* Group operations by round */}
+                  {Array.from(new Set<number>(executionPlan.plan.operations.map((op: any) => op.round))).map((round) => {
+                    const roundOps = executionPlan.plan.operations.filter((op: any) => op.round === round);
+                    return (
+                      <div key={round} className="bg-bg-primary rounded-lg p-3 border border-purple-500/30">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-purple-400 font-semibold text-sm">
+                            Round {round}
+                          </span>
+                          <span className="text-xs text-text-muted">
+                            ({roundOps.length} operation{roundOps.length > 1 ? 's' : ''})
+                          </span>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {roundOps.map((op: any, i: number) => (
+                            <div key={i} className="flex items-start gap-2 pl-2">
+                              <span className="text-purple-300 text-sm mt-0.5">
+                                {op.isReadOnly ? '📖' : '✏️'}
+                              </span>
+                              <div className="flex-1">
+                                <div className="text-sm text-text-primary">
+                                  {op.description}
+                                </div>
+                                <div className="text-xs text-text-muted font-mono mt-1">
+                                  {op.functionCall.name}
+                                </div>
+                              </div>
+                              {!op.isReadOnly && (
+                                <span className="text-xs bg-orange-500/20 text-orange-300 px-1.5 py-0.5 rounded">
+                                  Modifies
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleExecutePlan}
+                    disabled={isExecutingTools}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors flex items-center gap-2"
+                  >
+                    {isExecutingTools ? '⏳ Executing...' : `✅ Approve & Execute All (${executionPlan.plan.operations.length})`}
+                  </button>
+                  <button
+                    onClick={handleRejectPlan}
+                    disabled={isExecutingTools}
+                    className="px-4 py-2 border border-border-primary rounded-lg hover:bg-bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    ❌ Reject
+                  </button>
+                </div>
+                
+                {toolExecutionProgress && (
+                  <div className="mt-3">
+                    <div className="text-sm text-text-secondary mb-1 flex items-center justify-between">
+                      <span>Executing: {toolExecutionProgress.message}</span>
+                      <span className="text-purple-400 font-mono">
+                        {toolExecutionProgress.current} / {toolExecutionProgress.total}
+                      </span>
+                    </div>
+                    <div className="w-full bg-bg-primary rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${(toolExecutionProgress.current / toolExecutionProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                <div className="mt-3 text-xs text-text-muted bg-purple-500/10 rounded p-2">
+                  💡 <strong>Note:</strong> This plan was generated by analyzing all necessary steps. Operations marked with ✏️ will modify your timeline.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upload status */}
+        {uploadStatus && (
+          <div className="flex justify-start mb-4">
+            <div className="flex items-center gap-2 px-4 py-2 bg-bg-surface border border-border-primary rounded-2xl rounded-tl-sm text-xs text-text-muted">
+              <svg className="w-4 h-4 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>{uploadStatus}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Plan generation status */}
+        {isGeneratingPlan && !executionPlan && (
+          <div className="flex justify-start mb-4">
+            <div className="flex items-center gap-2 px-4 py-2 bg-purple-500/10 border border-purple-500/30 rounded-2xl rounded-tl-sm text-xs text-purple-300">
+              <svg className="w-4 h-4 animate-spin text-purple-400" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>🤔 Generating complete execution plan...</span>
+            </div>
+          </div>
+        )}
+
+        {isTyping && <TypingIndicator />}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <ChatInput onSendMessage={handleSendMessage} disabled={isTyping} />
+    </div>
+  );
+};
+
+export default ChatPanel;

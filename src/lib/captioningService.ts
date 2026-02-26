@@ -16,6 +16,7 @@ import { recordUsage } from "./tokenTracker";
 
 // Access Electron API for local transcription
 const electron = (window as any).electron;
+const MAX_INLINE_VIDEO_BYTES = 25 * 1024 * 1024;
 
 /**
  * Schema for a single caption segment
@@ -70,8 +71,8 @@ export async function generateCaptions(
   mimeType: string,
   options: CaptionOptions = {},
 ): Promise<Transcription> {
-  console.log("🎬 Starting caption generation...");
-  console.log("📍 Step 1: Attempting local Vosk transcription (free)");
+  console.log(" Starting caption generation...");
+  console.log(" Step 1: Attempting local Vosk transcription (free)");
 
   try {
     // Step 1: Get raw transcription from local Vosk model
@@ -86,10 +87,10 @@ export async function generateCaptions(
     }
 
     console.log(
-      `✅ Local transcription complete: ${localTranscription.segments.length} segments`,
+      ` Local transcription complete: ${localTranscription.segments.length} segments`,
     );
     console.log(
-      `📍 Step 2: AI refinement (correcting errors, adding punctuation)`,
+      ` Step 2: AI refinement (correcting errors, adding punctuation)`,
     );
 
     // Step 2: Use Bedrock to refine the transcription
@@ -98,11 +99,11 @@ export async function generateCaptions(
       options,
     );
 
-    console.log("✅ Captions generated and refined successfully");
+    console.log(" Captions generated and refined successfully");
 
     return refinedTranscription;
   } catch (localError: any) {
-    console.warn("⚠️ Local transcription failed:", localError.message);
+    console.warn(" Local transcription failed:", localError.message);
 
     const isNoAudioError =
       localError.message?.includes("does not contain an audio track") ||
@@ -111,10 +112,10 @@ export async function generateCaptions(
 
     if (isNoAudioError) {
       console.log(
-        "📍 Video has no audio track. Falling back to AI direct transcription...",
+        " Video has no audio track. Falling back to AI direct transcription...",
       );
     } else {
-      console.log("📍 Falling back to direct AI transcription...");
+      console.log(" Falling back to direct AI transcription...");
     }
 
     // Fallback: Use Bedrock to transcribe directly from video
@@ -132,7 +133,7 @@ async function refineTranscriptionWithBedrock(
 ): Promise<Transcription> {
   if (!isBedrockConfigured()) {
     console.warn(
-      "⚠️ Bedrock not configured - using local transcription without refinement",
+      " Bedrock not configured - using local transcription without refinement",
     );
     return convertLocalToTranscription(localTranscription);
   }
@@ -190,7 +191,7 @@ Your task:
           text: "You are a transcription refinement AI. You MUST respond with ONLY valid JSON — no markdown, no extra text.",
         },
       ],
-      inferenceConfig: { maxTokens: 4096, temperature: 0.3 },
+      inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
     }),
   );
 
@@ -400,7 +401,7 @@ async function generateCaptionsWithBedrockDirect(
 
     if (entry && entry.status === "completed" && entry.analysis) {
       console.log(
-        "💰 Using cached memory analysis for captioning (saving video bytes!)",
+        " Using cached memory analysis for captioning (saving video bytes!)",
       );
 
       // Build a text-only prompt with cached analysis
@@ -441,7 +442,7 @@ Requirements:
               text: "You are a professional transcription AI. You MUST respond with ONLY valid JSON.",
             },
           ],
-          inferenceConfig: { maxTokens: 4096, temperature: 0.3 },
+          inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
         }),
       );
 
@@ -464,21 +465,21 @@ Requirements:
         const parsed = JSON.parse(cleaned);
         const result = TranscriptionSchema.parse(parsed);
         console.log(
-          "✅ Captions generated from cached analysis (no video bytes sent!)",
+          " Captions generated from cached analysis (no video bytes sent!)",
         );
         return result;
       }
     }
   } catch (cacheError) {
     console.warn(
-      "⚠️ Cache-first captioning failed, falling back to video bytes:",
+      " Cache-first captioning failed, falling back to video bytes:",
       cacheError,
     );
   }
 
   // ── FALLBACK: Send video bytes directly (expensive) ──────────────
   console.log(
-    "🤖 Using Bedrock direct video transcription (no cache available)...",
+    " Using Bedrock direct video transcription (no cache available)...",
   );
 
   // Read video file as base64 via Electron
@@ -490,10 +491,9 @@ Requirements:
   const bytes = base64ToUint8Array(base64Data);
   const format = getMediaFormat(mimeType);
 
-  // Warn if > 25MB
-  if (bytes.length > 25 * 1024 * 1024) {
-    console.warn(
-      `⚠️ Video is ${(bytes.length / 1024 / 1024).toFixed(1)}MB — exceeds 25MB inline limit. May fail.`,
+  if (bytes.length > MAX_INLINE_VIDEO_BYTES) {
+    throw new Error(
+      `Video is ${(bytes.length / 1024 / 1024).toFixed(1)}MB, which exceeds Nova Lite's 25MB inline limit. Trim the clip or use local transcription first.`,
     );
   }
 
@@ -541,7 +541,7 @@ Requirements:
           text: "You are a professional transcription AI. You MUST respond with ONLY valid JSON.",
         },
       ],
-      inferenceConfig: { maxTokens: 4096, temperature: 0.3 },
+      inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
     }),
   );
 
@@ -569,6 +569,6 @@ Requirements:
   const parsed = JSON.parse(cleaned);
   const result = TranscriptionSchema.parse(parsed);
 
-  console.log("✅ Bedrock direct transcription complete");
+  console.log(" Bedrock direct transcription complete");
   return result;
 }

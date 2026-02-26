@@ -209,7 +209,7 @@ export async function withRetryOn429<T>(fn: () => Promise<T>): Promise<T> {
 
     const waitMs = parseThrottlingRetryMs(err);
     console.warn(
-      `⏳ Bedrock throttled — waiting ${Math.round(waitMs / 1000)}s before retry...`,
+      ` Bedrock throttled — waiting ${Math.round(waitMs / 1000)}s before retry...`,
     );
     _timestamps = [];
     saveTimestamps(_timestamps);

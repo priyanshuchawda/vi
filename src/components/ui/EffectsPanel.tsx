@@ -124,7 +124,7 @@ const EffectsPanel = () => {
 
             {/* CSS Preview hint */}
             <div className="mb-4 p-2 rounded bg-bg-secondary border border-border-primary text-xs text-text-muted">
-              <span className="text-accent font-bold">ℹ</span> Effects applied on export via FFmpeg <code className="text-text-primary">eq</code> filter.
+              <span className="text-accent font-bold"></span> Effects applied on export via FFmpeg <code className="text-text-primary">eq</code> filter.
             </div>
 
             <button

@@ -104,7 +104,11 @@ const SidebarNav = ({ activeTab, onTabChange }: SidebarNavProps) => {
 
   return (
     <div className="flex flex-col border-b border-border-primary bg-bg-secondary">
-      <div className="flex">
+      <div
+        className="flex overflow-x-auto custom-scrollbar"
+        role="tablist"
+        aria-label="File panel tabs"
+      >
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
           return (
@@ -112,7 +116,7 @@ const SidebarNav = ({ activeTab, onTabChange }: SidebarNavProps) => {
               key={item.id}
               onClick={() => onTabChange(item.id)}
               className={`
-                flex-1 flex flex-col items-center justify-center py-3 px-2 gap-1.5
+                flex-none min-w-[66px] flex flex-col items-center justify-center py-2 px-1 gap-1
                 transition-all duration-200 relative group
                 ${isActive
                   ? 'text-accent bg-accent/10'
@@ -127,7 +131,7 @@ const SidebarNav = ({ activeTab, onTabChange }: SidebarNavProps) => {
               </div>
 
               {/* Label */}
-              <span className={`text-[10px] font-bold tracking-wider ${isActive ? 'text-accent' : ''}`}>
+              <span className={`text-[9px] font-bold tracking-wider ${isActive ? 'text-accent' : ''}`}>
                 {item.label}
               </span>
 

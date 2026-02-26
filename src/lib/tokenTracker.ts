@@ -111,7 +111,7 @@ export function recordUsage(metadata: {
   daily.requests += 1;
   saveDailyRecord(daily);
 
-  console.log(`💰 Token usage: ${input} in, ${output} out (total: ${total})`);
+  console.log(` Token usage: ${input} in, ${output} out (total: ${total})`);
 }
 
 /** Get this session's cumulative token usage (since page load) */

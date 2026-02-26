@@ -120,7 +120,7 @@ export const useAiMemoryStore = create<AiMemoryStore>()(
             // Note: Memory is saved only when user saves the project
             const entry = get().entries.find((e) => e.id === id);
             if (entry) {
-                console.log(`[Memory Store] ✅ Analysis completed for "${entry.fileName}" (will be saved with project)`);
+                console.log(`[Memory Store]  Analysis completed for "${entry.fileName}" (will be saved with project)`);
             }
         },
 
@@ -177,7 +177,7 @@ export const useAiMemoryStore = create<AiMemoryStore>()(
             contextStr += `${context.projectSummary}\n\n`;
 
             for (const entry of context.entries) {
-                contextStr += `📁 File: "${entry.fileName}" (${entry.mediaType})\n`;
+                contextStr += ` File: "${entry.fileName}" (${entry.mediaType})\n`;
                 if (entry.duration) contextStr += `   Duration: ${entry.duration.toFixed(1)}s\n`;
                 contextStr += `   Summary: ${entry.summary}\n`;
                 if (entry.tags.length > 0) contextStr += `   Tags: ${entry.tags.join(', ')}\n`;
@@ -229,8 +229,8 @@ export const useAiMemoryStore = create<AiMemoryStore>()(
         setAnalyzingCount: (count) => set({ analyzingCount: count }),
 
         clearMemory: () => {
-            // 🧪 TESTING MODE - Never clear memory
-            console.log('[Memory Store] 🧪 TESTING MODE: Memory clear disabled - keeping existing memory');
+            //  TESTING MODE - Never clear memory
+            console.log('[Memory Store]  TESTING MODE: Memory clear disabled - keeping existing memory');
             return; // Don't clear
             
             /* Original code - disabled for testing
@@ -239,7 +239,7 @@ export const useAiMemoryStore = create<AiMemoryStore>()(
                 isAnalyzing: false,
                 analyzingCount: 0,
             });
-            console.log('[Memory Store] 🧹 Memory cleared (project not saved)');
+            console.log('[Memory Store]  Memory cleared (project not saved)');
             */
         },
 
@@ -268,7 +268,7 @@ export const useAiMemoryStore = create<AiMemoryStore>()(
                 entries,
                 isLoaded: true,
             });
-            console.log(`[Memory Store] ✅ Imported ${entries.length} entries from project file`);
+            console.log(`[Memory Store]  Imported ${entries.length} entries from project file`);
         },
 
         // Sync memory with current project state
@@ -278,7 +278,7 @@ export const useAiMemoryStore = create<AiMemoryStore>()(
             // If no clips in project, clear all memory
             if (clipIds.length === 0) {
                 if (currentEntries.length > 0) {
-                    console.log('[Memory Store] 🧹 No clips in project - clearing memory');
+                    console.log('[Memory Store]  No clips in project - clearing memory');
                     set({ entries: [] });
                 }
                 return;
@@ -291,7 +291,7 @@ export const useAiMemoryStore = create<AiMemoryStore>()(
             });
             
             if (validEntries.length !== currentEntries.length) {
-                console.log(`[Memory Store] 🧹 Removed ${currentEntries.length - validEntries.length} orphaned entries`);
+                console.log(`[Memory Store]  Removed ${currentEntries.length - validEntries.length} orphaned entries`);
                 set({ entries: validEntries });
             }
         },

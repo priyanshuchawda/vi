@@ -33,6 +33,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   memoryLoad: (projectId?: string) => ipcRenderer.invoke('memory:load', projectId),
   memorySaveMarkdown: (entry: any, projectId?: string) => ipcRenderer.invoke('memory:saveAnalysisMarkdown', entry, projectId),
   memoryGetDir: () => ipcRenderer.invoke('memory:getDir'),
-  // 🧪 Generic invoke for testing mode
+  //  Generic invoke for testing mode
   invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
 });

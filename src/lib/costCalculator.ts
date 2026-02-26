@@ -195,7 +195,7 @@ export function getCostBreakdown(
   const cost = calculateCost(model, tokens);
   const pricing = PRICING[model] || PRICING["amazon.nova-lite-v1:0"];
   const lines = [
-    "💰 Cost Breakdown:",
+    " Cost Breakdown:",
     `   Input tokens: ${formatTokens(tokens.input)} = ${formatCost((tokens.input / 1_000_000) * pricing.input)}`,
     `   Output tokens: ${formatTokens(tokens.output)} = ${formatCost((tokens.output / 1_000_000) * pricing.output)}`,
     `   Total cost: ${formatCost(cost)}`,

@@ -80,7 +80,7 @@ export function YouTubeChannelStep({ onSubmit, onSkip, error }: YouTubeChannelSt
           )}
           {error && (
             <p className="mt-2 text-sm text-red-400">
-              ⚠️ {error}
+               {error}
             </p>
           )}
         </div>
@@ -97,7 +97,7 @@ export function YouTubeChannelStep({ onSubmit, onSkip, error }: YouTubeChannelSt
 
         {/* Benefits */}
         <div className="bg-gray-700/50 rounded-lg p-4 space-y-2">
-          <p className="text-sm font-medium text-gray-300">✨ What you'll get:</p>
+          <p className="text-sm font-medium text-gray-300"> What you'll get:</p>
           <ul className="text-sm text-gray-400 space-y-1">
             <li>• AI-powered content analysis</li>
             <li>• Personalized editing style recommendations</li>

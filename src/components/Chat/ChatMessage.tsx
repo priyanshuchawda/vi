@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ChatMessage as ChatMessageType, MediaAttachment } from '../../types/chat';
 import { formatFileSize } from '../../types/chat';
 
@@ -72,6 +73,7 @@ const MediaPreview = ({ attachment }: { attachment: MediaAttachment }) => {
 };
 
 const ChatMessage = ({ message }: ChatMessageProps) => {
+  const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
   const isError = message.metadata?.error === true;
@@ -86,6 +88,16 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
       return `${(tokens / 1_000).toFixed(1)}K`;
     }
     return tokens.toString();
+  };
+
+  const copyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // Ignore clipboard failures silently; this is a convenience action.
+    }
   };
 
   if (isSystem) {
@@ -126,6 +138,14 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
 
         {/* Timestamp and Token Badge */}
         <div className="flex items-center gap-2 mt-1 px-2">
+          <button
+            onClick={copyMessage}
+            className="text-[10px] text-text-muted opacity-0 group-hover:opacity-100 hover:text-text-primary transition-opacity"
+            title="Copy message"
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+
           <span className="text-[10px] text-text-muted opacity-0 group-hover:opacity-100 transition-opacity">
             {formatTime(message.timestamp)}
           </span>
@@ -133,7 +153,7 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
           {/* Attachment count badge */}
           {message.attachments && message.attachments.length > 0 && (
             <span className="text-[10px] text-text-muted bg-bg-surface/50 px-1.5 py-0.5 rounded">
-              📎 {message.attachments.length}
+              Files: {message.attachments.length}
             </span>
           )}
 
@@ -141,7 +161,7 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
           {!isUser && !isSystem && message.tokens && (
             <div className="relative group/tokens">
               <span className="text-[10px] text-gray-400 font-mono bg-gray-800/50 px-1.5 py-0.5 rounded cursor-help">
-                🔢 {formatTokens(message.tokens.totalTokens)}
+                Tokens: {formatTokens(message.tokens.totalTokens)}
               </span>
 
               {/* Token Tooltip */}

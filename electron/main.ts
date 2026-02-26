@@ -26,11 +26,11 @@ const BEDROCK_MODEL_ID =
   process.env.BEDROCK_MODEL_ID || "amazon.nova-lite-v1:0";
 
 console.log("[Main] API Keys loaded:");
-console.log(`  - YouTube API Key: ${YOUTUBE_API_KEY ? "✓ Set" : "✗ Missing"}`);
+console.log(`  - YouTube API Key: ${YOUTUBE_API_KEY ? "Set" : "Missing"}`);
 console.log(`  - AWS Region: ${AWS_REGION}`);
-console.log(`  - AWS Access Key: ${AWS_ACCESS_KEY_ID ? "✓ Set" : "✗ Missing"}`);
+console.log(`  - AWS Access Key: ${AWS_ACCESS_KEY_ID ? "Set" : "Missing"}`);
 console.log(
-  `  - AWS Secret Key: ${AWS_SECRET_ACCESS_KEY ? "✓ Set" : "✗ Missing"}`,
+  `  - AWS Secret Key: ${AWS_SECRET_ACCESS_KEY ? "Set" : "Missing"}`,
 );
 
 // Initialize analysis service
@@ -505,10 +505,10 @@ ipcMain.handle("memory:load", async (_, projectId?: string) => {
   }
 });
 
-// 🧪 TESTING MODE - Read all memory files from a directory
+//  TESTING MODE - Read all memory files from a directory
 ipcMain.handle("read-memory-files", async (_, memoryDir: string) => {
   try {
-    console.log(`🧪 [TESTING MODE] Reading memory from ${memoryDir}...`);
+    console.log(` [TESTING MODE] Reading memory from ${memoryDir}...`);
 
     // Try to read the default project memory first
     const defaultPath = path.join(memoryDir, "default", "memory.json");
@@ -517,12 +517,12 @@ ipcMain.handle("read-memory-files", async (_, memoryDir: string) => {
       const data = await fs.readFile(defaultPath, "utf-8");
       const parsed = JSON.parse(data);
       console.log(
-        `✅ [TESTING MODE] Loaded ${parsed.entries?.length || 0} entries from ${defaultPath}`,
+        ` [TESTING MODE] Loaded ${parsed.entries?.length || 0} entries from ${defaultPath}`,
       );
       return { success: true, entries: parsed.entries || [] };
     } catch (err: any) {
       if (err.code === "ENOENT") {
-        console.log(`ℹ️ [TESTING MODE] No memory.json found in ${defaultPath}`);
+        console.log(` [TESTING MODE] No memory.json found in ${defaultPath}`);
         return { success: true, entries: [] };
       }
       throw err;

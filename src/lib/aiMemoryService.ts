@@ -251,7 +251,7 @@ function sleep(ms: number): Promise<void> {
  */
 async function analyzeFile(task: AnalysisTask): Promise<void> {
   if (!isBedrockConfigured()) {
-    console.error("❌ [AI Memory] Bedrock client not configured!");
+    console.error(" [AI Memory] Bedrock client not configured!");
     useAiMemoryStore
       .getState()
       .updateStatus(
@@ -266,7 +266,7 @@ async function analyzeFile(task: AnalysisTask): Promise<void> {
   store.updateStatus(task.entryId, "analyzing");
 
   console.log(
-    `🚀 [AI Memory] Starting analysis for "${task.fileName}" (${(task.fileSize / 1024 / 1024).toFixed(2)} MB)`,
+    ` [AI Memory] Starting analysis for "${task.fileName}" (${(task.fileSize / 1024 / 1024).toFixed(2)} MB)`,
   );
 
   const MAX_RETRIES = 3;
@@ -307,17 +307,24 @@ async function analyzeFile(task: AnalysisTask): Promise<void> {
         // Videos: inline bytes (< 25MB recommended)
         if (task.fileSize > MAX_INLINE_SIZE) {
           console.warn(
-            `⚠️ Video "${task.fileName}" is ${(task.fileSize / 1024 / 1024).toFixed(1)}MB — exceeds 25MB inline limit. Consider clipping.`,
+            ` Video "${task.fileName}" is ${(task.fileSize / 1024 / 1024).toFixed(1)}MB — exceeds 25MB inline limit. Using metadata-only analysis.`,
           );
-        }
-
-        const base64Data = await readFileAsBase64(task.filePath);
-        if (base64Data) {
-          const bytes = base64ToUint8Array(base64Data);
-          const format = getMediaFormat(task.mimeType);
           content.push({
-            video: { format, source: { bytes } },
+            text: `Large video metadata:
+- Name: ${task.fileName}
+- Size: ${(task.fileSize / 1024 / 1024).toFixed(1)}MB
+- Duration: ${task.duration?.toFixed(2) ?? "unknown"}s
+Provide conservative analysis and explicitly mention limited confidence due to missing inline video bytes.`,
           });
+        } else {
+          const base64Data = await readFileAsBase64(task.filePath);
+          if (base64Data) {
+            const bytes = base64ToUint8Array(base64Data);
+            const format = getMediaFormat(task.mimeType);
+            content.push({
+              video: { format, source: { bytes } },
+            });
+          }
         }
       } else if (task.mediaType === "audio") {
         // Audio: Nova Lite doesn't support audio inline
@@ -339,7 +346,7 @@ async function analyzeFile(task: AnalysisTask): Promise<void> {
       // If no media parts were added, do metadata-only analysis
       if (content.length === 0) {
         console.log(
-          `📝 No file data available for "${task.fileName}", performing metadata-only analysis`,
+          ` No file data available for "${task.fileName}", performing metadata-only analysis`,
         );
       }
 
@@ -347,7 +354,7 @@ async function analyzeFile(task: AnalysisTask): Promise<void> {
       content.push({ text: prompt });
 
       console.log(
-        `🧠 Analyzing ${task.mediaType}: "${task.fileName}" (attempt ${attempt}/${MAX_RETRIES})...`,
+        ` Analyzing ${task.mediaType}: "${task.fileName}" (attempt ${attempt}/${MAX_RETRIES})...`,
       );
 
       // Use shared rate limiter
@@ -381,7 +388,7 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
             },
           ],
           system: [{ text: systemPrompt }],
-          inferenceConfig: { maxTokens: 4096, temperature: 0.3 },
+          inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
         }),
       );
 
@@ -416,7 +423,7 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
       );
 
       console.log(
-        `✅ Analysis complete for "${task.fileName}": ${parsed.summary}`,
+        ` Analysis complete for "${task.fileName}": ${parsed.summary}`,
       );
       return; // Success — exit retry loop
     } catch (error) {
@@ -437,7 +444,7 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
           Math.min(1000 * Math.pow(2, attempt - 1), 10000) +
           Math.random() * 1000;
         console.warn(
-          `⚠️ Retryable error for "${task.fileName}" (attempt ${attempt}/${MAX_RETRIES}), retrying in ${(backoffMs / 1000).toFixed(1)}s...`,
+          ` Retryable error for "${task.fileName}" (attempt ${attempt}/${MAX_RETRIES}), retrying in ${(backoffMs / 1000).toFixed(1)}s...`,
           errorMsg,
         );
         await sleep(backoffMs);
@@ -445,7 +452,7 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
       }
 
       console.error(
-        `❌ Analysis failed for "${task.fileName}" after ${attempt} attempt(s):`,
+        ` Analysis failed for "${task.fileName}" after ${attempt} attempt(s):`,
         error,
       );
       store.updateStatus(task.entryId, "failed", errorMsg);
@@ -495,7 +502,7 @@ async function processQueue(): Promise<void> {
     // Wait between analyses to avoid rate limits
     if (analysisQueue.length > 0) {
       console.log(
-        `⏳ [Rate limit] Waiting 5s before next analysis (${analysisQueue.length} remaining)...`,
+        ` [Rate limit] Waiting 5s before next analysis (${analysisQueue.length} remaining)...`,
       );
       await sleep(5000);
     }
@@ -523,7 +530,7 @@ export function queueMediaAnalysis(params: {
   // Check if this file has already been analyzed
   const existing = store.getEntryByFilePath(params.filePath);
   if (existing && existing.status === "completed") {
-    console.log(`ℹ️ "${params.fileName}" already analyzed, skipping`);
+    console.log(` "${params.fileName}" already analyzed, skipping`);
     if (params.clipId && !existing.clipId) {
       store.linkClipId(existing.id, params.clipId);
     }
@@ -579,7 +586,7 @@ export function queueMediaAnalysis(params: {
   });
 
   console.log(
-    `📋 Queued "${params.fileName}" for AI analysis (${analysisQueue.length} in queue)`,
+    ` Queued "${params.fileName}" for AI analysis (${analysisQueue.length} in queue)`,
   );
 
   processQueue();

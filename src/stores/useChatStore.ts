@@ -16,6 +16,7 @@ interface ChatStore {
   };
   currentProjectId: string | null;
   autoExecute: boolean;
+  panelWidth: number;
 
   addMessage: (role: 'user' | 'assistant', content: string, metadata?: ChatMessage['metadata'], attachments?: MediaAttachment[]) => void;
   updateLastMessage: (content: string) => void;
@@ -30,6 +31,15 @@ interface ChatStore {
   exportChatForProject: () => { messages: ChatMessage[]; sessionTokens: ChatStore['sessionTokens'] };
   clearChatForNewProject: () => void;
   toggleAutoExecute: () => void;
+  setPanelWidth: (width: number) => void;
+}
+
+const MIN_PANEL_WIDTH = 280;
+const MAX_PANEL_WIDTH = 520;
+
+function clampPanelWidth(width: number): number {
+  if (!Number.isFinite(width)) return 320;
+  return Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, Math.round(width)));
 }
 
 export const useChatStore = create<ChatStore>()(
@@ -39,7 +49,7 @@ export const useChatStore = create<ChatStore>()(
         {
           id: uuidv4(),
           role: 'system',
-          content: '👋 Welcome to QuickCut AI Assistant powered by Amazon Bedrock! Ask me anything about video editing, or attach images, videos, audio, and PDFs for AI analysis. I remember all your imported media! 🧠',
+          content: 'Welcome to QuickCut AI Assistant powered by Amazon Bedrock. Ask about video editing, or attach images, videos, audio, and PDFs for AI analysis.',
           timestamp: Date.now(),
         }
       ],
@@ -54,6 +64,7 @@ export const useChatStore = create<ChatStore>()(
       },
       currentProjectId: null,
       autoExecute: false,
+      panelWidth: 320,
 
       addMessage: (role, content, metadata, attachments) => set((state) => ({
         messages: [...state.messages, {
@@ -100,7 +111,7 @@ export const useChatStore = create<ChatStore>()(
         messages: [{
           id: uuidv4(),
           role: 'system',
-          content: '🗑️ Chat cleared. How can I help you with your video project? I still remember your imported media! 🧠 Attach more files for AI analysis!',
+          content: 'Chat cleared. How can I help with your video project? Attach files for AI analysis.',
           timestamp: Date.now(),
         }],
         sessionTokens: {
@@ -170,7 +181,7 @@ export const useChatStore = create<ChatStore>()(
           messages: [{
             id: uuidv4(),
             role: 'system',
-            content: '👋 Welcome to QuickCut AI Assistant powered by Amazon Bedrock! Ask me anything about video editing, or attach images, videos, audio, and PDFs for AI analysis. I remember all your imported media! 🧠',
+            content: 'Welcome to QuickCut AI Assistant powered by Amazon Bedrock. Ask about video editing, or attach images, videos, audio, and PDFs for AI analysis.',
             timestamp: Date.now(),
           }],
           sessionTokens: {
@@ -184,6 +195,8 @@ export const useChatStore = create<ChatStore>()(
       },
 
       toggleAutoExecute: () => set((state) => ({ autoExecute: !state.autoExecute })),
+
+      setPanelWidth: (width) => set({ panelWidth: clampPanelWidth(width) }),
     }),
     {
       name: 'quickcut-chat-storage',
@@ -201,6 +214,7 @@ export const useChatStore = create<ChatStore>()(
         sessionTokens: state.sessionTokens,
         currentProjectId: state.currentProjectId,
         autoExecute: state.autoExecute,
+        panelWidth: state.panelWidth,
       }),
     }
   )

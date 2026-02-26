@@ -14,7 +14,6 @@
 import { ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import { bedrockClient, MODEL_ID, isBedrockConfigured } from "./bedrockClient";
 import type { MediaAttachment } from "../types/chat";
-import { getMemoryForChat } from "./aiMemoryService";
 import type { ContextFlags } from "./intentClassifier";
 import { useProjectStore } from "../stores/useProjectStore";
 import { allVideoEditingTools } from "./videoEditingTools";
@@ -26,6 +25,18 @@ import {
 } from "./contextManager";
 import { waitForSlot } from "./rateLimiter";
 import { recordUsage, getSessionPromptTokens } from "./tokenTracker";
+import {
+  buildAIProjectSnapshot,
+  formatSnapshotForPrompt,
+  type SnapshotScope,
+} from "./aiProjectSnapshot";
+import { getSupportedToolNames } from "./toolCapabilityMatrix";
+
+const INLINE_MEDIA_LIMIT_BYTES = 25 * 1024 * 1024;
+const CHAT_MAX_TOKENS = 1024;
+const TOOL_CHAT_MAX_TOKENS = 1536;
+const HISTORY_TOOL_RESULT_MAX_TOKENS = 1024;
+const MAX_DYNAMIC_CONTEXT_CHARS = 5000;
 
 // ─── Message Types (Bedrock Converse API format) ──────────────────────────────
 
@@ -41,7 +52,7 @@ export interface AIChatMessage {
  * STATIC System Instruction
  * Sent as `system: [{ text }]` in every ConverseCommand.
  */
-const STATIC_SYSTEM_INSTRUCTION = `<role>
+const STATIC_SYSTEM_INSTRUCTION_WITH_TOOLS = `<role>
 You are a helpful AI assistant integrated into QuickCut, a professional video editing application.
 You are precise, knowledgeable, and focused on helping users with their video editing projects.
 </role>
@@ -62,6 +73,9 @@ You are precise, knowledgeable, and focused on helping users with their video ed
 - Verbosity: Medium (balanced between concise and comprehensive)
 - Tone: Friendly and professional
 - Focus: Video editing workflow and creative assistance
+- Never claim edits were completed unless tool results explicitly confirm success
+- Never invent commands, APIs, or tool names; use only tools actually provided in toolConfig
+- If user asks to execute but required details are missing, ask one concise clarification
 </constraints>
 
 <video-editing-tools>
@@ -101,6 +115,24 @@ IMPORTANT RULES:
 - Explain your plan before executing - don't just silently call tools
 - If an operation seems destructive (delete, overwrite), be extra clear about what will happen
 </video-editing-tools>`;
+
+const STATIC_SYSTEM_INSTRUCTION_NO_TOOLS = `<role>
+You are a helpful AI assistant integrated into QuickCut, a professional video editing application.
+You are precise, knowledgeable, and focused on helping users with planning and guidance.
+</role>
+
+<instructions>
+1. Help users with video editing questions, creative planning, and script writing.
+2. If user asks to execute timeline changes, ask them to confirm and then route to execution flow.
+3. Provide concise, actionable answers.
+</instructions>
+
+<constraints>
+- You DO NOT have tool access in this response.
+- Do NOT output pseudo-commands, fake APIs, or code-like calls (e.g. add_audio(...), insert_clip(...)).
+- Do NOT claim any timeline operation has been performed.
+- If user asks to "do it", "execute", or "next step", ask for execution confirmation in plain language.
+</constraints>`;
 
 // ─── Context Helpers (unchanged — no API dependency) ──────────────────────────
 
@@ -157,22 +189,22 @@ export function getTimelineStateContext(): string {
     const clipSummaries = state.clips
       .sort((a, b) => a.startTime - b.startTime)
       .map((clip, index) => {
-        const selectedMark = state.selectedClipIds.includes(clip.id)
-          ? "✓"
-          : " ";
-        const mutedMark = clip.muted ? "🔇" : "";
+        const selectedLabel = state.selectedClipIds.includes(clip.id)
+          ? "selected"
+          : "unselected";
+        const mutedLabel = clip.muted ? "Muted" : "Unmuted";
         const volumePct = Math.round((clip.volume || 1) * 100);
         const trackLabel =
           (clip.trackIndex ?? 0) < 10
             ? `Video ${clip.trackIndex ?? 0}`
             : `Audio ${(clip.trackIndex ?? 10) - 10}`;
 
-        return `${index + 1}. [${selectedMark}] ${clip.name}
+        return `${index + 1}. [${selectedLabel}] ${clip.name}
    ID: ${clip.id}
    Timeline: ${clip.startTime.toFixed(1)}s → ${(clip.startTime + clip.duration).toFixed(1)}s (duration: ${clip.duration.toFixed(1)}s)
    Source: ${clip.start.toFixed(1)}s - ${clip.end.toFixed(1)}s of ${clip.sourceDuration.toFixed(1)}s total
    Track: ${trackLabel}
-   Volume: ${volumePct}% ${mutedMark}
+   Volume: ${volumePct}% (${mutedLabel})
    Type: ${clip.mediaType || "video"}`;
       })
       .join("\n\n");
@@ -258,10 +290,9 @@ async function buildMediaParts(
         ? base64ToUint8Array(attachment.base64Data)
         : await fileToUint8Array(attachment.file);
 
-      // Warn if > 25MB (Bedrock inline limit)
-      if (attachment.file.size > 25 * 1024 * 1024) {
-        console.warn(
-          `⚠️ Video ${attachment.name} is ${(attachment.file.size / 1024 / 1024).toFixed(1)}MB — exceeds 25MB inline limit. May fail.`,
+      if (bytes.length > INLINE_MEDIA_LIMIT_BYTES) {
+        throw new Error(
+          `Attachment "${attachment.name}" is ${(bytes.length / 1024 / 1024).toFixed(1)}MB. Nova Lite inline media limit is 25MB.`,
         );
       }
 
@@ -290,7 +321,7 @@ async function runContextOptimization(
     getSessionPromptTokens(),
   );
 
-  console.log("📊 ContextManager:", {
+  console.log(" ContextManager:", {
     messages: `${metrics.originalMessages} → ${metrics.afterTruncationMessages}`,
     dedupSaved: `${metrics.dedupSavingsPercent}%`,
     truncated: metrics.truncationApplied,
@@ -310,7 +341,7 @@ export async function summarizeHistory(
   if (!isBedrockConfigured()) return history;
 
   try {
-    console.log("🗜️ Auto-summarizing conversation history...");
+    console.log(" Auto-summarizing conversation history...");
     const prompt = buildSummarizePrompt(history);
 
     await waitForSlot();
@@ -330,7 +361,7 @@ export async function summarizeHistory(
     const summaryText = response.output?.message?.content?.[0]?.text || "";
     if (!summaryText) return history;
 
-    console.log("✅ Conversation condensed to summary.");
+    console.log(" Conversation condensed to summary.");
     return buildCondensedHistory(summaryText);
   } catch (err) {
     console.error("Failed to summarize history, using original:", err);
@@ -351,22 +382,38 @@ function buildDynamicContext(flags?: ContextFlags): string {
   const includeAll = !flags;
   const channelContext =
     includeAll || flags?.includeChannel ? getChannelAnalysisContext() : "";
-  const memoryContext =
-    includeAll || flags?.includeMemory ? getMemoryForChat() : "";
-  const timelineContext =
-    includeAll || flags?.includeTimeline ? getTimelineStateContext() : "";
+  const includeTimeline = includeAll || Boolean(flags?.includeTimeline);
+  const includeMemory = includeAll || Boolean(flags?.includeMemory);
+  const includeSnapshot = includeTimeline || includeMemory;
+
+  let snapshotContext = "";
+  if (includeSnapshot) {
+    const scope: SnapshotScope = includeTimeline && includeMemory
+      ? "planning"
+      : includeTimeline
+        ? "timeline_only"
+        : "media_only";
+    snapshotContext = formatSnapshotForPrompt(
+      buildAIProjectSnapshot(getSupportedToolNames()),
+      scope,
+      3200,
+    );
+  }
 
   let context = `\n[System Note: Current Date is ${currentDate}]`;
   if (channelContext) context += channelContext;
-  if (memoryContext) context += memoryContext;
-  if (timelineContext) context += timelineContext;
+  if (snapshotContext) {
+    context += `\n<ai-project-snapshot>\n${snapshotContext}\n</ai-project-snapshot>`;
+  }
 
   // Only add grounding note if we have context
-  if (channelContext || memoryContext || timelineContext) {
+  if (channelContext || snapshotContext) {
     context += `\n<grounding>\nBase your answer on the above context for the user's project state.\n</grounding>`;
   }
 
-  return context;
+  return context.length <= MAX_DYNAMIC_CONTEXT_CHARS
+    ? context
+    : `${context.slice(0, MAX_DYNAMIC_CONTEXT_CHARS)}\n[Context truncated for token efficiency]`;
 }
 
 // ─── StreamChunk Interface ────────────────────────────────────────────────────
@@ -429,7 +476,7 @@ export async function sendMessageWithHistory(
       },
     ];
 
-    console.log("💰 Sending Message to Bedrock Nova Lite");
+    console.log(" Sending Message to Bedrock Nova Lite");
     console.log("   Stats:", {
       historyLength: optimizedHistory.length,
       contextSize: dynamicContext.length,
@@ -440,8 +487,8 @@ export async function sendMessageWithHistory(
       new ConverseCommand({
         modelId: MODEL_ID,
         messages: messages as any,
-        system: [{ text: STATIC_SYSTEM_INSTRUCTION }],
-        inferenceConfig: { maxTokens: 2048, temperature: 0.7 },
+        system: [{ text: STATIC_SYSTEM_INSTRUCTION_NO_TOOLS }],
+        inferenceConfig: { maxTokens: CHAT_MAX_TOKENS, temperature: 0.2 },
       }),
     );
 
@@ -543,14 +590,17 @@ export async function* sendMessageWithHistoryStream(
     const commandInput: Record<string, unknown> = {
       modelId: MODEL_ID,
       messages: messages as any,
-      system: [{ text: STATIC_SYSTEM_INSTRUCTION }],
-      inferenceConfig: { maxTokens: 4096, temperature: 0.7 },
+      system: [{ text: includeTools ? STATIC_SYSTEM_INSTRUCTION_WITH_TOOLS : STATIC_SYSTEM_INSTRUCTION_NO_TOOLS }],
+      inferenceConfig: {
+        maxTokens: includeTools ? TOOL_CHAT_MAX_TOKENS : CHAT_MAX_TOKENS,
+        temperature: 0.2,
+      },
     };
 
     // Only include tool config when editing intent is detected
     // This saves ~1500 tokens per chat-only message
     if (includeTools) {
-      commandInput.toolConfig = { tools: allVideoEditingTools as any };
+      commandInput.toolConfig = { tools: pickToolsForMessage(message) as any };
     }
 
     const response = await bedrockClient.send(
@@ -696,21 +746,14 @@ export async function* sendToolResultsToAI(
       }),
     );
 
-    // Add selective dynamic context to reduce unnecessary token reinjection
-    const toolNames = new Set(toolResults.map((tr) => tr.name));
-    const needsMemory =
-      toolNames.has("get_clip_analysis") ||
-      toolNames.has("get_all_media_analysis") ||
-      toolNames.has("search_clips_by_content");
-    const needsChannel = false; // Tool-result confirmations are project-local in current workflow
-    const dynamicContext = buildDynamicContext({
-      includeTimeline: true,
-      includeMemory: needsMemory,
-      includeChannel: needsChannel,
-    });
     messages.push({
       role: "user",
-      content: [...toolResultContent, { text: dynamicContext }],
+      content: [
+        ...toolResultContent,
+        {
+          text: "Tool execution results are authoritative. Summarize what changed, mention any failures, and suggest next steps.",
+        },
+      ],
     });
 
     // Wait for rate limit
@@ -720,8 +763,10 @@ export async function* sendToolResultsToAI(
       new ConverseCommand({
         modelId: MODEL_ID,
         messages: messages as any,
-        system: [{ text: STATIC_SYSTEM_INSTRUCTION }],
-        inferenceConfig: { maxTokens: 4096, temperature: 0.7 },
+        system: [{ text: STATIC_SYSTEM_INSTRUCTION_WITH_TOOLS }],
+        // Required by Bedrock when conversation includes toolUse/toolResult blocks.
+        toolConfig: { tools: allVideoEditingTools as any },
+        inferenceConfig: { maxTokens: HISTORY_TOOL_RESULT_MAX_TOKENS, temperature: 0.2 },
       }),
     );
 
@@ -757,4 +802,63 @@ export async function* sendToolResultsToAI(
     }
     throw new Error("Failed to communicate with Bedrock API");
   }
+}
+
+function pickToolsForMessage(message: string) {
+  const text = message.toLowerCase();
+  const selected = new Set<string>([
+    "get_timeline_info",
+    "get_clip_details",
+    "split_clip",
+    "delete_clips",
+    "move_clip",
+    "merge_clips",
+    "update_clip_bounds",
+    "select_clips",
+    "undo_action",
+    "redo_action",
+  ]);
+
+  if (/\b(volume|mute|audio|sound|quiet|loud)\b/.test(text)) {
+    selected.add("set_clip_volume");
+    selected.add("toggle_clip_mute");
+  }
+  if (/\b(copy|duplicate|paste)\b/.test(text)) {
+    selected.add("copy_clips");
+    selected.add("paste_clips");
+  }
+  if (/\b(subtitle|caption)\b/.test(text)) {
+    selected.add("add_subtitle");
+    selected.add("update_subtitle");
+    selected.add("delete_subtitle");
+    selected.add("update_subtitle_style");
+    selected.add("get_subtitles");
+    selected.add("clear_all_subtitles");
+  }
+  if (/\b(transcribe|transcription|transcript)\b/.test(text)) {
+    selected.add("transcribe_clip");
+    selected.add("transcribe_timeline");
+    selected.add("get_transcription");
+    selected.add("apply_transcript_edits");
+  }
+  if (/\b(effect|filter|speed|highlight|chapter)\b/.test(text)) {
+    selected.add("set_clip_speed");
+    selected.add("apply_clip_effect");
+    selected.add("find_highlights");
+    selected.add("generate_chapters");
+  }
+  if (/\b(save|export|project)\b/.test(text)) {
+    selected.add("save_project");
+    selected.add("set_export_settings");
+    selected.add("get_project_info");
+  }
+  if (/\b(search|analy|memory|scene)\b/.test(text)) {
+    selected.add("search_clips_by_content");
+    selected.add("get_clip_analysis");
+    selected.add("get_all_media_analysis");
+  }
+
+  return allVideoEditingTools.filter((tool: any) =>
+    selected.has(tool?.toolSpec?.name),
+  );
 }

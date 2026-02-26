@@ -13,15 +13,63 @@ import { bedrockClient, MODEL_ID, isBedrockConfigured } from './bedrockClient';
 import type { AIChatMessage } from './aiService';
 import {
   getChannelAnalysisContext,
-  getTimelineStateContext,
   summarizeHistory,
 } from './aiService';
 import { allVideoEditingTools } from './videoEditingTools';
-import { getMemoryForChat } from './aiMemoryService';
+import type { FunctionCall } from './videoEditingTools';
 import { useProjectStore } from '../stores/useProjectStore';
 import { optimizeContextHistory } from './contextManager';
 import { waitForSlot, withRetryOn429 } from './rateLimiter';
 import { recordUsage } from './tokenTracker';
+import {
+  buildAIProjectSnapshot,
+  formatSnapshotForPrompt,
+} from './aiProjectSnapshot';
+import {
+  formatCapabilityMatrixForPrompt,
+  isReadOnlyTool,
+  type ToolErrorCategory,
+} from './toolCapabilityMatrix';
+
+const DEFAULT_MAX_ROUNDS = 3;
+const ABSOLUTE_MAX_ROUNDS = 4;
+const MAX_OPERATIONS_PER_PLAN = 20;
+const MAX_DYNAMIC_CONTEXT_CHARS = 5000;
+const PLANNING_MAX_TOKENS = 1024;
+const SUMMARY_MAX_TOKENS = 768;
+
+export interface PlanStep {
+  order: number;
+  round: number;
+  operationName: string;
+  description: string;
+  preconditions: string[];
+  expectedResult: string;
+}
+
+export interface PlanValidationIssue {
+  category: ToolErrorCategory;
+  operationIndex: number;
+  toolName: string;
+  message: string;
+}
+
+export interface PlanValidationReport {
+  valid: boolean;
+  corrections: string[];
+  issues: PlanValidationIssue[];
+}
+
+export interface PlanUnderstanding {
+  goal: string;
+  constraints: string[];
+}
+
+export interface PlanExecutionPolicy {
+  mode: 'strict_sequential' | 'hybrid';
+  maxReadOnlyBatchSize: number;
+  stopOnFailure: boolean;
+}
 
 export interface PlannedOperation {
   round: number; // Which round of tool calling this belongs to
@@ -34,7 +82,11 @@ export interface PlannedOperation {
 }
 
 export interface ExecutionPlan {
+  understanding: PlanUnderstanding;
   operations: PlannedOperation[];
+  steps: PlanStep[];
+  validation: PlanValidationReport;
+  executionPolicy: PlanExecutionPolicy;
   totalRounds: number;
   estimatedDuration: number; // In seconds
   requiresApproval: boolean;
@@ -42,75 +94,36 @@ export interface ExecutionPlan {
 
 /**
  * STATIC System Instruction for Planning
- * Optimized for batching and aggressive completion.
+ * Enforces strict UNDERSTAND → PLAN → EXECUTE behavior.
  */
 const STATIC_PLANNING_INSTRUCTION = `<role>
 You are a professional video editing assistant integrated into QuickCut.
-You are precise, thorough, and focused on COMPLETING video editing tasks fully.
+Your output must be deterministic, tool-grounded, and safe.
 </role>
 
-<critical-planning-rules>
-⚠️ IMPORTANT: You are in PLANNING mode. You must discover ALL operations needed to FULLY complete the user's request.
+<mandatory-workflow>
+Follow this order on every planning request:
+1) UNDERSTAND: infer user goal and hard constraints from the snapshot.
+2) PLAN: produce atomic tool operations with explicit order.
+3) EXECUTE PLAN DRAFT: call only supported tools to validate state and produce executable operations.
 
-1. UNDERSTAND THE COMPLETE GOAL
-   - What is the user's final desired outcome?
-   - What does "done" look like?
-   - Don't just do the first step - complete the ENTIRE task
+Never skip UNDERSTAND or PLAN.
+</mandatory-workflow>
 
-2. ALWAYS START WITH get_timeline_info
-   - Before doing anything, check what clips exist
-   - Understand the current state before planning changes
+<planning-rules>
+1. Start by grounding on the AI_PROJECT_SNAPSHOT.
+2. Use only tools provided in toolConfig.
+3. Read-only inspection tools are allowed during planning and do not require user approval.
+4. State-changing operations must be precise and fully specified.
+5. Prefer fewer rounds, but never trade off correctness.
+6. Never invent tool names or pseudo-functions.
+</planning-rules>
 
-3. BATCH YOUR OPERATIONS (CRITICAL)
-   - Do NOT ask for permission for each individual step.
-   - Return MULTIPLE tool calls in a single response whenever possible.
-   - Example: If you need to split and then delete, return BOTH function calls in the same turn.
-   - Minimize the number of rounds.
-
-4. THINK STEP-BY-STEP
-   - Break complex tasks into logical steps
-   - Execute ALL steps needed to reach the goal
-   - Continue until the task is 100% complete
-
-5. BE SPECIFIC WITH NUMBERS
-   - If user says "15 seconds", make it exactly 15 seconds
-   - If user says "split into 2 parts", create exactly 2 parts
-   - Don't approximate - be precise
-</critical-planning-rules>
-
-<detailed-examples>
-Example 1: "Make the project 20 seconds total, split into 10 second clips"
-Step-by-step thinking:
-1. First, I need to see current clips → get_timeline_info
-2. User wants 20 seconds total → I'll need to trim or extend clips to reach 20s
-3. User wants 10 second clips → I'll need to split at 10 second mark
-4. Execute: get_timeline_info → update_clip_bounds (to 20s total) → split_clip (at 10s)
-
-Example 2: "Prepare this for YouTube Shorts"
-Step-by-step thinking:
-1. YouTube Shorts need: max 60 seconds, 9:16 aspect ratio, captions
-2. First check current state → get_timeline_info
-3. Trim to max 60s → update_clip_bounds
-4. Change to vertical → set_aspect_ratio (9:16)
-5. Add captions → generate_captions
-6. All requirements met → task complete
-</detailed-examples>
-
-<constraints>
-- ALWAYS complete the full task, never stop halfway
-- Be mathematically precise with durations and splits
-- Verify your operations will achieve the user's exact goal
-</constraints>
-
-<available-tools>
-Information: get_timeline_info, get_clip_details
-Editing: split_clip, delete_clips, move_clip, merge_clips
-Audio: set_clip_volume, toggle_clip_mute
-Management: select_clips, copy_clips, paste_clips
-History: undo_action, redo_action
-Playback: set_playhead_position
-Trimming: update_clip_bounds
-</available-tools>`;
+<safety-rules>
+- If IDs/bounds are uncertain, call read-only tools first.
+- Do not assume successful execution without tool result success=true.
+- Keep operations valid for current timeline bounds.
+</safety-rules>`;
 
 /**
  * Generate a complete execution plan by letting the AI explore all needed operations.
@@ -119,14 +132,16 @@ Trimming: update_clip_bounds
 export async function generateCompletePlan(
   message: string,
   history: AIChatMessage[],
-  maxRounds: number = 5
+  maxRounds: number = DEFAULT_MAX_ROUNDS
 ): Promise<ExecutionPlan> {
   if (!isBedrockConfigured()) {
     throw new Error('AWS credentials not configured');
   }
 
   const operations: PlannedOperation[] = [];
+  const seenOperations = new Set<string>();
   let currentRound = 0;
+  const allowedRounds = Math.min(Math.max(1, maxRounds), ABSOLUTE_MAX_ROUNDS);
 
   // Optimize incoming history before planning loop
   let { history: optimizedStart, metrics: planMetrics } = optimizeContextHistory(history);
@@ -136,26 +151,39 @@ export async function generateCompletePlan(
 
   // Bedrock: manual message accumulation (no chat session)
   const messages: AIChatMessage[] = [...optimizedStart];
-
-  // Build dynamic context
-  const channelContext = getChannelAnalysisContext();
-  const memoryContext = getMemoryForChat();
-  const timelineContext = getTimelineStateContext();
+  const toolSet = selectPlanningTools(message);
+  const toolNames = toolSet
+    .map((tool: any) => tool?.toolSpec?.name)
+    .filter((name: string | undefined): name is string => Boolean(name));
+  const snapshot = buildAIProjectSnapshot(toolNames);
+  const channelContext = truncateBlock(getChannelAnalysisContext(), 800);
+  const snapshotContext = formatSnapshotForPrompt(snapshot, 'planning', 3400);
+  const capabilityContext = formatCapabilityMatrixForPrompt(toolNames, 2400);
   const currentDate = new Date().toISOString().split('T')[0];
 
-  const dynamicContext = `
+  let dynamicContext = `
 [System Note: Planning Context - Date: ${currentDate}]
+<ai-project-snapshot>
+${snapshotContext}
+</ai-project-snapshot>
+<tool-capability-matrix>
+${capabilityContext}
+</tool-capability-matrix>
 ${channelContext}
-${memoryContext}
-${timelineContext}
 <instruction>
-Focus on the user's latest request. Use the tools to check state and execute changes.
-Batch multiple operations in one round if possible.
+Use UNDERSTAND -> PLAN -> EXECUTE PLAN DRAFT.
+You may call read-only tools during planning to inspect timeline/media state.
+State-changing operations must remain executable with valid IDs and bounds.
 </instruction>
 `;
+  if (dynamicContext.length > MAX_DYNAMIC_CONTEXT_CHARS) {
+    dynamicContext = `${dynamicContext.slice(0, MAX_DYNAMIC_CONTEXT_CHARS)}\n[Planning context truncated for token efficiency]`;
+  }
+
+  const planningIssues: PlanValidationIssue[] = [];
 
   // Planning loop - explore all needed operations
-  while (currentRound < maxRounds) {
+  while (currentRound < allowedRounds && operations.length < MAX_OPERATIONS_PER_PLAN) {
     currentRound++;
 
     // Inject dynamic context into the first message of the loop
@@ -177,8 +205,8 @@ Batch multiple operations in one round if possible.
         modelId: MODEL_ID,
         messages: messages as any,
         system: [{ text: STATIC_PLANNING_INSTRUCTION }],
-        toolConfig: { tools: allVideoEditingTools as any },
-        inferenceConfig: { maxTokens: 2048, temperature: 0.7 },
+        toolConfig: { tools: toolSet as any },
+        inferenceConfig: { maxTokens: PLANNING_MAX_TOKENS, temperature: 0.2 },
       }))
     );
 
@@ -199,7 +227,21 @@ Batch multiple operations in one round if possible.
 
       if (toolUses.length > 0) {
         // Collect all tool calls from this round
-        for (const toolUse of toolUses) {
+        for (const [index, toolUse] of toolUses.entries()) {
+          if (!isKnownTool(toolUse.name)) {
+            planningIssues.push({
+              category: 'tool_missing',
+              operationIndex: operations.length + index,
+              toolName: toolUse.name,
+              message: `Unsupported tool requested during planning: ${toolUse.name}`,
+            });
+            continue;
+          }
+          const fingerprint = `${toolUse.name}:${JSON.stringify(toolUse.input ?? {})}`;
+          if (seenOperations.has(fingerprint)) continue;
+          if (operations.length >= MAX_OPERATIONS_PER_PLAN) break;
+          seenOperations.add(fingerprint);
+
           const functionCall = {
             name: toolUse.name,
             args: toolUse.input,
@@ -208,9 +250,13 @@ Batch multiple operations in one round if possible.
             round: currentRound,
             functionCall,
             description: generateOperationDescription(functionCall),
-            isReadOnly: isReadOnlyOperation(toolUse.name),
+            isReadOnly: isReadOnlyTool(toolUse.name),
           };
           operations.push(operation);
+        }
+
+        if (operations.length >= MAX_OPERATIONS_PER_PLAN) {
+          break;
         }
 
         // Add assistant's response to conversation
@@ -234,6 +280,8 @@ Batch multiple operations in one round if possible.
           role: 'user',
           content: toolResultContent,
         } as any);
+
+        trimPlanningMessages(messages);
       } else {
         break; // No tool uses despite stop reason — planning complete
       }
@@ -250,13 +298,44 @@ Batch multiple operations in one round if possible.
     }
   }
 
+  const { ToolExecutor } = await import('./toolExecutor');
+  const preflight = ToolExecutor.preflightPlan(
+    operations.map((op) => op.functionCall as FunctionCall),
+  );
+  const normalizedOperations = operations.map((operation, index) => ({
+    ...operation,
+    functionCall: preflight.normalizedCalls[index] || operation.functionCall,
+  }));
+  const validationIssues: PlanValidationIssue[] = [
+    ...planningIssues,
+    ...preflight.issues.map((issue) => ({
+      category: issue.errorType,
+      operationIndex: issue.index,
+      toolName: issue.name,
+      message: issue.message,
+    })),
+  ];
+  const validation: PlanValidationReport = {
+    valid: validationIssues.length === 0 && preflight.valid,
+    corrections: preflight.corrections,
+    issues: validationIssues,
+  };
+
+  const understanding = buildUnderstanding(message, snapshot);
+  const steps = buildPlanSteps(normalizedOperations);
+  const executionPolicy = pickExecutionPolicy(normalizedOperations);
+
   // Determine if approval is needed (any state-changing operations)
-  const requiresApproval = operations.some(op => !op.isReadOnly);
+  const requiresApproval = normalizedOperations.some((op) => !op.isReadOnly);
 
   return {
-    operations,
+    understanding,
+    operations: normalizedOperations,
+    steps,
+    validation,
+    executionPolicy,
     totalRounds: currentRound,
-    estimatedDuration: operations.length * 0.5, // Rough estimate
+    estimatedDuration: normalizedOperations.length * 0.5, // Rough estimate
     requiresApproval,
   };
 }
@@ -276,6 +355,32 @@ export async function executePlan(
 
   const { ToolExecutor } = await import('./toolExecutor');
   const messages: AIChatMessage[] = [...originalHistory];
+  const runtimePreflight = ToolExecutor.preflightPlan(
+    plan.operations.map((operation) => operation.functionCall as FunctionCall),
+  );
+  if (!runtimePreflight.valid) {
+    const details = runtimePreflight.issues
+      .map(
+        (issue) =>
+          `${issue.name} [${issue.errorType}]: ${issue.message}${
+            issue.recoveryHint ? ` | Next: ${issue.recoveryHint}` : ''
+          }`,
+      )
+      .join('\n');
+    throw new Error(`Plan validation failed before execution:\n${details}`);
+  }
+  const executableOperations = plan.operations.map((operation, index) => ({
+    ...operation,
+    functionCall: runtimePreflight.normalizedCalls[index] || operation.functionCall,
+  }));
+  const executionPolicy: PlanExecutionPolicy = {
+    mode: plan.executionPolicy?.mode || 'strict_sequential',
+    maxReadOnlyBatchSize: Math.max(
+      1,
+      Math.min(3, plan.executionPolicy?.maxReadOnlyBatchSize || 3),
+    ),
+    stopOnFailure: plan.executionPolicy?.stopOnFailure ?? true,
+  };
 
   // Add original user message
   messages.push({
@@ -284,16 +389,22 @@ export async function executePlan(
   });
 
   let currentRound = 1;
-  const operationsByRound = groupOperationsByRound(plan.operations);
+  const operationsByRound = groupOperationsByRound(executableOperations);
   let completedOperations = 0;
 
   // Execute operations round by round
   for (const [_round, roundOperations] of operationsByRound.entries()) {
     const functionCalls = roundOperations.map(op => op.functionCall);
 
-    // Execute each operation sequentially and track progress
-    const results = await ToolExecutor.executeAll(
-      functionCalls as any,
+    // Default: strict sequential with output check after each operation.
+    // Optional: hybrid mode allows read-only micro-batching (max 3) when safe.
+    const results = await ToolExecutor.executeWithPolicy(
+      functionCalls as FunctionCall[],
+      {
+        mode: executionPolicy.mode,
+        maxReadOnlyBatchSize: executionPolicy.maxReadOnlyBatchSize,
+        stopOnFailure: executionPolicy.stopOnFailure,
+      },
       (index, _total, _result) => {
         const operationIndex = index - 1;
         if (operationIndex >= 0 && operationIndex < roundOperations.length) {
@@ -307,7 +418,14 @@ export async function executePlan(
     // Check for any failed operations
     const failedOps = results.filter(r => !r.result.success);
     if (failedOps.length > 0) {
-      const errorMessages = failedOps.map(op => `${op.name}: ${op.result.error || 'Unknown error'}`).join('\n');
+      const errorMessages = failedOps
+        .map(
+          (op) =>
+            `${op.name} [${op.result.errorType || 'execution_error'}]: ${
+              op.result.error || 'Unknown error'
+            }${op.result.recoveryHint ? ` | Next: ${op.result.recoveryHint}` : ''}`,
+        )
+        .join('\n');
       throw new Error(`Some operations failed:\n${errorMessages}`);
     }
 
@@ -340,12 +458,13 @@ export async function executePlan(
   }
 
   // Get final summary response with compact context to avoid large reinjection costs
-  const timelineContext = getTimelineStateContext();
-  const compactTimelineContext = timelineContext.length > 2000
-    ? `${timelineContext.slice(0, 2000)}\n[Timeline context truncated for token efficiency]`
-    : timelineContext;
+  const compactSnapshot = formatSnapshotForPrompt(
+    buildAIProjectSnapshot(),
+    'planning',
+    2000,
+  );
 
-  const executedOperations = plan.operations
+  const executedOperations = executableOperations
     .map((op) => `- ${op.description}`)
     .join('\n');
 
@@ -354,8 +473,11 @@ export async function executePlan(
 Executed operations:
 ${executedOperations}
 
-Current timeline snapshot:
-${compactTimelineContext}
+Current project snapshot:
+${compactSnapshot}
+
+Planning validation corrections:
+${plan.validation?.corrections?.length ? plan.validation.corrections.map((c) => `- ${c}`).join('\n') : '- none'}
 
 Provide a friendly, concise summary of what was done. Do NOT call any more tools.`;
 
@@ -373,7 +495,9 @@ Provide a friendly, concise summary of what was done. Do NOT call any more tools
       modelId: MODEL_ID,
       messages: messages as any,
       system: [{ text: STATIC_PLANNING_INSTRUCTION }],
-      inferenceConfig: { maxTokens: 2048, temperature: 0.7 },
+      // Bedrock requires toolConfig when messages include toolUse/toolResult blocks.
+      toolConfig: { tools: allVideoEditingTools as any },
+      inferenceConfig: { maxTokens: SUMMARY_MAX_TOKENS, temperature: 0.2 },
     }))
   );
 
@@ -387,6 +511,89 @@ Provide a friendly, concise summary of what was done. Do NOT call any more tools
   }
 
   return summaryResponse.output?.message?.content?.[0]?.text || 'Operations completed successfully.';
+}
+
+function trimPlanningMessages(messages: AIChatMessage[]): void {
+  const MAX_MESSAGES = 12;
+  if (messages.length <= MAX_MESSAGES) return;
+
+  const head = messages.slice(0, 2);
+  const tail = messages.slice(-8);
+  messages.splice(0, messages.length, ...head, ...tail);
+}
+
+function truncateBlock(value: string, maxChars: number = 1800): string {
+  if (!value) return '';
+  return value.length <= maxChars ? value : `${value.slice(0, maxChars)}\n[Context block truncated]`;
+}
+
+function isKnownTool(name: string): boolean {
+  return allVideoEditingTools.some((tool: any) => tool?.toolSpec?.name === name);
+}
+
+function selectPlanningTools(message: string) {
+  const text = message.toLowerCase();
+  const base = new Set<string>([
+    'get_timeline_info',
+    'get_clip_details',
+    'split_clip',
+    'delete_clips',
+    'move_clip',
+    'merge_clips',
+    'update_clip_bounds',
+    'select_clips',
+    'undo_action',
+    'redo_action',
+  ]);
+
+  if (/\b(volume|mute|audio|sound|quiet|loud)\b/.test(text)) {
+    base.add('set_clip_volume');
+    base.add('toggle_clip_mute');
+  }
+
+  if (/\b(copy|duplicate|paste)\b/.test(text)) {
+    base.add('copy_clips');
+    base.add('paste_clips');
+  }
+
+  if (/\b(subtitle|caption)\b/.test(text)) {
+    base.add('add_subtitle');
+    base.add('update_subtitle');
+    base.add('delete_subtitle');
+    base.add('update_subtitle_style');
+    base.add('get_subtitles');
+    base.add('clear_all_subtitles');
+  }
+
+  if (/\b(transcribe|transcription|transcript)\b/.test(text)) {
+    base.add('transcribe_clip');
+    base.add('transcribe_timeline');
+    base.add('get_transcription');
+    base.add('apply_transcript_edits');
+  }
+
+  if (/\b(effect|filter|speed|highlight|chapter)\b/.test(text)) {
+    base.add('set_clip_speed');
+    base.add('apply_clip_effect');
+    base.add('find_highlights');
+    base.add('generate_chapters');
+  }
+
+  if (/\b(save|export|project)\b/.test(text)) {
+    base.add('save_project');
+    base.add('set_export_settings');
+    base.add('get_project_info');
+  }
+
+  if (/\b(search|analy|memory|scene)\b/.test(text)) {
+    base.add('search_clips_by_content');
+    base.add('get_clip_analysis');
+    base.add('get_all_media_analysis');
+  }
+
+  return allVideoEditingTools.filter((tool: any) =>
+    base.has(tool?.toolSpec?.name),
+  );
 }
 
 /**
@@ -446,23 +653,6 @@ function simulateFunctionExecution(toolUses: any[]): any[] {
 }
 
 /**
- * Check if an operation is read-only (doesn't modify state)
- */
-function isReadOnlyOperation(functionName: string): boolean {
-  const readOnlyFunctions = [
-    'get_timeline_info',
-    'get_clip_details',
-    'get_subtitles',
-    'get_transcription',
-    'get_project_info',
-    'get_clip_analysis',
-    'get_all_media_analysis',
-    'search_clips_by_content',
-  ];
-  return readOnlyFunctions.includes(functionName);
-}
-
-/**
  * Generate human-readable description for an operation
  */
 function generateOperationDescription(functionCall: any): string {
@@ -503,6 +693,99 @@ function generateOperationDescription(functionCall: any): string {
     default:
       return `Execute ${functionCall.name.replace(/_/g, ' ')}`;
   }
+}
+
+function buildUnderstanding(
+  message: string,
+  snapshot: ReturnType<typeof buildAIProjectSnapshot>,
+): PlanUnderstanding {
+  return {
+    goal: message.trim(),
+    constraints: [
+      `Timeline duration: ${snapshot.timeline.totalDuration.toFixed(1)}s`,
+      `Clip count: ${snapshot.timeline.clipCount}`,
+      `Read-only tools do not require approval`,
+      `Mutating operations require approval before execution`,
+      `Execution default: strict sequential with post-step verification`,
+    ],
+  };
+}
+
+function buildPlanSteps(operations: PlannedOperation[]): PlanStep[] {
+  return operations.map((operation, index) => ({
+    order: index + 1,
+    round: operation.round,
+    operationName: operation.functionCall.name,
+    description: operation.description,
+    preconditions: buildPreconditions(operation.functionCall),
+    expectedResult: buildExpectedResult(operation.functionCall),
+  }));
+}
+
+function buildPreconditions(functionCall: FunctionCall): string[] {
+  const shared = ['Tool is supported', 'All required args are present'];
+
+  switch (functionCall.name) {
+    case 'split_clip':
+      return [...shared, 'Clip exists', 'time_in_clip is within clip bounds'];
+    case 'delete_clips':
+      return [...shared, 'All clip_ids exist on timeline'];
+    case 'move_clip':
+      return [...shared, 'clip_id exists', 'start_time >= 0'];
+    case 'update_clip_bounds':
+      return [
+        ...shared,
+        'clip_id exists',
+        'new_start/new_end respect sourceDuration',
+        'Resulting duration remains positive',
+      ];
+    case 'set_clip_volume':
+      return [...shared, 'volume is between 0.0 and 1.0'];
+    case 'set_clip_speed':
+      return [...shared, 'speed is between 0.25 and 8.0'];
+    case 'set_playhead_position':
+      return [...shared, 'time is within timeline duration'];
+    default:
+      return shared;
+  }
+}
+
+function buildExpectedResult(functionCall: FunctionCall): string {
+  switch (functionCall.name) {
+    case 'get_timeline_info':
+      return 'Latest timeline snapshot is returned';
+    case 'get_clip_details':
+      return 'Clip metadata is returned for the requested clip';
+    case 'split_clip':
+      return 'Clip is split into two valid clips at target time';
+    case 'delete_clips':
+      return 'Target clips are removed from timeline';
+    case 'move_clip':
+      return 'Clip position is updated on timeline';
+    case 'update_clip_bounds':
+      return 'Clip source bounds are updated within valid media range';
+    default:
+      return `Tool ${functionCall.name} succeeds with success=true`;
+  }
+}
+
+function pickExecutionPolicy(operations: PlannedOperation[]): PlanExecutionPolicy {
+  const readOnlyOps = operations.filter((operation) => operation.isReadOnly).length;
+  const mutatingOps = operations.length - readOnlyOps;
+
+  if (readOnlyOps >= 2 && mutatingOps === 0) {
+    return {
+      mode: 'hybrid',
+      maxReadOnlyBatchSize: 3,
+      stopOnFailure: true,
+    };
+  }
+
+  return {
+    mode: 'strict_sequential',
+    maxReadOnlyBatchSize: 3,
+    stopOnFailure: true,
+  };
 }
 
 /**

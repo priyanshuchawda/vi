@@ -3,7 +3,6 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { app } from 'electron';
 
-const CACHE_VERSION = '1.0';
 const MAX_CACHE_SIZE_MB = 500; // 500MB max cache
 const CACHE_DIR_NAME = '.quickcut';
 
@@ -70,7 +69,7 @@ export class CacheManager {
         .update(filePath + stats.size + stats.mtimeMs)
         .digest('hex');
       return hash;
-    } catch (error) {
+    } catch {
       // If file doesn't exist or can't be accessed, generate key from path only
       return crypto.createHash('md5').update(filePath).digest('hex');
     }

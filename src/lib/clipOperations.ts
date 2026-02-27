@@ -173,13 +173,17 @@ export const mergeDifferentSourceClips = (clips: ClipSegment[]): ClipSegment[] =
   const sorted = [...clips].sort((a, b) => a.start - b.start);
   let outputTime = 0;
 
-  return sorted.map((clip) => ({
-    ...clip,
-    id: uuidv4(),
-    start: outputTime,
-    end: outputTime + clip.duration,
-    duration: clip.duration,
-  }));
+  return sorted.map((clip) => {
+    const start = outputTime;
+    outputTime += clip.duration;
+    return {
+      ...clip,
+      id: uuidv4(),
+      start,
+      end: outputTime,
+      duration: clip.duration,
+    };
+  });
 };
 
 export const generateRenderSegments = (

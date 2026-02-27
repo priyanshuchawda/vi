@@ -78,7 +78,7 @@ export async function uploadVideo(
         },
       },
       {
-        onUploadProgress: (evt) => {
+        onUploadProgress: (evt: { bytesRead: number }) => {
           const bytesUploaded = evt.bytesRead;
           const percentage = Math.round((bytesUploaded / totalBytes) * 100);
 
@@ -254,7 +254,9 @@ export async function getUserVideos(maxResults: number = 10): Promise<youtube_v3
       maxResults,
     });
 
-    const videoIds = playlistResponse.data.items?.map(item => item.snippet?.resourceId?.videoId).filter(Boolean) as string[];
+    const videoIds = playlistResponse.data.items
+      ?.map((item: youtube_v3.Schema$PlaylistItem) => item.snippet?.resourceId?.videoId)
+      .filter(Boolean) as string[];
 
     if (videoIds.length === 0) {
       return [];

@@ -8,8 +8,11 @@
  * (Bedrock has no chat session — each call passes the full history).
  */
 
-import { ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
-import { bedrockClient, MODEL_ID, isBedrockConfigured } from './bedrockClient';
+import {
+  converseBedrock,
+  MODEL_ID,
+  isBedrockConfigured,
+} from './bedrockGateway';
 import type { AIChatMessage } from './aiService';
 import {
   getChannelAnalysisContext,
@@ -144,7 +147,8 @@ export async function generateCompletePlan(
   const allowedRounds = Math.min(Math.max(1, maxRounds), ABSOLUTE_MAX_ROUNDS);
 
   // Optimize incoming history before planning loop
-  let { history: optimizedStart, metrics: planMetrics } = optimizeContextHistory(history);
+  const { history: initialOptimizedStart, metrics: planMetrics } = optimizeContextHistory(history);
+  let optimizedStart = initialOptimizedStart;
   if (planMetrics.summarizeNeeded) {
     optimizedStart = await summarizeHistory(optimizedStart);
   }
@@ -201,13 +205,13 @@ State-changing operations must remain executable with valid IDs and bounds.
     await waitForSlot();
 
     const response = await withRetryOn429(() =>
-      bedrockClient.send(new ConverseCommand({
+      converseBedrock({
         modelId: MODEL_ID,
         messages: messages as any,
         system: [{ text: STATIC_PLANNING_INSTRUCTION }],
         toolConfig: { tools: toolSet as any },
         inferenceConfig: { maxTokens: PLANNING_MAX_TOKENS, temperature: 0.2 },
-      }))
+      }),
     );
 
     // Record token usage from planning calls
@@ -393,7 +397,7 @@ export async function executePlan(
   let completedOperations = 0;
 
   // Execute operations round by round
-  for (const [_round, roundOperations] of operationsByRound.entries()) {
+  for (const roundOperations of operationsByRound.values()) {
     const functionCalls = roundOperations.map(op => op.functionCall);
 
     // Default: strict sequential with output check after each operation.
@@ -405,7 +409,7 @@ export async function executePlan(
         maxReadOnlyBatchSize: executionPolicy.maxReadOnlyBatchSize,
         stopOnFailure: executionPolicy.stopOnFailure,
       },
-      (index, _total, _result) => {
+      (index) => {
         const operationIndex = index - 1;
         if (operationIndex >= 0 && operationIndex < roundOperations.length) {
           const currentOperation = roundOperations[operationIndex];
@@ -491,14 +495,14 @@ Provide a friendly, concise summary of what was done. Do NOT call any more tools
   await waitForSlot();
 
   const summaryResponse = await withRetryOn429(() =>
-    bedrockClient.send(new ConverseCommand({
+    converseBedrock({
       modelId: MODEL_ID,
       messages: messages as any,
       system: [{ text: STATIC_PLANNING_INSTRUCTION }],
       // Bedrock requires toolConfig when messages include toolUse/toolResult blocks.
       toolConfig: { tools: allVideoEditingTools as any },
       inferenceConfig: { maxTokens: SUMMARY_MAX_TOKENS, temperature: 0.2 },
-    }))
+    }),
   );
 
   // Record token usage from summary call

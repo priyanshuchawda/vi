@@ -3,7 +3,7 @@
  * Tests the actual memory analysis and storage functionality
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { queueMediaAnalysis, isMemoryServiceAvailable } from '../../src/lib/aiMemoryService';
 import { useAiMemoryStore } from '../../src/stores/useAiMemoryStore';
 import * as fs from 'fs';
@@ -13,17 +13,15 @@ import { homedir } from 'os';
 const TEST_VIDEO_PATH = path.join(homedir(), 'Downloads', 'videoplayback.mp4');
 const MEMORY_DIR = path.join(homedir(), '.config', 'QuickCut', 'ai_memory');
 const MEMORY_FILE = path.join(MEMORY_DIR, 'memory.json');
+const hasTestVideo = fs.existsSync(TEST_VIDEO_PATH);
 
-describe('AI Memory Service Integration', () => {
+const integrationDescribe = hasTestVideo ? describe : describe.skip;
+
+integrationDescribe('AI Memory Service Integration', () => {
   let testEntryId: string;
   let videoStats: fs.Stats;
 
   beforeAll(async () => {
-    // Check if test video exists
-    if (!fs.existsSync(TEST_VIDEO_PATH)) {
-      throw new Error(`Test video not found: ${TEST_VIDEO_PATH}`);
-    }
-
     // Get video file stats
     videoStats = fs.statSync(TEST_VIDEO_PATH);
 
@@ -40,7 +38,7 @@ describe('AI Memory Service Integration', () => {
           }
           fs.writeFileSync(MEMORY_FILE, JSON.stringify(data, null, 2));
         },
-        memorySaveMarkdown: async (entry: any) => {
+        memorySaveMarkdown: async () => {
           // Mock markdown save (not needed for this test)
         }
       }

@@ -276,7 +276,7 @@ const Timeline = () => {
             </button>
             <div className="h-4 w-px bg-border-primary"></div>
             <button
-              onClick={() => copyClips(selectedClipIds)}
+              onClick={copyClips}
               disabled={selectedClipIds.length === 0}
               className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
               title="Copy (Ctrl+C)"
@@ -405,27 +405,28 @@ const Timeline = () => {
       <div className="h-10 border-b border-white/5 bg-bg-elevated/30 overflow-x-auto flex items-end relative" ref={timelineRef}>
         <div style={{ width: `${timelineWidth}px`, height: '100%', position: 'relative' }}>
           {/* Time markers */}
-          {Array.from({ length: Math.ceil(totalDuration) + 1 }, (_, i) => (
+          {Array.from({ length: Math.ceil(totalDuration) + 1 }, (_, second) => (
             <div
-              key={i}
+              key={second}
               className="absolute top-0 bottom-0 flex flex-col justify-end"
-              style={{ left: `${i * pixelsPerSecond}px` }}
+              style={{ left: `${second * pixelsPerSecond}px` }}
             >
               <div className="w-px h-3 bg-border-primary"></div>
               <div className="text-[9px] text-text-muted absolute top-0 left-0 transform -translate-x-1/2 pt-0.5">
-                {i}s
+                {second}s
               </div>
             </div>
           ))}
 
           {/* Sub-markers (every 0.5s when zoomed in) */}
-          {pixelsPerSecond > 20 && Array.from({ length: Math.ceil(totalDuration * 2) + 1 }, (_, i) => {
-            if (i % 2 === 0) return null; // Skip full seconds
+          {pixelsPerSecond > 20 && Array.from({ length: Math.ceil(totalDuration * 2) + 1 }, (_, halfStep) => {
+            if (halfStep % 2 === 0) return null; // Skip full seconds
+            const markerTime = halfStep * 0.5;
             return (
               <div
-                key={`sub-${i}`}
+                key={markerTime}
                 className="absolute bottom-0"
-                style={{ left: `${(i * 0.5) * pixelsPerSecond}px` }}
+                style={{ left: `${markerTime * pixelsPerSecond}px` }}
               >
                 <div className="w-px h-1.5 bg-border-primary/50"></div>
               </div>
@@ -438,10 +439,22 @@ const Timeline = () => {
       <div className="flex-1 overflow-auto p-4 relative" style={{ scrollBehavior: 'smooth' }}>
         <div style={{ width: `${timelineWidth}px`, position: 'relative' }}>
           {/* Global Playhead Indicator */}
-          <div
+          <button
+            type="button"
             className="absolute top-0 bottom-0 z-50 cursor-ew-resize group pointer-events-auto"
             style={{ left: `${currentTime * pixelsPerSecond}px` }}
             onMouseDown={handlePlayheadDragStart}
+            onKeyDown={(e) => {
+              const step = e.shiftKey ? 1 : 0.1;
+              if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                setCurrentTime(Math.max(0, currentTime - step));
+              } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                setCurrentTime(Math.min(totalDuration, currentTime + step));
+              }
+            }}
+            aria-label="Playhead"
           >
             {/* Playhead triangle top */}
             <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-t-[9px] border-t-accent drop-shadow-lg"></div>
@@ -456,7 +469,7 @@ const Timeline = () => {
             <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-accent text-white px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
               {currentTime.toFixed(2)}s
             </div>
-          </div>
+          </button>
 
           {/* Render each track */}
           {trackIndices.length === 0 ? (
@@ -560,19 +573,33 @@ const Timeline = () => {
                             left: `${position}px`,
                             ...bgStyle,
                           }}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              toggleClipSelection(clip.id, e.ctrlKey || e.metaKey);
+                              setCurrentTime(clip.startTime);
+                            }
+                          }}
+                          aria-label={`Clip ${clip.name}`}
                         >
                           {/* Dark overlay for video thumbnails so text stays readable */}
                           {isVideoClip && clip.thumbnail && (
                             <div className="absolute inset-0 bg-black/40 rounded pointer-events-none z-0" />
                           )}
                           {/* Trim Handles */}
-                          <div
+                          <button
+                            type="button"
                             className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-accent/0 group-hover:bg-accent/20 hover:!bg-accent z-30 transition-colors rounded-l"
                             onMouseDown={(e) => startTrim(e, clip.id, 'start', clip.start)}
+                            aria-label="Trim clip start"
                           />
-                          <div
+                          <button
+                            type="button"
                             className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-accent/0 group-hover:bg-accent/20 hover:!bg-accent z-30 transition-colors rounded-r"
                             onMouseDown={(e) => startTrim(e, clip.id, 'end', clip.end)}
+                            aria-label="Trim clip end"
                           />
 
                           {/* Volume/Mute Controls */}
@@ -619,6 +646,9 @@ const Timeline = () => {
                             <div
                               className="absolute -top-12 left-1/2 -translate-x-1/2 bg-bg-elevated border border-border-primary rounded-lg shadow-lg p-2 z-50 flex flex-col items-center gap-1"
                               onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                              role="dialog"
+                              aria-label="Volume control"
                             >
                               <input
                                 type="range"
@@ -748,8 +778,27 @@ const Timeline = () => {
       )}
       {/* Speed input modal */}
       {speedInput && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setSpeedInput(null)}>
-          <div className="bg-gray-800 rounded-lg p-4 shadow-xl w-64" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => setSpeedInput(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' || e.key === 'Enter') {
+              e.preventDefault();
+              setSpeedInput(null);
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label="Close speed dialog"
+        >
+          <div
+            className="bg-gray-800 rounded-lg p-4 shadow-xl w-64"
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Set clip speed"
+          >
             <h3 className="text-white font-semibold mb-3">Set Clip Speed</h3>
             <div className="flex gap-2 mb-3">
               {[0.25, 0.5, 1, 1.5, 2, 4].map(preset => (
@@ -770,7 +819,6 @@ const Timeline = () => {
               value={speedInput.value}
               onChange={e => setSpeedInput(s => s ? { ...s, value: e.target.value } : s)}
               className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm mb-3"
-              autoFocus
             />
             <div className="flex gap-2">
               <button

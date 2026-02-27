@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useProjectStore } from '../../src/stores/useProjectStore';
-import type { Clip } from '../../src/stores/useProjectStore';
 
 describe('useProjectStore', () => {
   beforeEach(() => {
@@ -19,7 +18,7 @@ describe('useProjectStore', () => {
 
   describe('addClip', () => {
     it('should add a clip to the store', () => {
-      const { addClip, clips } = useProjectStore.getState();
+      const { addClip } = useProjectStore.getState();
       
       addClip({
         path: '/test/video.mp4',

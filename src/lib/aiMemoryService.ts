@@ -11,8 +11,11 @@
  * The analysis runs in parallel with the normal import flow.
  */
 
-import { ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
-import { bedrockClient, MODEL_ID, isBedrockConfigured } from "./bedrockClient";
+import {
+  converseBedrock,
+  MODEL_ID,
+  isBedrockConfigured,
+} from "./bedrockGateway";
 import { useAiMemoryStore } from "../stores/useAiMemoryStore";
 import type { AudioInfo, SceneInfo, VisualInfo } from "../types/aiMemory";
 import { MediaAnalysisSchema } from "./schemas/mediaAnalysis";
@@ -20,7 +23,7 @@ import { waitForSlot } from "./rateLimiter";
 import { recordUsage } from "./tokenTracker";
 
 // Queue management for background analysis
-let analysisQueue: AnalysisTask[] = [];
+const analysisQueue: AnalysisTask[] = [];
 let isProcessingQueue = false;
 const MAX_CONCURRENT = 1;
 let activeAnalyses = 0;
@@ -257,7 +260,7 @@ async function analyzeFile(task: AnalysisTask): Promise<void> {
       .updateStatus(
         task.entryId,
         "failed",
-        "AWS credentials not configured. Please add VITE_AWS_ACCESS_KEY_ID and VITE_AWS_SECRET_ACCESS_KEY to your .env file",
+        "Bedrock gateway not available. Ensure Electron preload API is active.",
       );
     return;
   }
@@ -378,19 +381,17 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
 - Tone: Technical and precise
 </constraints>`;
 
-      const response = await bedrockClient.send(
-        new ConverseCommand({
-          modelId: MODEL_ID,
-          messages: [
-            {
-              role: "user",
-              content: content as any,
-            },
-          ],
-          system: [{ text: systemPrompt }],
-          inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
-        }),
-      );
+      const response = await converseBedrock({
+        modelId: MODEL_ID,
+        messages: [
+          {
+            role: "user",
+            content: content as any,
+          },
+        ],
+        system: [{ text: systemPrompt }],
+        inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
+      });
 
       // Record token usage
       if (response.usage) {

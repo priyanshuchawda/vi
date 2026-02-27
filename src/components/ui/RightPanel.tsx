@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import CaptionsPanel from './CaptionsPanel';
 import TranscriptionPanel from './TranscriptionPanel';
 import AudioPanel from './AudioPanel';
@@ -17,7 +18,7 @@ const RightPanel = ({ isOpen = true, onClose }: RightPanelProps) => {
 
   if (!isOpen) return null;
 
-  const tabs: { id: PanelTab; label: string; icon: JSX.Element }[] = [
+  const tabs: { id: PanelTab; label: string; icon: ReactNode }[] = [
     {
       id: 'captions',
       label: 'Captions',
@@ -115,5 +116,4 @@ const RightPanel = ({ isOpen = true, onClose }: RightPanelProps) => {
 };
 
 export default RightPanel;
-
 

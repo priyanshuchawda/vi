@@ -55,6 +55,41 @@ export interface AnalysisResponse {
   error_code?: string;
 }
 
+export interface YouTubeVideoMetadata {
+  title: string;
+  description: string;
+  tags: string[];
+  privacyStatus: 'public' | 'private' | 'unlisted';
+  madeForKids: boolean;
+}
+
+export interface YouTubeUploadProgress {
+  bytesUploaded: number;
+  totalBytes: number;
+  percentage: number;
+  status: 'uploading' | 'processing' | 'completed' | 'failed';
+  videoId?: string;
+  error?: string;
+}
+
+export interface YouTubeVideo {
+  id: string;
+  snippet: {
+    title: string;
+    thumbnails: {
+      default: {
+        url: string;
+      };
+    };
+  };
+  status: {
+    privacyStatus: string;
+  };
+  statistics?: {
+    viewCount: string;
+  };
+}
+
 export interface ElectronAPI {
   ping: () => Promise<string>;
   openFile: () => Promise<string[]>;
@@ -83,6 +118,17 @@ export interface ElectronAPI {
   analyzeChannel: (channelUrl: string) => Promise<AnalysisResponse>;
   getUserAnalysis: (userId: string) => Promise<{ success: boolean; data?: ChannelAnalysisData; error?: string }>;
   linkAnalysisToUser: (userId: string, channelUrl: string) => Promise<{ success: boolean }>;
+  youtubeIsAuthenticated: () => Promise<boolean>;
+  youtubeAuthenticate: () => Promise<{ success: boolean; error?: string }>;
+  youtubeLogout: () => Promise<{ success: boolean; error?: string }>;
+  youtubeUploadVideo: (
+    videoPath: string,
+    metadata: YouTubeVideoMetadata
+  ) => Promise<{ success: boolean; videoId?: string; error?: string }>;
+  youtubeGetUserVideos: (
+    maxResults?: number
+  ) => Promise<{ success: boolean; videos: YouTubeVideo[]; error?: string }>;
+  onYoutubeUploadProgress: (callback: (progress: YouTubeUploadProgress) => void) => void;
   readFileAsBase64: (filePath: string) => Promise<string>;
   getFileSize: (filePath: string) => Promise<number>;
   // AI Memory — file-based persistence (project-specific)
@@ -90,8 +136,7 @@ export interface ElectronAPI {
   memoryLoad: (projectId?: string) => Promise<{ success: boolean; data?: any; error?: string }>;
   memorySaveMarkdown: (entry: any, projectId?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
   memoryGetDir: () => Promise<{ dir: string; index: string; analyses: string }>;
-  //  Testing mode - load existing memory
-  invoke: (channel: string, ...args: any[]) => Promise<any>;
+  bedrockConverse: (input: Record<string, unknown>) => Promise<any>;
 }
 
 declare global {

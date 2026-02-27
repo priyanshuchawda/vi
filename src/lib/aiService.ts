@@ -11,8 +11,11 @@
  * Pricing: $0.06/1M input, $0.24/1M output
  */
 
-import { ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
-import { bedrockClient, MODEL_ID, isBedrockConfigured } from "./bedrockClient";
+import {
+  converseBedrock,
+  MODEL_ID,
+  isBedrockConfigured,
+} from "./bedrockGateway";
 import type { MediaAttachment } from "../types/chat";
 import type { ContextFlags } from "./intentClassifier";
 import { useProjectStore } from "../stores/useProjectStore";
@@ -345,18 +348,16 @@ export async function summarizeHistory(
     const prompt = buildSummarizePrompt(history);
 
     await waitForSlot();
-    const response = await bedrockClient.send(
-      new ConverseCommand({
-        modelId: MODEL_ID,
-        messages: [{ role: "user", content: [{ text: prompt }] }],
-        system: [
-          {
-            text: "You are a conversation compressor. Output only the structured summary as instructed.",
-          },
-        ],
-        inferenceConfig: { maxTokens: 2048, temperature: 0.3 },
-      }),
-    );
+    const response = await converseBedrock({
+      modelId: MODEL_ID,
+      messages: [{ role: "user", content: [{ text: prompt }] }],
+      system: [
+        {
+          text: "You are a conversation compressor. Output only the structured summary as instructed.",
+        },
+      ],
+      inferenceConfig: { maxTokens: 2048, temperature: 0.3 },
+    });
 
     const summaryText = response.output?.message?.content?.[0]?.text || "";
     if (!summaryText) return history;
@@ -446,7 +447,7 @@ export async function sendMessageWithHistory(
 ): Promise<string> {
   if (!isBedrockConfigured()) {
     throw new Error(
-      "AWS credentials not configured. Please add VITE_AWS_ACCESS_KEY_ID and VITE_AWS_SECRET_ACCESS_KEY to your .env file",
+      "Bedrock gateway not available. Ensure Electron preload API is active.",
     );
   }
 
@@ -454,9 +455,10 @@ export async function sendMessageWithHistory(
     const dynamicContext = buildDynamicContext();
 
     // Run full context optimization pipeline
-    let { optimized: optimizedHistory, metrics } =
+    const { optimized: initialOptimizedHistory, metrics: optimizationMetrics } =
       await runContextOptimization(history);
-    if (metrics.summarizeNeeded) {
+    let optimizedHistory = initialOptimizedHistory;
+    if (optimizationMetrics.summarizeNeeded) {
       optimizedHistory = await summarizeHistory(optimizedHistory);
     }
 
@@ -483,14 +485,12 @@ export async function sendMessageWithHistory(
     });
 
     await waitForSlot();
-    const response = await bedrockClient.send(
-      new ConverseCommand({
-        modelId: MODEL_ID,
-        messages: messages as any,
-        system: [{ text: STATIC_SYSTEM_INSTRUCTION_NO_TOOLS }],
-        inferenceConfig: { maxTokens: CHAT_MAX_TOKENS, temperature: 0.2 },
-      }),
-    );
+    const response = await converseBedrock({
+      modelId: MODEL_ID,
+      messages: messages as any,
+      system: [{ text: STATIC_SYSTEM_INSTRUCTION_NO_TOOLS }],
+      inferenceConfig: { maxTokens: CHAT_MAX_TOKENS, temperature: 0.2 },
+    });
 
     // Record token usage
     if (response.usage) {
@@ -537,7 +537,7 @@ export async function* sendMessageWithHistoryStream(
 ): AsyncGenerator<StreamChunk, void, unknown> {
   if (!isBedrockConfigured()) {
     throw new Error(
-      "AWS credentials not configured. Please add VITE_AWS_ACCESS_KEY_ID and VITE_AWS_SECRET_ACCESS_KEY to your .env file",
+      "Bedrock gateway not available. Ensure Electron preload API is active.",
     );
   }
 
@@ -547,9 +547,10 @@ export async function* sendMessageWithHistoryStream(
     const dynamicContext = buildDynamicContext(options?.contextFlags);
 
     // Run full context optimization pipeline
-    let { optimized: optimizedHistory, metrics } =
+    const { optimized: initialOptimizedHistory, metrics: optimizationMetrics } =
       await runContextOptimization(history);
-    if (metrics.summarizeNeeded) {
+    let optimizedHistory = initialOptimizedHistory;
+    if (optimizationMetrics.summarizeNeeded) {
       optimizedHistory = await summarizeHistory(optimizedHistory);
     }
 
@@ -603,9 +604,7 @@ export async function* sendMessageWithHistoryStream(
       commandInput.toolConfig = { tools: pickToolsForMessage(message) as any };
     }
 
-    const response = await bedrockClient.send(
-      new ConverseCommand(commandInput as any),
-    );
+    const response = await converseBedrock(commandInput as any);
 
     // Check if response contains tool use requests
     if (response.stopReason === "tool_use") {
@@ -759,16 +758,17 @@ export async function* sendToolResultsToAI(
     // Wait for rate limit
     await waitForSlot();
 
-    const response = await bedrockClient.send(
-      new ConverseCommand({
-        modelId: MODEL_ID,
-        messages: messages as any,
-        system: [{ text: STATIC_SYSTEM_INSTRUCTION_WITH_TOOLS }],
-        // Required by Bedrock when conversation includes toolUse/toolResult blocks.
-        toolConfig: { tools: allVideoEditingTools as any },
-        inferenceConfig: { maxTokens: HISTORY_TOOL_RESULT_MAX_TOKENS, temperature: 0.2 },
-      }),
-    );
+    const response = await converseBedrock({
+      modelId: MODEL_ID,
+      messages: messages as any,
+      system: [{ text: STATIC_SYSTEM_INSTRUCTION_WITH_TOOLS }],
+      // Required by Bedrock when conversation includes toolUse/toolResult blocks.
+      toolConfig: { tools: allVideoEditingTools as any },
+      inferenceConfig: {
+        maxTokens: HISTORY_TOOL_RESULT_MAX_TOKENS,
+        temperature: 0.2,
+      },
+    });
 
     // Yield text response
     const textContent = (response.output?.message?.content || []).find(

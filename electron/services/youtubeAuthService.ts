@@ -40,13 +40,14 @@ export function createOAuth2Client(): OAuth2Client {
   const credentials = loadCredentials();
   const { client_id, client_secret, redirect_uris } = credentials.installed;
 
-  oauth2Client = new google.auth.OAuth2(
+  const client = new google.auth.OAuth2(
     client_id,
     client_secret,
     redirect_uris[0]
   );
+  oauth2Client = client;
 
-  return oauth2Client;
+  return client;
 }
 
 /**

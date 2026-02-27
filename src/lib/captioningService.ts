@@ -8,8 +8,11 @@
  * This approach saves ~90% on API costs compared to direct AI transcription.
  */
 
-import { ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
-import { bedrockClient, MODEL_ID, isBedrockConfigured } from "./bedrockClient";
+import {
+  converseBedrock,
+  MODEL_ID,
+  isBedrockConfigured,
+} from "./bedrockGateway";
 import { z } from "zod";
 import { waitForSlot } from "./rateLimiter";
 import { recordUsage } from "./tokenTracker";
@@ -182,18 +185,16 @@ Your task:
 
   await waitForSlot();
 
-  const response = await bedrockClient.send(
-    new ConverseCommand({
-      modelId: MODEL_ID,
-      messages: [{ role: "user", content: [{ text: prompt }] }],
-      system: [
-        {
-          text: "You are a transcription refinement AI. You MUST respond with ONLY valid JSON — no markdown, no extra text.",
-        },
-      ],
-      inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
-    }),
-  );
+  const response = await converseBedrock({
+    modelId: MODEL_ID,
+    messages: [{ role: "user", content: [{ text: prompt }] }],
+    system: [
+      {
+        text: "You are a transcription refinement AI. You MUST respond with ONLY valid JSON — no markdown, no extra text.",
+      },
+    ],
+    inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
+  });
 
   if (response.usage) {
     recordUsage({
@@ -433,18 +434,16 @@ Requirements:
 
       await waitForSlot();
 
-      const cacheResponse = await bedrockClient.send(
-        new ConverseCommand({
-          modelId: MODEL_ID,
-          messages: [{ role: "user", content: [{ text: cachePrompt }] }],
-          system: [
-            {
-              text: "You are a professional transcription AI. You MUST respond with ONLY valid JSON.",
-            },
-          ],
-          inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
-        }),
-      );
+      const cacheResponse = await converseBedrock({
+        modelId: MODEL_ID,
+        messages: [{ role: "user", content: [{ text: cachePrompt }] }],
+        system: [
+          {
+            text: "You are a professional transcription AI. You MUST respond with ONLY valid JSON.",
+          },
+        ],
+        inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
+      });
 
       if (cacheResponse.usage) {
         recordUsage({
@@ -524,26 +523,24 @@ Requirements:
 
   await waitForSlot();
 
-  const response = await bedrockClient.send(
-    new ConverseCommand({
-      modelId: MODEL_ID,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { video: { format, source: { bytes } } },
-            { text: prompt },
-          ] as any,
-        },
-      ],
-      system: [
-        {
-          text: "You are a professional transcription AI. You MUST respond with ONLY valid JSON.",
-        },
-      ],
-      inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
-    }),
-  );
+  const response = await converseBedrock({
+    modelId: MODEL_ID,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { video: { format, source: { bytes } } },
+          { text: prompt },
+        ] as any,
+      },
+    ],
+    system: [
+      {
+        text: "You are a professional transcription AI. You MUST respond with ONLY valid JSON.",
+      },
+    ],
+    inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
+  });
 
   if (response.usage) {
     recordUsage({

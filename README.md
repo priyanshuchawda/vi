@@ -126,9 +126,11 @@ Some integration tests depend on local test media files and may fail if those as
 
 ## Contributing
 
+Reading and following [CONTRIBUTING.md](./CONTRIBUTING.md) is mandatory for every PR.
+
 1. Create a branch from `main`
-2. Make focused changes with tests
-3. Open a PR with validation notes (`build`, `tests`, and relevant checks)
+2. Follow `CONTRIBUTING.md` rules (tests required for every change, checks must pass)
+3. Open a PR with validation notes (`build`, `test`, `lint`, and relevant extra checks)
 4. Merge via GitHub when approved
 
 ## License

@@ -14,10 +14,12 @@ import { useProfileStore } from './stores/useProfileStore';
 import type { ChannelAnalysisData } from './types/electron';
 
 function App() {
-  const { togglePanel, isOpen: isChatOpen, panelWidth } = useChatStore();
+  const { togglePanel, isOpen: isChatOpen } = useChatStore();
   const { hasCompletedOnboarding, completeOnboarding, skipOnboarding } = useOnboardingStore();
   const { profile, createProfile, setYouTubeChannel } = useProfileStore();
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
+  const [isFilePanelOpen, setIsFilePanelOpen] = useState(true);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
   // Keyboard shortcut for chat (Ctrl+K / Cmd+K)
   useEffect(() => {
@@ -77,38 +79,56 @@ function App() {
 
   // Main Editor UI
   return (
-    <div className="relative h-screen bg-bg-primary text-text-primary overflow-hidden">
+    <div className="relative h-screen bg-bg-primary text-text-primary overflow-hidden flex">
       <Toast />
       <AutoSave />
-      <ChatPanel />
 
-      {/* On desktop, shift editor right when chat is open so panel is docked instead of overlaying content */}
-      <div
-        className="flex flex-col h-screen transition-[margin] duration-300 ease-in-out"
-        style={{ marginLeft: isChatOpen && isDesktop ? panelWidth : 0 }}
-      >
-        <div className="flex-1 flex overflow-hidden">
-          {/* Sidebar - File Panel */}
-          <div className="w-1/4 min-w-[250px] border-r border-[#262626] flex flex-col bg-bg-secondary">
-            <FilePanel />
-          </div>
+      {/* LEFT: Vertical Icon Toolbar - 64px fixed width */}
+      <div className="w-16 bg-bg-secondary flex flex-col items-center py-4 gap-2 z-20">
+        <Toolbar 
+          onToggleFilePanel={() => setIsFilePanelOpen(!isFilePanelOpen)}
+          onToggleRightPanel={() => setIsRightPanelOpen(!isRightPanelOpen)}
+          isFilePanelOpen={isFilePanelOpen}
+          isRightPanelOpen={isRightPanelOpen}
+        />
+      </div>
 
-          {/* Main Preview Area */}
-          <div className="flex-1 bg-bg-primary flex flex-col border-r border-[#262626]">
+      {/* CENTER: Main content area */}
+      <div className="flex-1 flex flex-col h-screen">
+        {/* Top section: Panels + Preview + AI Chat */}
+        <div className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 240px)' }}>
+          
+          {/* LEFT: File Panel */}
+          {isFilePanelOpen && (
+            <FilePanel isOpen={isFilePanelOpen} onClose={() => setIsFilePanelOpen(false)} />
+          )}
+
+          {/* CENTER: HERO PREVIEW - Dominant area */}
+          <div className="flex-1 bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-primary flex flex-col p-6">
             <Preview />
           </div>
 
-          {/* Right Panel with Subtitles & Edit by Text */}
-          <RightPanel />
+          {/* RIGHT: AI Chat Panel - Native integration */}
+          {isChatOpen && (
+            <div 
+              className="bg-bg-secondary flex flex-col h-full"
+              style={{ width: isDesktop ? '420px' : '100%' }}
+            >
+              <ChatPanel />
+            </div>
+          )}
+
+          {/* RIGHT: Tools Panel */}
+          {isRightPanelOpen && !isChatOpen && (
+            <RightPanel isOpen={isRightPanelOpen} onClose={() => setIsRightPanelOpen(false)} />
+          )}
         </div>
 
-        {/* Toolbar */}
-        <div className="h-12 border-y border-[#262626] bg-bg-elevated flex items-center px-4 shadow-lg">
-          <Toolbar />
-        </div>
-
-        {/* Timeline Area */}
-        <div className="h-1/3 min-h-[200px] bg-bg-secondary flex flex-col border-t border-[#262626]">
+        {/* BOTTOM: Timeline - Fixed height, full width */}
+        <div 
+          className="bg-bg-secondary flex flex-col"
+          style={{ height: '240px' }}
+        >
           <Timeline />
         </div>
       </div>

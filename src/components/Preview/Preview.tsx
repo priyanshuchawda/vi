@@ -204,26 +204,30 @@ const Preview = () => {
   // Empty timeline state
   if (clips.length === 0) {
     return (
-      <div className="w-full h-full flex flex-col bg-bg-primary">
-        <div className="flex-1 flex items-center justify-center text-text-secondary bg-gradient-to-br from-bg-primary to-bg-secondary">
-          <div className="text-center space-y-4">
-            <div className="w-24 h-24 mx-auto bg-accent/10 rounded-full flex items-center justify-center">
-              <svg className="w-12 h-12 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="w-full h-full flex flex-col rounded-2xl overflow-hidden">
+        <div className="flex-1 flex items-center justify-center text-text-secondary">
+          <div className="text-center space-y-6">
+            <div className="w-32 h-32 mx-auto bg-gradient-to-br from-accent/5 to-accent/10 rounded-3xl flex items-center justify-center backdrop-blur-sm">
+              <svg className="w-16 h-16 text-accent/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
             </div>
-            <div className="text-lg font-medium text-text-primary">No clips in timeline</div>
-            <div className="text-sm text-text-muted">Import media files to get started</div>
+            <div>
+              <div className="text-xl font-semibold text-text-primary mb-2">Ready to Create</div>
+              <div className="text-sm text-text-muted">Import media files to begin editing</div>
+            </div>
           </div>
         </div>
 
         {/* Transport Controls */}
-        <div className="h-16 bg-bg-elevated border-t border-[#262626] flex items-center px-4 gap-4">
-          <button disabled className="text-text-muted opacity-30 cursor-not-allowed">
-            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+        <div className="h-20 bg-bg-elevated/50 backdrop-blur-sm flex items-center px-8 gap-6 border-t border-white/5">
+          <button disabled className="text-text-muted opacity-20 cursor-not-allowed">
+            <svg className="w-9 h-9" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
           </button>
-          <div className="text-sm font-mono text-text-muted">
-            0:00:00 / 0:00:00
+          <div className="flex items-center gap-3 bg-bg-primary/50 px-4 py-2 rounded-xl">
+            <div className="text-sm font-mono text-text-muted">0:00:00</div>
+            <span className="text-xs text-text-muted/50">/</span>
+            <div className="text-sm font-mono text-text-muted">0:00:00</div>
           </div>
           <input
             type="range"
@@ -232,7 +236,7 @@ const Preview = () => {
             step="0.01"
             value="0"
             disabled
-            className="flex-1 h-1.5 bg-bg-surface rounded-lg appearance-none cursor-not-allowed opacity-30"
+            className="flex-1 h-1.5 bg-white/5 rounded-full appearance-none cursor-not-allowed opacity-30"
           />
         </div>
       </div>
@@ -244,16 +248,16 @@ const Preview = () => {
   const displayMediaType = currentVideoClip?.mediaType || 'blank';
 
   return (
-    <div className="w-full h-full flex flex-col bg-bg-primary relative group">
+    <div className="w-full h-full flex flex-col rounded-2xl overflow-hidden">
       {/* Media Display Area */}
-      <div className="flex-1 flex items-center justify-center bg-bg-primary relative overflow-hidden">
+      <div className="flex-1 flex items-center justify-center relative overflow-hidden">
 
         {/* Main Video Element */}
         {currentVideoClip && displayMediaType === 'video' && (
           <video
             ref={videoRef}
             src={`file://${currentVideoClip.path}`}
-            className="max-h-full max-w-full shadow-2xl"
+            className="max-h-full max-w-full rounded-xl shadow-2xl ring-1 ring-white/10"
             onClick={togglePlay}
           />
         )}
@@ -263,30 +267,23 @@ const Preview = () => {
           <img
             src={`file://${currentVideoClip.path}`}
             alt={currentVideoClip.name}
-            className="max-h-full max-w-full shadow-2xl object-contain cursor-pointer"
+            className="max-h-full max-w-full rounded-xl shadow-2xl object-contain cursor-pointer ring-1 ring-white/10"
             style={{ objectFit: 'contain' }}
             onClick={togglePlay}
           />
         )}
 
-        {/* Audio Visualizer (only if NO video/image is showing but Audio IS active as primary) 
-            Note: In this logic, getClipAtTime prioritizes video tracks. 
-            If correctClip is Audio, it means no video is covering it.
-        */}
+        {/* Audio Visualizer */}
         {currentVideoClip && displayMediaType === 'audio' && (
-          <div className="flex flex-col items-center justify-center space-y-6 p-8">
-            {/* Primary audio element handled in background list if not visually needed, 
-                BUT for "Audio Only" clip as primary, we might want to visualize it.
-                Actually, let's treat it as background audio for playback logic, but visualize here.
-            */}
-            <div className="w-48 h-48 bg-gradient-to-br from-accent/20 to-accent/5 rounded-full flex items-center justify-center shadow-2xl animate-pulse">
-              <svg className="w-24 h-24 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex flex-col items-center justify-center space-y-8 p-8">
+            <div className="w-56 h-56 bg-gradient-to-br from-accent/10 via-accent/5 to-transparent rounded-full flex items-center justify-center shadow-2xl animate-pulse ring-4 ring-accent/10">
+              <svg className="w-28 h-28 text-accent/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
               </svg>
             </div>
             <div className="text-center">
-              <div className="text-xl font-semibold text-text-primary mb-1">{currentVideoClip.name}</div>
-              <div className="text-sm text-text-muted">Audio File</div>
+              <div className="text-xl font-semibold text-text-primary mb-2">{currentVideoClip.name}</div>
+              <div className="text-sm text-text-muted bg-bg-elevated/50 px-4 py-1.5 rounded-full">Audio Track</div>
             </div>
           </div>
         )}
@@ -397,29 +394,29 @@ const Preview = () => {
       </div>
 
       {/* Transport Controls */}
-      <div className="h-16 bg-bg-elevated border-t border-[#262626] flex items-center px-6 gap-4 shadow-lg">
+      <div className="h-20 bg-bg-elevated/50 backdrop-blur-sm flex items-center px-8 gap-6 border-t border-white/5">
         <button
           onClick={togglePlay}
           disabled={clips.length === 0}
-          className="text-text-primary hover:text-accent hover:bg-accent/10 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all p-2 rounded-lg"
+          className="w-11 h-11 flex items-center justify-center text-white bg-accent hover:bg-accent-hover focus:outline-none disabled:opacity-30 disabled:cursor-not-allowed disabled:bg-bg-surface transition-all rounded-xl shadow-lg shadow-accent/20 hover:shadow-accent/30"
           title={isPlaying ? "Pause (Space)" : "Play (Space)"}
         >
           {isPlaying ? (
-            <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"></path></svg>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"></path></svg>
           ) : (
-            <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
           )}
         </button>
 
-        <div className="flex items-center gap-2 bg-bg-primary px-3 py-1.5 rounded">
-          <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex items-center gap-3 bg-bg-primary/50 px-4 py-2.5 rounded-xl backdrop-blur-sm ring-1 ring-white/5">
+          <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <div className="text-sm font-mono text-accent font-bold min-w-[84px]">
+          <div className="text-sm font-mono text-accent font-semibold min-w-[84px]">
             {formatTime(currentTime)}
           </div>
-          <span className="text-xs text-text-muted">/</span>
-          <div className="text-sm font-mono text-text-secondary min-w-[84px]">
+          <span className="text-xs text-text-muted/50">/</span>
+          <div className="text-sm font-mono text-text-secondary/80 min-w-[84px]">
             {formatTime(totalDuration)}
           </div>
         </div>
@@ -435,7 +432,7 @@ const Preview = () => {
           onMouseDown={handleSeekStart}
           onMouseUp={handleSeekEnd}
           disabled={clips.length === 0}
-          className="flex-1 h-2 bg-bg-surface rounded-lg appearance-none cursor-pointer accent-accent hover:accent-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition"
+          className="flex-1 h-2 bg-white/5 rounded-full appearance-none cursor-pointer accent-accent hover:accent-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition"
         />
       </div>
     </div>

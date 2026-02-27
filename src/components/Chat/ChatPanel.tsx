@@ -31,8 +31,6 @@ const ChatPanel = () => {
     setIsTyping,
     autoExecute,
     toggleAutoExecute,
-    panelWidth,
-    setPanelWidth,
   } = useChatStore();
   const { clips, currentTime } = useProjectStore();
   const { analysisData } = useOnboardingStore();
@@ -43,10 +41,6 @@ const ChatPanel = () => {
   const [showMemoryDetails, setShowMemoryDetails] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [sessionLogs, setSessionLogs] = useState<SessionLogEntry[]>([]);
-  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
-  const isResizingRef = useRef(false);
-  const resizeStartXRef = useRef(0);
-  const resizeStartWidthRef = useRef(panelWidth);
   const hasInitializedLogsRef = useRef(false);
   const seenLogIdsRef = useRef(new Set<string>());
 
@@ -115,45 +109,6 @@ const ChatPanel = () => {
   useEffect(() => {
     // Context will be used when AI is integrated
   }, [clips, currentTime]);
-
-  useEffect(() => {
-    const onResize = () => setIsDesktop(window.innerWidth >= 1024);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
-      if (!isResizingRef.current) return;
-      const deltaX = resizeStartXRef.current - event.clientX;
-      setPanelWidth(resizeStartWidthRef.current + deltaX);
-    };
-
-    const stopResize = () => {
-      isResizingRef.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', stopResize);
-    window.addEventListener('pointercancel', stopResize);
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', stopResize);
-      window.removeEventListener('pointercancel', stopResize);
-    };
-  }, [setPanelWidth]);
-
-  const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDesktop) return;
-    event.preventDefault();
-    isResizingRef.current = true;
-    resizeStartXRef.current = event.clientX;
-    resizeStartWidthRef.current = panelWidth;
-    document.body.style.cursor = 'ew-resize';
-    document.body.style.userSelect = 'none';
-  };
 
   const handleSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
     // Add user message with attachments
@@ -308,8 +263,10 @@ const ChatPanel = () => {
           // Auto-execute read-only tools without approval prompt.
           const functionCalls = chunk.functionCalls || [];
           if (functionCalls.length > 0 && functionCalls.every(isReadOnlyToolCall)) {
-            const { ToolExecutor } = await import('../../lib/toolExecutor');
-            const { sendToolResultsToAI } = await import('../../lib/aiService');
+            const [{ ToolExecutor }, { sendToolResultsToAI }] = await Promise.all([
+              import('../../lib/toolExecutor'),
+              import('../../lib/aiService'),
+            ]);
 
             const results = await ToolExecutor.executeWithPolicy(
               functionCalls,
@@ -780,8 +737,8 @@ const ChatPanel = () => {
                   <p className="text-purple-300/80 text-[10px] line-clamp-2">{entry.summary}</p>
                   {entry.tags && entry.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {entry.tags.slice(0, 5).map((tag, i) => (
-                        <span key={i} className="text-[8px] px-1 py-0.5 bg-purple-500/20 text-purple-300 rounded">
+                      {entry.tags.slice(0, 5).map((tag) => (
+                        <span key={tag} className="text-[8px] px-1 py-0.5 bg-purple-500/20 text-purple-300 rounded">
                           {tag}
                         </span>
                       ))}
@@ -893,7 +850,7 @@ const ChatPanel = () => {
                 
                 <div className="space-y-2 mb-4 max-h-64 overflow-y-auto custom-scrollbar">
                   {pendingToolCalls.functionCalls.map((call, i) => (
-                    <div key={i} className="bg-bg-primary rounded p-3 border border-border-primary">
+                    <div key={`${call.name}-${JSON.stringify(call.args)}`} className="bg-bg-primary rounded p-3 border border-border-primary">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-accent-blue font-semibold text-sm">
                           {i + 1}. {call.name.replace(/_/g, ' ')}
@@ -970,8 +927,8 @@ const ChatPanel = () => {
                     </div>
                     {Array.isArray(executionPlan.plan.understanding.constraints) && executionPlan.plan.understanding.constraints.length > 0 && (
                       <div className="space-y-1">
-                        {executionPlan.plan.understanding.constraints.map((constraint: string, index: number) => (
-                          <div key={index} className="text-xs text-text-muted">
+                        {executionPlan.plan.understanding.constraints.map((constraint: string) => (
+                          <div key={constraint} className="text-xs text-text-muted">
                             • {constraint}
                           </div>
                         ))}
@@ -999,16 +956,16 @@ const ChatPanel = () => {
                     {Array.isArray(executionPlan.plan.validation.corrections) && executionPlan.plan.validation.corrections.length > 0 && (
                       <div className="mb-2">
                         <div className="text-[11px] text-text-secondary mb-1">Auto-corrections</div>
-                        {executionPlan.plan.validation.corrections.map((correction: string, index: number) => (
-                          <div key={index} className="text-xs text-text-muted">• {correction}</div>
+                        {executionPlan.plan.validation.corrections.map((correction: string) => (
+                          <div key={correction} className="text-xs text-text-muted">• {correction}</div>
                         ))}
                       </div>
                     )}
                     {Array.isArray(executionPlan.plan.validation.issues) && executionPlan.plan.validation.issues.length > 0 && (
                       <div>
                         <div className="text-[11px] text-text-secondary mb-1">Issues</div>
-                        {executionPlan.plan.validation.issues.slice(0, 4).map((issue: any, index: number) => (
-                          <div key={index} className="text-xs text-orange-200">
+                        {executionPlan.plan.validation.issues.slice(0, 4).map((issue: any) => (
+                          <div key={`${issue.category}-${issue.toolName}-${issue.message}`} className="text-xs text-orange-200">
                             • [{issue.category}] {issue.toolName}: {issue.message}
                           </div>
                         ))}

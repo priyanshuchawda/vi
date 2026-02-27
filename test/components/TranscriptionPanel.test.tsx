@@ -13,6 +13,7 @@ describe('TranscriptionPanel Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.restoreAllMocks();
     
     // Default mock implementation
     (useProjectStore as any).mockReturnValue({
@@ -173,7 +174,7 @@ describe('TranscriptionPanel Component', () => {
       expect(screen.getByText('Segment text')).toBeInTheDocument();
       
       // Click toggle button
-      const toggleButton = screen.getByText(/Segments/i);
+      const toggleButton = screen.getByTitle('Toggle view');
       fireEvent.click(toggleButton);
       
       // Should now show full text view
@@ -272,14 +273,7 @@ describe('TranscriptionPanel Component', () => {
       global.URL.revokeObjectURL = vi.fn();
       
       const mockClick = vi.fn();
-      const mockCreateElement = document.createElement;
-      vi.spyOn(document, 'createElement').mockImplementation((tagName) => {
-        const element = mockCreateElement.call(document, tagName);
-        if (tagName === 'a') {
-          element.click = mockClick;
-        }
-        return element;
-      });
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(mockClick);
 
       (useProjectStore as any).mockReturnValue({
         transcription: {
@@ -308,14 +302,7 @@ describe('TranscriptionPanel Component', () => {
       global.URL.revokeObjectURL = vi.fn();
       
       const mockClick = vi.fn();
-      const mockCreateElement = document.createElement;
-      vi.spyOn(document, 'createElement').mockImplementation((tagName) => {
-        const element = mockCreateElement.call(document, tagName);
-        if (tagName === 'a') {
-          element.click = mockClick;
-        }
-        return element;
-      });
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(mockClick);
 
       (useProjectStore as any).mockReturnValue({
         transcription: {
@@ -406,8 +393,9 @@ describe('TranscriptionPanel Component', () => {
 
       render(<TranscriptionPanel />);
       
-      expect(screen.getByText(/Segments:/i)).toBeInTheDocument();
-      expect(screen.getByText('3')).toBeInTheDocument();
+      const segmentsRow = screen.getByText(/Segments:/i).closest('div');
+      expect(segmentsRow).toHaveTextContent('Segments:');
+      expect(segmentsRow).toHaveTextContent('3');
     });
   });
 

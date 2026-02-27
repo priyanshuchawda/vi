@@ -3,7 +3,6 @@ import { useProjectStore } from '../../stores/useProjectStore';
 import { useProfileStore } from '../../stores/useProfileStore';
 import { useChatStore } from '../../stores/useChatStore';
 import { ProfileModal } from '../ui/ProfileModal';
-import type { ExportFormat, ExportResolution } from '../../stores/useProjectStore';
 
 interface ToolbarProps {
   onToggleFilePanel?: () => void;
@@ -19,7 +18,7 @@ const Toolbar = ({
   isRightPanelOpen = false
 }: ToolbarProps = {}) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const { activeClipId, currentTime, removeClip, splitClip, clips, setNotification, selectedClipIds, mergeSelectedClips, copyClips, pasteClips, saveProject, loadProject, undo, redo, canUndo, canRedo, exportFormat, exportResolution, setExportFormat, setExportResolution, subtitles, subtitleStyle } = useProjectStore();
+  const { activeClipId, currentTime, removeClip, splitClip, clips, setNotification, selectedClipIds, mergeSelectedClips, copyClips, pasteClips, saveProject, loadProject, undo, redo, exportFormat, exportResolution, subtitles, subtitleStyle } = useProjectStore();
   const { profile } = useProfileStore();
   const { togglePanel, isOpen: isChatOpen } = useChatStore();
   const [isExporting, setIsExporting] = useState(false);

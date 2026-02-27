@@ -4,7 +4,7 @@ import ProjectTab from '../FilePanel/ProjectTab';
 import MediaTab from '../FilePanel/MediaTab';
 import TextTab from '../FilePanel/TextTab';
 import SettingsTab from '../FilePanel/SettingsTab';
-import GeminiMemoryPanel from '../GeminiMemory/GeminiMemoryPanel';
+import AIMemoryPanel from '../AIMemory/AIMemoryPanel';
 import YouTubeUploadTab from '../FilePanel/YouTubeUploadTab';
 import clsx from 'clsx';
 
@@ -111,7 +111,7 @@ const ContentPanel = ({ activeTab, onClose }: ContentPanelProps) => {
       case 'settings':
         return <SettingsTab />;
       case 'memory':
-        return <GeminiMemoryPanel />;
+        return <AIMemoryPanel />;
       case 'youtube':
         return <YouTubeUploadTab />;
       default:

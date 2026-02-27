@@ -262,12 +262,12 @@ export const exportVideo = async (
     };
 
     // Helper: Generate drawtext filters for text clips
-    const generateTextFilters = (textClips: any[], totalDuration: number) => {
+    const generateTextFilters = (textClips: any[]) => {
       if (textClips.length === 0) return '';
       
       const filters: string[] = [];
       
-      textClips.forEach((clip: any, index: number) => {
+      textClips.forEach((clip: any) => {
         const props = clip.textProperties;
         if (!props) return;
         
@@ -511,7 +511,7 @@ export const exportVideo = async (
 
             // Apply text overlays if any
             if (textClips.length > 0) {
-              const textFilter = generateTextFilters(textClips, segments[0].duration);
+              const textFilter = generateTextFilters(textClips);
               if (textFilter) {
                 videoFilters.push(textFilter);
               }
@@ -624,8 +624,7 @@ export const exportVideo = async (
 
         // Apply text overlays after concatenation
         if (textClips.length > 0 && hasVideoStream) {
-          const totalVideoDuration = segments.reduce((sum: number, seg: any) => sum + seg.duration, 0);
-          const textFilter = generateTextFilters(textClips, totalVideoDuration);
+          const textFilter = generateTextFilters(textClips);
           if (textFilter) {
             // Chain text filters after concat output
             filterSteps.push(`[outv]${textFilter}[outv_text]`);
@@ -700,7 +699,7 @@ export const exportVideo = async (
           tempFiles.forEach(file => {
             try {
               fs.unlinkSync(file);
-            } catch (e) {
+            } catch {
               // Ignore cleanup errors
             }
           });
@@ -712,7 +711,7 @@ export const exportVideo = async (
       tempFiles.forEach(file => {
         try {
           fs.unlinkSync(file);
-        } catch (e) {
+        } catch {
           // Ignore cleanup errors
         }
       });

@@ -141,7 +141,7 @@ const Preview = () => {
 
     // 2. Sync Background Audio Clips
     backgroundAudioClips.forEach(clip => {
-      let audioEl = audioRefs.current.get(clip.id);
+      const audioEl = audioRefs.current.get(clip.id);
 
       // If we don't have a ref but should, we rely on the render to create it
       // The render loop below creates <audio> tags with refs callback

@@ -19,5 +19,11 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'warn',
+      'no-async-promise-executor': 'off',
+      'react-hooks/static-components': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])

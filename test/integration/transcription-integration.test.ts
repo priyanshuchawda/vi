@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import path from 'path';
 import fs from 'fs';
 
@@ -17,15 +17,10 @@ import fs from 'fs';
  * 6. Test export to TXT and SRT formats
  */
 
-describe('Transcription Feature - Integration Tests', () => {
-  const testMediaDir = path.join(process.cwd(), 'test-media');
-  
-  beforeAll(() => {
-    // Check if test media files exist
-    if (!fs.existsSync(testMediaDir)) {
-      throw new Error('test-media directory not found. Run: python3 create_test_media.py');
-    }
-  });
+const testMediaDir = path.join(process.cwd(), 'test-media');
+const integrationDescribe = fs.existsSync(testMediaDir) ? describe : describe.skip;
+
+integrationDescribe('Transcription Feature - Integration Tests', () => {
 
   describe('Test Media Files', () => {
     it('should have test video files with audio', () => {

@@ -3,6 +3,10 @@ import path from "path";
 import fs from "fs/promises";
 import { fileURLToPath } from "url";
 import { config } from "dotenv";
+import {
+  BedrockRuntimeClient,
+  ConverseCommand,
+} from "@aws-sdk/client-bedrock-runtime";
 import ffmpeg, {
   exportVideo,
   generateThumbnail,
@@ -35,6 +39,7 @@ console.log(
 
 // Initialize analysis service
 let analysisService: ChannelAnalysisService | null = null;
+let bedrockGatewayClient: BedrockRuntimeClient | null = null;
 if (YOUTUBE_API_KEY && AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
   analysisService = new ChannelAnalysisService(
     YOUTUBE_API_KEY,
@@ -44,6 +49,16 @@ if (YOUTUBE_API_KEY && AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
     BEDROCK_MODEL_ID,
   );
   console.log("[Main] Channel analysis service initialized (Bedrock)");
+  bedrockGatewayClient = new BedrockRuntimeClient({
+    region: AWS_REGION,
+    credentials: {
+      accessKeyId: AWS_ACCESS_KEY_ID,
+      secretAccessKey: AWS_SECRET_ACCESS_KEY,
+      ...(process.env.AWS_SESSION_TOKEN
+        ? { sessionToken: process.env.AWS_SESSION_TOKEN }
+        : {}),
+    },
+  });
 } else {
   console.warn("[Main] Missing API keys - channel analysis disabled");
 }
@@ -409,6 +424,43 @@ ipcMain.handle(
     }
   },
 );
+
+ipcMain.handle("bedrock:converse", async (_, input: Record<string, unknown>) => {
+  if (!bedrockGatewayClient) {
+    throw new Error(
+      "Bedrock gateway unavailable: missing AWS credentials in Electron environment",
+    );
+  }
+
+  const reviveBytes = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+      return value.map(reviveBytes);
+    }
+    if (value && typeof value === "object") {
+      const obj = value as Record<string, unknown>;
+      const out: Record<string, unknown> = {};
+      for (const [key, v] of Object.entries(obj)) {
+        if (
+          key === "bytes" &&
+          Array.isArray(v) &&
+          v.every((n) => typeof n === "number")
+        ) {
+          out[key] = Uint8Array.from(v as number[]);
+        } else {
+          out[key] = reviveBytes(v);
+        }
+      }
+      return out;
+    }
+    return value;
+  };
+
+  const commandInput = reviveBytes(input);
+  const response = await bedrockGatewayClient.send(
+    new ConverseCommand(commandInput as any),
+  );
+  return response;
+});
 
 // File reading for AI Memory analysis
 ipcMain.handle("file:readFileAsBase64", async (_, filePath: string) => {

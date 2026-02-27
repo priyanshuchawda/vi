@@ -105,7 +105,7 @@ const SidebarNav = ({ activeTab, onTabChange }: SidebarNavProps) => {
   return (
     <div className="flex flex-col border-b border-border-primary bg-bg-secondary">
       <div
-        className="flex overflow-x-auto custom-scrollbar"
+        className="flex overflow-x-auto custom-scrollbar stagger-children"
         role="tablist"
         aria-label="File panel tabs"
       >
@@ -119,29 +119,29 @@ const SidebarNav = ({ activeTab, onTabChange }: SidebarNavProps) => {
                 flex-none min-w-[66px] flex flex-col items-center justify-center py-2 px-1 gap-1
                 transition-all duration-200 relative group
                 ${isActive
-                  ? 'text-accent bg-accent/10'
-                  : 'text-text-muted hover:text-text-primary hover:bg-bg-elevated'
+                  ? 'text-accent bg-accent/10 scale-105'
+                  : 'text-text-muted hover:text-text-primary hover:bg-bg-elevated hover:scale-105 active:scale-95'
                 }
               `}
               title={`${item.label} (${item.shortcut})`}
             >
               {/* Icon */}
-              <div className={`transition-transform ${isActive ? 'scale-110' : 'group-hover:scale-105'}`}>
+              <div className={`transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
                 {item.icon}
               </div>
 
               {/* Label */}
-              <span className={`text-[9px] font-bold tracking-wider ${isActive ? 'text-accent' : ''}`}>
+              <span className={`text-[9px] font-bold tracking-wider transition-all duration-200 ${isActive ? 'text-accent' : ''}`}>
                 {item.label}
               </span>
 
               {/* Active indicator line */}
               {isActive && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent shadow-lg shadow-accent/50" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-accent to-transparent shadow-lg shadow-accent/50 animate-expand" />
               )}
 
               {/* Tooltip hint on hover */}
-              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-bg-elevated border border-border-primary rounded text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-bg-elevated/95 backdrop-blur-sm border border-border-primary rounded text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 shadow-lg">
                 {item.shortcut}
               </div>
             </button>

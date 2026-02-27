@@ -1,5 +1,6 @@
 import { useProjectStore } from '../stores/useProjectStore';
 import { useAiMemoryStore } from '../stores/useAiMemoryStore';
+import { buildClipAliasMap, type AliasMap } from './clipAliasMapper';
 
 export type SnapshotScope = 'full' | 'planning' | 'timeline_only' | 'media_only';
 
@@ -282,4 +283,64 @@ export function formatSnapshotForPrompt(
   }
 
   return `${serialized.slice(0, maxChars)}\n[Snapshot truncated for token efficiency]`;
+}
+
+/**
+ * Build aliased project snapshot for planning
+ * Replaces UUID clip IDs with stable aliases (clip_1, clip_2, etc.)
+ * Returns both the aliased snapshot and the alias map for later resolution
+ */
+export function buildAliasedSnapshotForPlanning(
+  supportedToolNames: string[] = [],
+): { snapshot: AIProjectSnapshot; aliasMap: AliasMap } {
+  const fullSnapshot = buildAIProjectSnapshot(supportedToolNames);
+  const project = useProjectStore.getState();
+  
+  // Build alias map from real clips
+  const aliasMap = buildClipAliasMap(project.clips);
+  
+  // Create aliased clips array
+  const aliasedClips = fullSnapshot.timeline.clips.map((clip, index) => {
+    const alias = `clip_${index + 1}`;
+    return {
+      ...clip,
+      id: alias, // Replace UUID with alias
+    };
+  });
+  
+  // Create aliased selected IDs
+  const aliasedSelectedIds = fullSnapshot.timeline.selectedClipIds
+    .map(uuid => aliasMap.byUuid.get(uuid))
+    .filter((alias): alias is string => alias !== undefined);
+
+  // Build aliased snapshot
+  const aliasedSnapshot: AIProjectSnapshot = {
+    ...fullSnapshot,
+    timeline: {
+      ...fullSnapshot.timeline,
+      clips: aliasedClips,
+      selectedClipIds: aliasedSelectedIds,
+    },
+    constraints: {
+      ...fullSnapshot.constraints,
+      timelineBounds: {
+        minTime: 0,
+        maxTime: fullSnapshot.timeline.totalDuration,
+        maxClipEndById: Object.fromEntries(
+          aliasedClips.map((clip) => [clip.id, clip.sourceDuration]),
+        ),
+      },
+    },
+    neverAssume: [
+      'Never generate or invent new clip IDs - use only the provided aliases (clip_1, clip_2, etc.)',
+      'Never use UUIDs - only use the clip aliases provided in the snapshot',
+      'Never assume source bounds can exceed sourceDuration',
+      'Never return empty operations - if uncertain, call get_timeline_info first',
+      'Never assume transcript/subtitles exist unless snapshot confirms availability',
+      'Never assume media analysis exists for every clip',
+      'Never assume mutating operations succeeded without explicit tool success=true',
+    ],
+  };
+
+  return { snapshot: aliasedSnapshot, aliasMap };
 }

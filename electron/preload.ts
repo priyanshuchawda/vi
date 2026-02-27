@@ -34,4 +34,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   memorySaveMarkdown: (entry: any, projectId?: string) => ipcRenderer.invoke('memory:saveAnalysisMarkdown', entry, projectId),
   memoryGetDir: () => ipcRenderer.invoke('memory:getDir'),
   bedrockConverse: (input: Record<string, unknown>) => ipcRenderer.invoke('bedrock:converse', input),
+  // YouTube Upload
+  youtube: {
+    isAuthenticated: () => ipcRenderer.invoke('youtube:isAuthenticated'),
+    authenticate: () => ipcRenderer.invoke('youtube:authenticate'),
+    logout: () => ipcRenderer.invoke('youtube:logout'),
+    uploadVideo: (filePath: string, metadata: any, onProgress?: (progress: any) => void) => {
+      if (onProgress) {
+        ipcRenderer.on('youtube:uploadProgress', (_, progress) => onProgress(progress));
+      }
+      return ipcRenderer.invoke('youtube:uploadVideo', { filePath, metadata });
+    },
+  },
 });

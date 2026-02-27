@@ -194,9 +194,19 @@ export class ToolExecutor {
         const { clip_id, start_time } = call.args;
         const clip = state.clips.find((c) => c.id === clip_id);
         if (!clip)
-          return { valid: false, error: `Clip with ID "${clip_id}" not found` };
+          return {
+            valid: false,
+            error: `Clip with ID "${clip_id}" not found`,
+            errorType: "validation_error",
+            recoveryHint: "Call get_timeline_info first to get current clip IDs, then retry with a valid clip_id.",
+          };
         if (start_time < 0) {
-          return { valid: false, error: "Start time cannot be negative" };
+          return {
+            valid: false,
+            error: "Start time cannot be negative",
+            errorType: "constraint_violation",
+            recoveryHint: "Use start_time >= 0.",
+          };
         }
         return { valid: true };
       }

@@ -25,14 +25,19 @@ import { optimizeContextHistory } from './contextManager';
 import { waitForSlot, withRetryOn429 } from './rateLimiter';
 import { recordUsage } from './tokenTracker';
 import {
+  buildAliasedSnapshotForPlanning,
   buildAIProjectSnapshot,
   formatSnapshotForPrompt,
+  type AIProjectSnapshot,
 } from './aiProjectSnapshot';
 import {
   formatCapabilityMatrixForPrompt,
   isReadOnlyTool,
   type ToolErrorCategory,
 } from './toolCapabilityMatrix';
+import { buildClipAliasMap, formatAliasMapForPrompt, type AliasMap } from './clipAliasMapper';
+import { compilePlan, generateCorrectionPrompt, type CompilationResult } from './planCompiler';
+import { buildFallbackExecutionPlan, shouldUseFallback, getFallbackExplanation } from './fallbackPlanGenerator';
 
 const DEFAULT_MAX_ROUNDS = 3;
 const ABSOLUTE_MAX_ROUNDS = 4;
@@ -97,7 +102,7 @@ export interface ExecutionPlan {
 
 /**
  * STATIC System Instruction for Planning
- * Enforces strict UNDERSTAND → PLAN → EXECUTE behavior.
+ * Enforces strict UNDERSTAND → PLAN → EXECUTE behavior with alias-based clip references.
  */
 const STATIC_PLANNING_INSTRUCTION = `<role>
 You are a professional video editing assistant integrated into QuickCut.
@@ -106,27 +111,52 @@ Your output must be deterministic, tool-grounded, and safe.
 
 <mandatory-workflow>
 Follow this order on every planning request:
-1) UNDERSTAND: infer user goal and hard constraints from the snapshot.
-2) PLAN: produce atomic tool operations with explicit order.
-3) EXECUTE PLAN DRAFT: call only supported tools to validate state and produce executable operations.
+1) UNDERSTAND: Analyze the user goal and project snapshot.
+2) PLAN: Produce atomic tool operations in explicit order.
+3) EXECUTE: Call supported tools with ONLY the clip aliases provided in snapshot.
 
 Never skip UNDERSTAND or PLAN.
 </mandatory-workflow>
 
+<clip-reference-rules>
+CRITICAL: You must ONLY use clip aliases from the provided snapshot.
+- Clips are labeled: clip_1, clip_2, clip_3, etc.
+- NEVER generate or invent clip IDs or UUIDs.
+- NEVER use raw hexadecimal UUIDs.
+- If you need to reference a clip, use ONLY the aliases from the snapshot.
+- If uncertain which clip, call get_timeline_info FIRST (max 1-2 inspection calls).
+</clip-reference-rules>
+
 <planning-rules>
-1. Start by grounding on the AI_PROJECT_SNAPSHOT.
-2. Use only tools provided in toolConfig.
-3. Read-only inspection tools are allowed during planning and do not require user approval.
-4. State-changing operations must be precise and fully specified.
-5. Prefer fewer rounds, but never trade off correctness.
-6. Never invent tool names or pseudo-functions.
+1. Ground all operations on the AI_PROJECT_SNAPSHOT.
+2. Use ONLY tools provided in toolConfig - never invent tool names.
+3. Read-only inspection tools (get_timeline_info, get_clip_details) are allowed during planning.
+4. State-changing operations must be precise with valid aliases and bounds.
+5. Prefer fewer rounds - aim to complete in 2-3 rounds total.
+6. NEVER return empty operations - if uncertain, inspect state first.
+7. Every tool call must have valid, complete arguments.
 </planning-rules>
 
+<timestamp-rules>
+- split_clip: time_in_clip must be between 0 and clip duration.
+- update_clip_bounds: new_start/new_end must be between 0 and sourceDuration.
+- set_playhead_position: time must be between 0 and totalDuration.
+- move_clip: start_time must be >= 0.
+</timestamp-rules>
+
 <safety-rules>
-- If IDs/bounds are uncertain, call read-only tools first.
-- Do not assume successful execution without tool result success=true.
-- Keep operations valid for current timeline bounds.
-</safety-rules>`;
+- If IDs/bounds are uncertain, call get_timeline_info or get_clip_details FIRST.
+- Do not assume execution success without tool result confirmation.
+- Keep operations within valid timeline bounds.
+- Never proceed with invented or hallucinated data.
+</safety-rules>
+
+<response-requirements>
+- Return tool calls with complete, valid arguments.
+- Use only provided clip aliases (clip_1, clip_2, etc.).
+- Ensure at least ONE valid operation unless timeline is empty.
+- If unable to proceed, call get_timeline_info to inspect state.
+</response-requirements>`;
 
 /**
  * Generate a complete execution plan by letting the AI explore all needed operations.
@@ -159,7 +189,10 @@ export async function generateCompletePlan(
   const toolNames = toolSet
     .map((tool: any) => tool?.toolSpec?.name)
     .filter((name: string | undefined): name is string => Boolean(name));
-  const snapshot = buildAIProjectSnapshot(toolNames);
+  
+  // Build aliased snapshot for LLM-safe clip references
+  const { snapshot, aliasMap } = buildAliasedSnapshotForPlanning(toolNames);
+  
   const channelContext = truncateBlock(getChannelAnalysisContext(), 800);
   const snapshotContext = formatSnapshotForPrompt(snapshot, 'planning', 3400);
   const capabilityContext = formatCapabilityMatrixForPrompt(toolNames, 2400);
@@ -302,11 +335,105 @@ State-changing operations must remain executable with valid IDs and bounds.
     }
   }
 
+  // ===== PLAN COMPILATION: Validate and convert aliases to UUIDs =====
+  // Operations at this point may contain clip aliases (clip_1, clip_2, etc.)
+  // We need to validate and convert them to executable UUIDs
+  
+  let compiledOperations = operations;
+  
+  // First compilation attempt
+  let compilationResult = compilePlan(operations, aliasMap, snapshot);
+  
+  // If compilation found critical errors, try one retry with correction prompt
+  if (compilationResult.errors.length > 0 && currentRound < allowedRounds) {
+    const correctionPrompt = generateCorrectionPrompt(compilationResult);
+    
+    // Add correction prompt to conversation
+    messages.push({
+      role: 'user',
+      content: [{ text: correctionPrompt }],
+    });
+    
+    await waitForSlot();
+    
+    const retryResponse = await withRetryOn429(() =>
+      converseBedrock({
+        modelId: MODEL_ID,
+        messages: messages as any,
+        system: [{ text: STATIC_PLANNING_INSTRUCTION }],
+        toolConfig: { tools: toolSet as any },
+        inferenceConfig: { maxTokens: PLANNING_MAX_TOKENS, temperature: 0.2 },
+      }),
+    );
+    
+    // Record token usage from retry
+    if (retryResponse.usage) {
+      recordUsage({
+        promptTokenCount: retryResponse.usage.inputTokens,
+        candidatesTokenCount: retryResponse.usage.outputTokens,
+        totalTokenCount: retryResponse.usage.totalTokens,
+      });
+    }
+    
+    // Extract retry tool calls
+    if (retryResponse.stopReason === 'tool_use') {
+      const retryToolUses = (retryResponse.output?.message?.content || [])
+        .filter((c: any) => c.toolUse)
+        .map((c: any) => c.toolUse);
+      
+      const retryOperations: PlannedOperation[] = [];
+      for (const toolUse of retryToolUses) {
+        if (!isKnownTool(toolUse.name)) continue;
+        
+        const functionCall = {
+          name: toolUse.name,
+          args: toolUse.input,
+        };
+        retryOperations.push({
+          round: currentRound + 1,
+          functionCall,
+          description: generateOperationDescription(functionCall),
+          isReadOnly: isReadOnlyTool(toolUse.name),
+        });
+      }
+      
+      // Try compiling the retry operations
+      if (retryOperations.length > 0) {
+        const retryCompilation = compilePlan(retryOperations, aliasMap, snapshot);
+        if (retryCompilation.errors.length === 0) {
+          // Retry succeeded - use these operations
+          compiledOperations = retryOperations;
+          compilationResult = retryCompilation;
+        }
+      }
+    }
+  }
+  
+  // If we still have no valid operations after retry, use fallback plan
+  if (shouldUseFallback(compilationResult.operations)) {
+    return buildFallbackExecutionPlan(snapshot, aliasMap, message);
+  }
+  
+  // Use the compiled operations (with UUIDs) for execution
+  compiledOperations = compilationResult.operations.map((compiledOp, index) => {
+    // Find original operation to preserve metadata (round, description, isReadOnly)
+    const originalOp = operations[index] || {
+      round: currentRound,
+      description: generateOperationDescription(compiledOp.functionCall),
+      isReadOnly: isReadOnlyTool(compiledOp.functionCall.name),
+    };
+    
+    return {
+      ...originalOp,
+      functionCall: compiledOp.functionCall,
+    };
+  });
+
   const { ToolExecutor } = await import('./toolExecutor');
   const preflight = ToolExecutor.preflightPlan(
-    operations.map((op) => op.functionCall as FunctionCall),
+    compiledOperations.map((op) => op.functionCall as FunctionCall),
   );
-  const normalizedOperations = operations.map((operation, index) => ({
+  const normalizedOperations = compiledOperations.map((operation, index) => ({
     ...operation,
     functionCall: preflight.normalizedCalls[index] || operation.functionCall,
   }));
@@ -317,6 +444,13 @@ State-changing operations must remain executable with valid IDs and bounds.
       operationIndex: issue.index,
       toolName: issue.name,
       message: issue.message,
+    })),
+    // Add compilation warnings (non-critical issues fixed during compilation)
+    ...compilationResult.warnings.map((warning) => ({
+      category: 'validation_warning' as const,
+      operationIndex: -1,
+      toolName: 'compiler',
+      message: warning,
     })),
   ];
   const validation: PlanValidationReport = {
@@ -701,7 +835,7 @@ function generateOperationDescription(functionCall: any): string {
 
 function buildUnderstanding(
   message: string,
-  snapshot: ReturnType<typeof buildAIProjectSnapshot>,
+  snapshot: AIProjectSnapshot,
 ): PlanUnderstanding {
   return {
     goal: message.trim(),

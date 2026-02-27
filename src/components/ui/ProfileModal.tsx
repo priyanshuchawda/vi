@@ -56,8 +56,8 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
-      <div className="bg-bg-elevated border border-border-primary rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      <div className="bg-bg-elevated border border-border-primary rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl animate-scale-in" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border-primary bg-bg-secondary">
           <div className="flex items-center gap-3">
@@ -73,7 +73,8 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
           </div>
           <button
             onClick={onClose}
-            className="text-text-muted hover:text-text-primary hover:bg-bg-primary p-2 rounded-lg transition-colors"
+            className="text-text-muted hover:text-text-primary hover:bg-bg-primary p-2 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 relative z-10"
+            aria-label="Close modal"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />

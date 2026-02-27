@@ -5,8 +5,9 @@ import TranscriptionPanel from './TranscriptionPanel';
 import AudioPanel from './AudioPanel';
 import EffectsPanel from './EffectsPanel';
 import ExportSettingsPanel from './ExportSettingsPanel';
+import PublishPanel from './PublishPanel';
 
-type PanelTab = 'captions' | 'transcript' | 'audio' | 'effects' | 'export';
+type PanelTab = 'captions' | 'transcript' | 'audio' | 'effects' | 'export' | 'publish';
 
 interface RightPanelProps {
   isOpen?: boolean;
@@ -64,18 +65,30 @@ const RightPanel = ({ isOpen = true, onClose }: RightPanelProps) => {
         </svg>
       ),
     },
+    {
+      id: 'publish',
+      label: 'Publish',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+        </svg>
+      ),
+    },
   ];
 
   return (
-    <div className="w-80 bg-bg-elevated border-l border-white/5 flex flex-col h-full">
+    <div className="w-80 bg-gradient-to-b from-bg-elevated to-bg-secondary border-l border-white/5 flex flex-col h-full shadow-2xl">
       {/* Header with tabs */}
-      <div className="border-b border-white/5 bg-bg-secondary">
+      <div className="border-b border-white/5 bg-bg-secondary/80 backdrop-blur-xl">
         <div className="flex items-center justify-between p-3 border-b border-white/5">
-          <h3 className="text-sm font-bold text-text-primary">Tools</h3>
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-1 bg-gradient-to-b from-accent to-accent/50 rounded-full"></div>
+            <h3 className="text-sm font-bold text-text-primary">Tools</h3>
+          </div>
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1 text-text-muted hover:text-text-primary transition"
+              className="p-1.5 text-text-muted hover:text-text-primary hover:bg-bg-elevated rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
               title="Close"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -84,20 +97,28 @@ const RightPanel = ({ isOpen = true, onClose }: RightPanelProps) => {
             </button>
           )}
         </div>
-        <div className="flex">
+        <div className="flex px-1 py-1.5 gap-0.5" role="tablist" aria-label="Tool panels">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex flex-col items-center gap-1 py-2 px-1 transition ${
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-label={tab.label}
+              className={`flex-1 flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-lg transition-all duration-200 relative ${
                 activeTab === tab.id
-                  ? 'text-accent bg-bg-elevated border-b-2 border-accent'
-                  : 'text-text-muted hover:text-text-primary hover:bg-bg-elevated/50'
+                  ? 'text-accent bg-gradient-to-b from-bg-elevated to-bg-surface shadow-lg scale-105'
+                  : 'text-text-muted hover:text-text-primary hover:bg-bg-elevated/50 hover:scale-105'
               }`}
               title={tab.label}
             >
-              {tab.icon}
-              <span className="text-[10px] font-medium">{tab.label}</span>
+              {activeTab === tab.id && (
+                <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-gradient-to-r from-transparent via-accent to-transparent rounded-full"></div>
+              )}
+              <div className={`transition-all duration-200 ${activeTab === tab.id ? 'scale-110' : ''}`}>
+                {tab.icon}
+              </div>
+              <span className={`text-[10px] font-medium transition-all duration-200 ${activeTab === tab.id ? 'font-semibold' : ''}`}>{tab.label}</span>
             </button>
           ))}
         </div>
@@ -110,6 +131,7 @@ const RightPanel = ({ isOpen = true, onClose }: RightPanelProps) => {
         {activeTab === 'audio' && <AudioPanel />}
         {activeTab === 'effects' && <EffectsPanel />}
         {activeTab === 'export' && <ExportSettingsPanel />}
+        {activeTab === 'publish' && <PublishPanel />}
       </div>
     </div>
   );

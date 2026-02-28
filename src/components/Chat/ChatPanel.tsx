@@ -138,6 +138,50 @@ const ChatPanel = () => {
     // Context will be used when AI is integrated
   }, [clips, currentTime]);
 
+  const recordToolLifecycleForTurn = (
+    currentTurnId: string | null,
+    event: {
+      call: { name: string; args: Record<string, any> };
+      state: 'pending' | 'running' | 'completed' | 'error';
+      result?: {
+        name?: string;
+        result?: {
+          success?: boolean;
+          message?: string;
+          error?: string;
+        };
+        success?: boolean;
+        message?: string;
+        error?: string;
+      };
+    }
+  ) => {
+    if (!currentTurnId) return;
+    appendTurnPart(currentTurnId, {
+      type: 'tool_call',
+      name: event.call.name,
+      args: event.call.args || {},
+      state: event.state,
+      timestamp: Date.now(),
+    });
+
+    if (event.state !== 'completed' && event.state !== 'error') return;
+    const normalizedSuccess =
+      typeof event.result?.success === 'boolean'
+        ? event.result.success
+        : Boolean(event.result?.result?.success);
+    const normalizedMessage = event.result?.message || event.result?.result?.message;
+    const normalizedError = event.result?.error || event.result?.result?.error;
+    appendTurnPart(currentTurnId, {
+      type: 'tool_result',
+      name: event.result?.name || event.call.name,
+      success: normalizedSuccess,
+      message: normalizedMessage,
+      error: normalizedError,
+      timestamp: Date.now(),
+    });
+  };
+
   const handleSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
     // Add user message with attachments
     const userMessageId = addMessage('user', content, undefined, attachments);
@@ -284,7 +328,10 @@ const ChatPanel = () => {
                     total,
                     message: operation.description
                   });
-                }
+                },
+                (event) => {
+                  recordToolLifecycleForTurn(turnId, event);
+                },
               );
               
               setToolExecutionProgress(null);
@@ -407,7 +454,13 @@ const ChatPanel = () => {
                 mode: 'hybrid',
                 maxReadOnlyBatchSize: 3,
                 stopOnFailure: true,
-              }
+              },
+              undefined,
+              {
+                onLifecycle: (event) => {
+                  recordToolLifecycleForTurn(turnId, event);
+                },
+              },
             );
             let followupText = '';
             let first = true;
@@ -611,7 +664,10 @@ const ChatPanel = () => {
             total,
             message: operation.description
           });
-        }
+        },
+        (event) => {
+          recordToolLifecycleForTurn(activeTurnId, event);
+        },
       );
       
       // Clear progress
@@ -707,15 +763,6 @@ const ChatPanel = () => {
     
     if (activeTurnId) {
       setTurnStatus(activeTurnId, 'executing');
-      pendingToolCalls.functionCalls.forEach((call) => {
-        appendTurnPart(activeTurnId, {
-          type: 'tool_call',
-          name: call.name,
-          args: call.args || {},
-          state: 'running',
-          timestamp: Date.now(),
-        });
-      });
     }
     setIsExecutingTools(true);
     setIsTyping(true);
@@ -739,20 +786,13 @@ const ChatPanel = () => {
             total,
             message: result.result.message
           });
-        }
+        },
+        {
+          onLifecycle: (event) => {
+            recordToolLifecycleForTurn(activeTurnId, event);
+          },
+        },
       );
-      if (activeTurnId) {
-        results.forEach((result) => {
-          appendTurnPart(activeTurnId, {
-            type: 'tool_result',
-            name: result.name,
-            success: Boolean(result.result.success),
-            message: result.result.message,
-            error: result.result.error,
-            timestamp: Date.now(),
-          });
-        });
-      }
       
       // Clear progress
       setToolExecutionProgress(null);

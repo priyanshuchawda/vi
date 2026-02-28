@@ -44,3 +44,7 @@ electron/vosk-model-*/
 resources/ffmpeg-win/
 resources/ffmpeg-mac/
 resources/ffmpeg-linux/
+
+# Local sibling/codebase checkouts (not part of this app repo)
+gemini-cli/
+kilocode/

@@ -44,6 +44,7 @@ import {
   normalizeMessage,
   setCached,
 } from "./requestCache";
+import { evaluateTokenGuard } from "./bedrockTokenEstimator";
 import { recordAssistantResponse } from "./aiTelemetry";
 import {
   buildAIProjectSnapshot,
@@ -58,6 +59,8 @@ const TOOL_CHAT_MAX_TOKENS = 1536;
 const HISTORY_TOOL_RESULT_MAX_TOKENS = 1024;
 const MAX_DYNAMIC_CONTEXT_CHARS = 5000;
 const CHAT_CACHE_TTL_MS = 2 * 60 * 1000;
+const TOKEN_GUARD_SOFT_LIMIT = 160_000;
+const TOKEN_GUARD_HARD_LIMIT = 220_000;
 
 // ─── Message Types (Bedrock Converse API format) ──────────────────────────────
 
@@ -525,7 +528,7 @@ export async function sendMessageWithHistory(
       });
     }
 
-    const fullMessage = `${dynamicContext}\n\nUser Query: ${message}`;
+    let fullMessage = `${dynamicContext}\n\nUser Query: ${message}`;
     const cacheKey = buildCacheKey([
       "chat",
       MODEL_ID,
@@ -542,7 +545,7 @@ export async function sendMessageWithHistory(
     }
 
     // Build messages array (no chat session — flat array per Bedrock pattern)
-    const messages: AIChatMessage[] = [
+    let messages: AIChatMessage[] = [
       ...optimizedHistory,
       {
         role: "user" as const,
@@ -554,6 +557,48 @@ export async function sendMessageWithHistory(
         ],
       },
     ];
+    const getToolCount = () => 0;
+    let tokenGuard = evaluateTokenGuard({
+      messages,
+      systemTexts: [STATIC_SYSTEM_INSTRUCTION_NO_TOOLS],
+      toolCount: getToolCount(),
+      maxOutputTokens: CHAT_MAX_TOKENS,
+      softLimitTokens: TOKEN_GUARD_SOFT_LIMIT,
+      hardLimitTokens: TOKEN_GUARD_HARD_LIMIT,
+    });
+
+    if (tokenGuard.status !== "ok") {
+      const reducedHistory = trimHistoryToLimit(optimizedHistory, 6);
+      const reducedContext = buildDynamicContextWithOptions(undefined, {
+        maxChars: 1600,
+      });
+      fullMessage = `${reducedContext}\n\nUser Query: ${message}`;
+      messages = [
+        ...reducedHistory,
+        {
+          role: "user" as const,
+          content: [
+            ...(attachments && attachments.length > 0
+              ? await buildMediaParts(attachments)
+              : []),
+            { text: fullMessage },
+          ],
+        },
+      ];
+      tokenGuard = evaluateTokenGuard({
+        messages,
+        systemTexts: [STATIC_SYSTEM_INSTRUCTION_NO_TOOLS],
+        toolCount: getToolCount(),
+        maxOutputTokens: CHAT_MAX_TOKENS,
+        softLimitTokens: TOKEN_GUARD_SOFT_LIMIT,
+        hardLimitTokens: TOKEN_GUARD_HARD_LIMIT,
+      });
+    }
+    if (tokenGuard.status === "block") {
+      throw new Error(
+        `Request exceeds token safety cap (${tokenGuard.estimatedInputTokens} > ${TOKEN_GUARD_HARD_LIMIT}). Reduce context or attachments.`,
+      );
+    }
 
     console.log(" Sending Message to Bedrock Nova Lite");
     console.log("   Stats:", {
@@ -734,13 +779,60 @@ export async function* sendMessageWithHistoryStream(
     }
 
     // Build messages array
-    const messages: AIChatMessage[] = [
+    let messages: AIChatMessage[] = [
       ...optimizedHistory,
       {
         role: "user" as const,
         content: [...mediaParts, { text: fullMessage }],
       },
     ];
+    let selectedTools = includeTools
+      ? (preflight.economyTools
+        ? pickToolsForMessage(message, "economy")
+        : standardTools)
+      : [];
+    const systemText = includeTools
+      ? STATIC_SYSTEM_INSTRUCTION_WITH_TOOLS
+      : STATIC_SYSTEM_INSTRUCTION_NO_TOOLS;
+    let tokenGuard = evaluateTokenGuard({
+      messages,
+      systemTexts: [systemText],
+      toolCount: selectedTools.length,
+      maxOutputTokens: includeTools ? TOOL_CHAT_MAX_TOKENS : CHAT_MAX_TOKENS,
+      softLimitTokens: TOKEN_GUARD_SOFT_LIMIT,
+      hardLimitTokens: TOKEN_GUARD_HARD_LIMIT,
+    });
+
+    if (tokenGuard.status !== "ok") {
+      optimizedHistory = trimHistoryToLimit(optimizedHistory, 6);
+      dynamicContext = buildDynamicContextWithOptions(options?.contextFlags, {
+        maxChars: 1600,
+      });
+      const reducedFullMessage = `${dynamicContext}\n\nUser Query: ${message}`;
+      if (includeTools) {
+        selectedTools = pickToolsForMessage(message, "economy");
+      }
+      messages = [
+        ...optimizedHistory,
+        {
+          role: "user" as const,
+          content: [...mediaParts, { text: reducedFullMessage }],
+        },
+      ];
+      tokenGuard = evaluateTokenGuard({
+        messages,
+        systemTexts: [systemText],
+        toolCount: selectedTools.length,
+        maxOutputTokens: includeTools ? TOOL_CHAT_MAX_TOKENS : CHAT_MAX_TOKENS,
+        softLimitTokens: TOKEN_GUARD_SOFT_LIMIT,
+        hardLimitTokens: TOKEN_GUARD_HARD_LIMIT,
+      });
+    }
+    if (tokenGuard.status === "block") {
+      throw new Error(
+        `Request exceeds token safety cap (${tokenGuard.estimatedInputTokens} > ${TOKEN_GUARD_HARD_LIMIT}). Compact context or reduce attachments.`,
+      );
+    }
 
     // Wait for a rate-limit slot before making the API call
     await waitForSlot();
@@ -749,7 +841,7 @@ export async function* sendMessageWithHistoryStream(
     const commandInput: Record<string, unknown> = {
       modelId: MODEL_ID,
       messages: messages as any,
-      system: [{ text: includeTools ? STATIC_SYSTEM_INSTRUCTION_WITH_TOOLS : STATIC_SYSTEM_INSTRUCTION_NO_TOOLS }],
+      system: [{ text: systemText }],
       inferenceConfig: {
         maxTokens: includeTools ? TOOL_CHAT_MAX_TOKENS : CHAT_MAX_TOKENS,
         temperature: 0.2,
@@ -759,10 +851,7 @@ export async function* sendMessageWithHistoryStream(
     // Only include tool config when editing intent is detected
     // This saves ~1500 tokens per chat-only message
     if (includeTools) {
-      const tools = preflight.economyTools
-        ? pickToolsForMessage(message, "economy")
-        : standardTools;
-      commandInput.toolConfig = { tools: tools as any };
+      commandInput.toolConfig = { tools: selectedTools as any };
     }
 
     const response = await converseBedrock(commandInput as any);
@@ -923,6 +1012,20 @@ export async function* sendToolResultsToAI(
         },
       ],
     });
+
+    const guard = evaluateTokenGuard({
+      messages,
+      systemTexts: [STATIC_SYSTEM_INSTRUCTION_WITH_TOOLS],
+      toolCount: allVideoEditingTools.length,
+      maxOutputTokens: HISTORY_TOOL_RESULT_MAX_TOKENS,
+      softLimitTokens: TOKEN_GUARD_SOFT_LIMIT,
+      hardLimitTokens: TOKEN_GUARD_HARD_LIMIT,
+    });
+    if (guard.status === "block") {
+      throw new Error(
+        `Tool follow-up exceeds token safety cap (${guard.estimatedInputTokens} > ${TOKEN_GUARD_HARD_LIMIT}). Please compact context and retry.`,
+      );
+    }
 
     // Wait for rate limit
     await waitForSlot();

@@ -41,7 +41,7 @@ const ChatPanel = () => {
     setTurnStatus,
     closeTurn,
   } = useChatStore();
-  const { clips, currentTime } = useProjectStore();
+  const { clips, currentTime, addTurnAudit, getTurnAudit } = useProjectStore();
   const { analysisData } = useOnboardingStore();
   const { entries } = useAiMemoryStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -50,6 +50,7 @@ const ChatPanel = () => {
   const [showMemoryDetails, setShowMemoryDetails] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [showTelemetry, setShowTelemetry] = useState(false);
+  const [auditTurnId, setAuditTurnId] = useState<string | null>(null);
   const [telemetryRates, setTelemetryRates] = useState<{
     plan_compile_fail_rate: number;
     fallback_rate: number;
@@ -272,6 +273,43 @@ const ChatPanel = () => {
     return true;
   };
 
+  const getTurnRetryCount = (turnId: string): number => {
+    const turn = turns.find((entry) => entry.id === turnId);
+    if (!turn) return 0;
+    return turn.parts.filter(
+      (part) => part.type === 'status' && part.to === 'retry'
+    ).length;
+  };
+
+  const hashSnapshot = (snapshot: any): string => {
+    const raw = JSON.stringify(snapshot);
+    let hash = 2166136261;
+    for (let i = 0; i < raw.length; i++) {
+      hash ^= raw.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return `fnv32-${(hash >>> 0).toString(16)}`;
+  };
+
+  const summarizeSnapshotDiff = (before: any, after: any): string[] => {
+    const beforeClips = before?.timeline?.clips || [];
+    const afterClips = after?.timeline?.clips || [];
+    const beforeIds = new Set(beforeClips.map((clip: any) => clip.id));
+    const afterIds = new Set(afterClips.map((clip: any) => clip.id));
+    const added = afterClips
+      .filter((clip: any) => !beforeIds.has(clip.id))
+      .map((clip: any) => clip.name || clip.id);
+    const removed = beforeClips
+      .filter((clip: any) => !afterIds.has(clip.id))
+      .map((clip: any) => clip.name || clip.id);
+    return [
+      `Clips: ${before?.timeline?.clipCount ?? beforeClips.length} -> ${after?.timeline?.clipCount ?? afterClips.length}`,
+      `Duration: ${(before?.timeline?.totalDuration ?? 0).toFixed(1)}s -> ${(after?.timeline?.totalDuration ?? 0).toFixed(1)}s`,
+      `Added: ${added.length > 0 ? added.join(', ') : 'none'}`,
+      `Removed: ${removed.length > 0 ? removed.join(', ') : 'none'}`,
+    ];
+  };
+
   const handleSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
     // Add user message with attachments
     const userMessageId = addMessage('user', content, undefined, attachments);
@@ -452,6 +490,20 @@ const ChatPanel = () => {
                 },
                 (event) => {
                   recordToolLifecycleForTurn(turnId, event);
+                },
+                (audit) => {
+                  if (!turnId) return;
+                  addTurnAudit({
+                    turnId,
+                    mode: 'edit',
+                    preSnapshotHash: audit.preSnapshotHash,
+                    postSnapshotHash: audit.postSnapshotHash,
+                    diffSummary: audit.diffSummary,
+                    toolInputs: audit.toolInputs,
+                    toolResults: audit.toolResults,
+                    failures: audit.failures,
+                    retries: getTurnRetryCount(turnId),
+                  });
                 },
               );
               
@@ -812,6 +864,20 @@ const ChatPanel = () => {
         (event) => {
           recordToolLifecycleForTurn(activeTurnId, event);
         },
+        (audit) => {
+          if (!activeTurnId) return;
+          addTurnAudit({
+            turnId: activeTurnId,
+            mode: 'edit',
+            preSnapshotHash: audit.preSnapshotHash,
+            postSnapshotHash: audit.postSnapshotHash,
+            diffSummary: audit.diffSummary,
+            toolInputs: audit.toolInputs,
+            toolResults: audit.toolResults,
+            failures: audit.failures,
+            retries: getTurnRetryCount(activeTurnId),
+          });
+        },
       );
       
       // Clear progress
@@ -1051,6 +1117,8 @@ const ChatPanel = () => {
     if (!pendingToolCalls) return;
     setPendingClarification(null);
     
+    const { buildAIProjectSnapshot } = await import('../../lib/aiProjectSnapshot');
+    const beforeSnapshot = buildAIProjectSnapshot();
     if (activeTurnId) {
       setTurnStatus(activeTurnId, 'executing');
     }
@@ -1116,6 +1184,31 @@ const ChatPanel = () => {
           }
         }
       }
+
+      if (activeTurnId) {
+        const afterSnapshot = buildAIProjectSnapshot();
+        addTurnAudit({
+          turnId: activeTurnId,
+          mode: 'edit',
+          preSnapshotHash: hashSnapshot(beforeSnapshot),
+          postSnapshotHash: hashSnapshot(afterSnapshot),
+          diffSummary: summarizeSnapshotDiff(beforeSnapshot, afterSnapshot),
+          toolInputs: pendingToolCalls.functionCalls.map((call) => ({
+            name: call.name,
+            args: call.args || {},
+          })),
+          toolResults: results.map((result) => ({
+            name: result.name,
+            success: result.result.success,
+            message: result.result.message,
+            error: result.result.error,
+          })),
+          failures: results
+            .filter((result) => !result.result.success)
+            .map((result) => `${result.name}: ${result.result.error || 'unknown error'}`),
+          retries: getTurnRetryCount(activeTurnId),
+        });
+      }
       
     } catch (error) {
       console.error('Tool execution error:', error);
@@ -1140,6 +1233,7 @@ const ChatPanel = () => {
   };
 
   const recentTurns: ChatTurn[] = turns.slice(-5).reverse();
+  const selectedAudit = auditTurnId ? getTurnAudit(auditTurnId) : undefined;
 
   const getToolDescription = (call: { name: string; args: any }): string => {
     const state = useProjectStore.getState();
@@ -1500,9 +1594,19 @@ const ChatPanel = () => {
                   <span className="text-text-muted truncate">
                     {getTurnLatestSummary(turn)}
                   </span>
-                  <span className="text-text-muted shrink-0">
-                    {turn.parts.length} part{turn.parts.length !== 1 ? 's' : ''}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-text-muted">
+                      {turn.parts.length} part{turn.parts.length !== 1 ? 's' : ''}
+                    </span>
+                    {getTurnAudit(turn.id) && (
+                      <button
+                        onClick={() => setAuditTurnId(turn.id)}
+                        className="text-[10px] px-1.5 py-0.5 rounded border border-border-primary hover:bg-bg-surface text-text-secondary"
+                      >
+                        View audit
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {turn.status === 'retry' && turn.retryInfo && (
                   <div className="mt-1 text-[10px] text-amber-300">
@@ -1523,6 +1627,47 @@ const ChatPanel = () => {
         {messages.map((message) => (
           <ChatMessage key={message.id} message={message} />
         ))}
+
+        {selectedAudit && (
+          <div className="mb-4 border border-cyan-500/30 rounded-lg p-3 bg-cyan-500/5">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm text-cyan-200 font-semibold">Turn Audit</div>
+              <button
+                onClick={() => setAuditTurnId(null)}
+                className="text-xs px-2 py-1 border border-border-primary rounded hover:bg-bg-surface text-text-secondary"
+              >
+                Close
+              </button>
+            </div>
+            <div className="text-xs text-text-secondary mb-1">Turn: {selectedAudit.turnId}</div>
+            <div className="text-xs text-text-secondary mb-1">
+              {`Snapshots: ${selectedAudit.preSnapshotHash} -> ${selectedAudit.postSnapshotHash}`}
+            </div>
+            <div className="text-xs text-text-secondary mb-2">Retries: {selectedAudit.retries}</div>
+            <div className="text-xs text-cyan-200 mb-1">Diff Summary</div>
+            <div className="text-xs text-text-muted space-y-1 mb-2">
+              {selectedAudit.diffSummary.map((line) => (
+                <div key={line}>• {line}</div>
+              ))}
+            </div>
+            <div className="text-xs text-cyan-200 mb-1">Tools</div>
+            <div className="text-xs text-text-muted space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+              {selectedAudit.toolInputs.map((input, index) => (
+                <div key={`${input.name}-${JSON.stringify(input.args || {})}`} className="border border-border-primary rounded p-2 bg-bg-primary/60">
+                  <div>• {input.name}: {selectedAudit.toolResults[index]?.success ? 'success' : `failed (${selectedAudit.toolResults[index]?.error || 'unknown error'})`}</div>
+                  <div className="font-mono text-[10px] text-text-muted mt-1 overflow-x-auto">
+                    {JSON.stringify(input.args || {}, null, 2)}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {selectedAudit.failures.length > 0 && (
+              <div className="mt-2 text-xs text-red-300">
+                Failures: {selectedAudit.failures.join(' | ')}
+              </div>
+            )}
+          </div>
+        )}
 
         {pendingClarification && (
           <div className="mb-4 border-2 border-amber-500 rounded-lg p-4 bg-bg-secondary shadow-lg">

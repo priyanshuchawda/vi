@@ -106,6 +106,15 @@ export interface ExecutionPlan {
   rollbackNote?: string;
 }
 
+export interface TurnAuditPayload {
+  preSnapshotHash: string;
+  postSnapshotHash: string;
+  diffSummary: string[];
+  toolInputs: Array<{ name: string; args: Record<string, any> }>;
+  toolResults: Array<{ name: string; success: boolean; message?: string; error?: string }>;
+  failures: string[];
+}
+
 /**
  * STATIC System Instruction for Planning
  * Enforces strict UNDERSTAND → PLAN → EXECUTE behavior with alias-based clip references.
@@ -530,6 +539,7 @@ export async function executePlan(
     total: number;
     result?: ToolResult;
   }) => void,
+  onAudit?: (audit: TurnAuditPayload) => void,
 ): Promise<string> {
   const { ToolExecutor } = await import('./toolExecutor');
   const messages: AIChatMessage[] = [...originalHistory];
@@ -572,6 +582,7 @@ export async function executePlan(
   let currentRound = 1;
   const operationsByRound = groupOperationsByRound(executableOperations);
   let completedOperations = 0;
+  const allResults: ToolResult[] = [];
 
   // Execute operations round by round
   for (const roundOperations of operationsByRound.values()) {
@@ -599,6 +610,7 @@ export async function executePlan(
         onLifecycle: onToolLifecycle,
       },
     );
+    allResults.push(...results);
 
     // Check for any failed operations
     const failedOps = results.filter(r => !r.result.success);
@@ -644,6 +656,30 @@ export async function executePlan(
 
   const afterSnapshot = buildAIProjectSnapshot();
   const diff = summarizeTimelineDiff(beforeSnapshot, afterSnapshot);
+  const diffSummary = [
+    `Clips: ${diff.clipCountBefore} -> ${diff.clipCountAfter}`,
+    `Duration: ${diff.durationBefore.toFixed(1)}s -> ${diff.durationAfter.toFixed(1)}s`,
+    `Added: ${diff.addedClipNames.length > 0 ? diff.addedClipNames.join(', ') : 'none'}`,
+    `Removed: ${diff.removedClipNames.length > 0 ? diff.removedClipNames.join(', ') : 'none'}`,
+  ];
+  onAudit?.({
+    preSnapshotHash: hashSnapshot(beforeSnapshot),
+    postSnapshotHash: hashSnapshot(afterSnapshot),
+    diffSummary,
+    toolInputs: executableOperations.map((operation) => ({
+      name: operation.functionCall.name,
+      args: operation.functionCall.args || {},
+    })),
+    toolResults: allResults.map((result) => ({
+      name: result.name,
+      success: result.result.success,
+      message: result.result.message,
+      error: result.result.error,
+    })),
+    failures: allResults
+      .filter((result) => !result.result.success)
+      .map((result) => `${result.name}: ${result.result.error || 'unknown error'}`),
+  });
 
   const operationsText = executableOperations
     .map((op, index) => `${index + 1}. ${op.description}`)
@@ -665,6 +701,16 @@ export async function executePlan(
     '',
     'Rollback: Use Undo to revert the changes if needed.',
   ].join('\n');
+}
+
+function hashSnapshot(snapshot: AIProjectSnapshot): string {
+  const raw = JSON.stringify(snapshot);
+  let hash = 2166136261;
+  for (let i = 0; i < raw.length; i++) {
+    hash ^= raw.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `fnv32-${(hash >>> 0).toString(16)}`;
 }
 
 function trimPlanningMessages(messages: AIChatMessage[]): void {

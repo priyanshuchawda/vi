@@ -1,0 +1,558 @@
+/**
+ * Hybrid Auto-Captioning Service — AWS Bedrock (Amazon Nova Lite v1)
+ *
+ * Two-stage approach for cost-effective, high-quality captions:
+ * 1. Use local Vosk model for initial transcription (free, fast)
+ * 2. Use Bedrock Nova Lite to refine and correct (cheap, accurate)
+ *
+ * This approach saves ~90% on API costs compared to direct AI transcription.
+ */
+
+import {
+  converseBedrock,
+  MODEL_ID,
+  isBedrockConfigured,
+} from "./bedrockGateway";
+import { z } from "zod";
+import { waitForSlot } from "./rateLimiter";
+import { recordUsage } from "./tokenTracker";
+import { srtTimeToSeconds } from "./timecode";
+
+// Access Electron API for local transcription
+const electron = (window as any).electron;
+const MAX_INLINE_VIDEO_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Schema for a single caption segment
+ */
+const CaptionSegmentSchema = z.object({
+  index: z.number().int().positive(),
+  startTime: z.string().describe("Start time in SRT format (HH:MM:SS,mmm)"),
+  endTime: z.string().describe("End time in SRT format (HH:MM:SS,mmm)"),
+  text: z.string().describe("Caption text"),
+  speaker: z
+    .string()
+    .optional()
+    .describe("Speaker identifier (e.g., Speaker 1)"),
+  confidence: z.number().min(0).max(1).optional().describe("Confidence score"),
+});
+
+/**
+ * Schema for the complete transcription
+ */
+const TranscriptionSchema = z.object({
+  language: z.string().describe("Full language name (e.g., English)"),
+  languageCode: z.string().describe("ISO language code (e.g., en-US)"),
+  segments: z.array(CaptionSegmentSchema).describe("Array of caption segments"),
+  summary: z.string().optional().describe("Brief summary of the content"),
+});
+
+/**
+ * TypeScript types
+ */
+export type Caption = z.infer<typeof CaptionSegmentSchema>;
+export type Transcription = z.infer<typeof TranscriptionSchema>;
+
+/**
+ * Options for caption generation
+ */
+export interface CaptionOptions {
+  language?: string;
+  speakerDiarization?: boolean;
+  maxCharsPerLine?: number;
+  maxLinesPerCaption?: number;
+}
+
+/**
+ * Generate captions using hybrid approach:
+ * 1. Local Vosk transcription (free, fast)
+ * 2. Bedrock Nova Lite refinement (cheap, accurate)
+ *
+ * Falls back to direct Bedrock transcription if local fails
+ */
+export async function generateCaptions(
+  filePath: string,
+  mimeType: string,
+  options: CaptionOptions = {},
+): Promise<Transcription> {
+  console.log(" Starting caption generation...");
+  console.log(" Step 1: Attempting local Vosk transcription (free)");
+
+  try {
+    // Step 1: Get raw transcription from local Vosk model
+    const localTranscription = await electron.transcribeVideo(filePath);
+
+    if (
+      !localTranscription ||
+      !localTranscription.segments ||
+      localTranscription.segments.length === 0
+    ) {
+      throw new Error("Local transcription failed or returned no results");
+    }
+
+    console.log(
+      ` Local transcription complete: ${localTranscription.segments.length} segments`,
+    );
+    console.log(
+      ` Step 2: AI refinement (correcting errors, adding punctuation)`,
+    );
+
+    // Step 2: Use Bedrock to refine the transcription
+    const refinedTranscription = await refineTranscriptionWithBedrock(
+      localTranscription,
+      options,
+    );
+
+    console.log(" Captions generated and refined successfully");
+
+    return refinedTranscription;
+  } catch (localError: any) {
+    console.warn(" Local transcription failed:", localError.message);
+
+    const isNoAudioError =
+      localError.message?.includes("does not contain an audio track") ||
+      localError.message?.includes("no audio") ||
+      localError.message?.includes("Output file does not contain any stream");
+
+    if (isNoAudioError) {
+      console.log(
+        " Video has no audio track. Falling back to AI direct transcription...",
+      );
+    } else {
+      console.log(" Falling back to direct AI transcription...");
+    }
+
+    // Fallback: Use Bedrock to transcribe directly from video
+    return await generateCaptionsWithBedrockDirect(filePath, mimeType, options);
+  }
+}
+
+/**
+ * Use Bedrock Nova Lite to refine and correct the local Vosk transcription.
+ * Text-to-text call — very cheap since no video is sent.
+ */
+async function refineTranscriptionWithBedrock(
+  localTranscription: any,
+  options: CaptionOptions,
+): Promise<Transcription> {
+  if (!isBedrockConfigured()) {
+    console.warn(
+      " Bedrock not configured - using local transcription without refinement",
+    );
+    return convertLocalToTranscription(localTranscription);
+  }
+
+  const maxCharsPerLine = options.maxCharsPerLine || 60;
+  const maxLinesPerCaption = options.maxLinesPerCaption || 2;
+
+  const segmentsWithTimes = localTranscription.segments.map(
+    (seg: any, idx: number) => ({
+      index: idx + 1,
+      startTime: secondsToSRTTime(seg.start),
+      endTime: secondsToSRTTime(seg.end),
+      text: seg.text,
+    }),
+  );
+
+  let prompt = `You are refining an automatic transcription that was generated by a local speech recognition model.
+
+Raw transcription with timestamps:
+${JSON.stringify(segmentsWithTimes, null, 2)}
+
+Your task:
+1. Fix any transcription errors or misheard words
+2. Add proper punctuation (periods, commas, question marks, etc.)
+3. Correct capitalization (proper nouns, start of sentences)
+4. Fix any obvious grammar mistakes
+5. Keep the same timestamps - DO NOT change them
+6. Keep segments readable (max ${maxLinesPerCaption} lines, ~${maxCharsPerLine} chars per line)
+7. Detect the language being spoken`;
+
+  if (options.speakerDiarization) {
+    prompt += `\n8. Identify different speakers if there are multiple people speaking (Speaker 1, Speaker 2, etc.)`;
+  }
+
+  if (options.language) {
+    prompt += `\n9. Ensure the text is in ${options.language}`;
+  }
+
+  prompt += `\n\nReturn ONLY valid JSON (no markdown, no code blocks) with this structure:
+{
+  "language": "English",
+  "languageCode": "en-US",
+  "segments": [{"index": 1, "startTime": "00:00:00,000", "endTime": "00:00:05,000", "text": "...", "speaker": "Speaker 1"}],
+  "summary": "Brief content summary"
+}`;
+
+  await waitForSlot();
+
+  const response = await converseBedrock({
+    modelId: MODEL_ID,
+    messages: [{ role: "user", content: [{ text: prompt }] }],
+    system: [
+      {
+        text: "You are a transcription refinement AI. You MUST respond with ONLY valid JSON — no markdown, no extra text.",
+      },
+    ],
+    inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
+  });
+
+  if (response.usage) {
+    recordUsage({
+      promptTokenCount: response.usage.inputTokens,
+      candidatesTokenCount: response.usage.outputTokens,
+      totalTokenCount: response.usage.totalTokens,
+    });
+  }
+
+  const responseText = response.output?.message?.content?.[0]?.text || "";
+  if (!responseText) {
+    throw new Error("Empty response from Bedrock");
+  }
+
+  // Clean markdown code blocks if present
+  let cleaned = responseText.trim();
+  if (cleaned.startsWith("```json")) {
+    cleaned = cleaned.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+  } else if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "");
+  }
+
+  const parsed = JSON.parse(cleaned);
+  const result = TranscriptionSchema.parse(parsed);
+
+  return result;
+}
+
+/**
+ * Convert local Vosk transcription to our Transcription format (fallback when no API)
+ */
+function convertLocalToTranscription(localTranscription: any): Transcription {
+  return {
+    language: "English",
+    languageCode: "en-US",
+    segments: localTranscription.segments.map((seg: any, idx: number) => ({
+      index: idx + 1,
+      startTime: secondsToSRTTime(seg.start),
+      endTime: secondsToSRTTime(seg.end),
+      text: seg.text,
+    })),
+    summary: "Transcription generated using local speech recognition",
+  };
+}
+
+/**
+ * Convert transcription to SRT format
+ */
+export function toSRT(transcription: Transcription): string {
+  return transcription.segments
+    .map((segment) => {
+      const speaker = segment.speaker ? `[${segment.speaker}] ` : "";
+      return `${segment.index}\n${segment.startTime} --> ${segment.endTime}\n${speaker}${segment.text}\n`;
+    })
+    .join("\n");
+}
+
+/**
+ * Convert transcription to WebVTT format
+ */
+export function toVTT(transcription: Transcription): string {
+  const header = "WEBVTT\n\n";
+
+  const body = transcription.segments
+    .map((segment) => {
+      const startTime = segment.startTime.replace(",", ".");
+      const endTime = segment.endTime.replace(",", ".");
+      const speaker = segment.speaker ? `<v ${segment.speaker}>` : "";
+
+      return `${segment.index}\n${startTime} --> ${endTime}\n${speaker}${segment.text}\n`;
+    })
+    .join("\n");
+
+  return header + body;
+}
+
+/**
+ * Convert transcription to plain text with timestamps
+ */
+export function toPlainText(
+  transcription: Transcription,
+  includeTimestamps: boolean = true,
+): string {
+  return transcription.segments
+    .map((segment) => {
+      if (includeTimestamps) {
+        const speaker = segment.speaker ? `[${segment.speaker}] ` : "";
+        return `[${segment.startTime}] ${speaker}${segment.text}`;
+      }
+      return segment.text;
+    })
+    .join("\n");
+}
+
+export { srtTimeToSeconds } from "./timecode";
+
+/**
+ * Convert seconds to SRT time format
+ */
+export function secondsToSRTTime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+
+  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")},${ms.toString().padStart(3, "0")}`;
+}
+
+/**
+ * Merge consecutive segments with the same speaker
+ */
+export function mergeSegmentsBySpeaker(
+  transcription: Transcription,
+): Transcription {
+  if (transcription.segments.length === 0) return transcription;
+
+  const merged: Caption[] = [];
+  let currentSegment = { ...transcription.segments[0] };
+
+  for (let i = 1; i < transcription.segments.length; i++) {
+    const segment = transcription.segments[i];
+
+    if (
+      segment.speaker === currentSegment.speaker &&
+      srtTimeToSeconds(segment.startTime) -
+        srtTimeToSeconds(currentSegment.endTime) <
+        2
+    ) {
+      currentSegment.endTime = segment.endTime;
+      currentSegment.text += " " + segment.text;
+    } else {
+      merged.push(currentSegment);
+      currentSegment = { ...segment, index: merged.length + 1 };
+    }
+  }
+
+  merged.push(currentSegment);
+
+  return {
+    ...transcription,
+    segments: merged,
+  };
+}
+
+/** Convert base64 to Uint8Array for Bedrock inline bytes */
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/** Get Bedrock-compatible media format from MIME type */
+function getMediaFormat(mimeType: string): string {
+  const map: Record<string, string> = {
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/webm": "webm",
+  };
+  return map[mimeType] || mimeType.split("/")[1] || "mp4";
+}
+
+/**
+ * Generate captions directly from video using Bedrock Nova Lite.
+ *
+ * COST OPTIMIZATION: First checks if memory store has a cached analysis
+ * for this video. If yes, generates captions from text analysis (cheap).
+ * Only sends video bytes if no cached analysis exists (expensive).
+ */
+async function generateCaptionsWithBedrockDirect(
+  filePath: string,
+  mimeType: string,
+  options: CaptionOptions,
+): Promise<Transcription> {
+  if (!isBedrockConfigured()) {
+    throw new Error(
+      "AWS credentials not configured. Cannot generate captions without local audio transcription.",
+    );
+  }
+
+  const maxCharsPerLine = options.maxCharsPerLine || 60;
+  const maxLinesPerCaption = options.maxLinesPerCaption || 2;
+
+  // ── COST OPTIMIZATION: Check memory cache first ──────────────────
+  try {
+    const { useAiMemoryStore } =
+      await import("../stores/useAiMemoryStore");
+    const entry = useAiMemoryStore.getState().getEntryByFilePath(filePath);
+
+    if (entry && entry.status === "completed" && entry.analysis) {
+      console.log(
+        " Using cached memory analysis for captioning (saving video bytes!)",
+      );
+
+      // Build a text-only prompt with cached analysis
+      let cachePrompt = `Based on the following analysis of a video file, generate precise captions with timestamps.
+
+VIDEO ANALYSIS:
+${entry.analysis}
+
+${entry.summary ? `SUMMARY: ${entry.summary}` : ""}
+${entry.scenes ? `SCENES: ${JSON.stringify(entry.scenes)}` : ""}
+
+Requirements:
+1. Generate caption segments with accurate timestamps based on the scene information
+2. Each caption: max ${maxCharsPerLine} chars/line, ${maxLinesPerCaption} lines
+3. Include proper punctuation and capitalization
+4. Break at natural speech pauses`;
+
+      if (options.speakerDiarization) {
+        cachePrompt += `\n5. Identify different speakers if possible`;
+      }
+
+      cachePrompt += `\n\nReturn ONLY valid JSON (no markdown):
+{
+  "language": "English",
+  "languageCode": "en-US",
+  "segments": [{"index": 1, "startTime": "00:00:00,000", "endTime": "00:00:05,000", "text": "...", "speaker": "Speaker 1"}],
+  "summary": "Brief content summary"
+}`;
+
+      await waitForSlot();
+
+      const cacheResponse = await converseBedrock({
+        modelId: MODEL_ID,
+        messages: [{ role: "user", content: [{ text: cachePrompt }] }],
+        system: [
+          {
+            text: "You are a professional transcription AI. You MUST respond with ONLY valid JSON.",
+          },
+        ],
+        inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
+      });
+
+      if (cacheResponse.usage) {
+        recordUsage({
+          promptTokenCount: cacheResponse.usage.inputTokens,
+          candidatesTokenCount: cacheResponse.usage.outputTokens,
+          totalTokenCount: cacheResponse.usage.totalTokens,
+        });
+      }
+
+      const cacheText = cacheResponse.output?.message?.content?.[0]?.text || "";
+      if (cacheText) {
+        let cleaned = cacheText.trim();
+        if (cleaned.startsWith("```json")) {
+          cleaned = cleaned.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+        } else if (cleaned.startsWith("```")) {
+          cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "");
+        }
+        const parsed = JSON.parse(cleaned);
+        const result = TranscriptionSchema.parse(parsed);
+        console.log(
+          " Captions generated from cached analysis (no video bytes sent!)",
+        );
+        return result;
+      }
+    }
+  } catch (cacheError) {
+    console.warn(
+      " Cache-first captioning failed, falling back to video bytes:",
+      cacheError,
+    );
+  }
+
+  // ── FALLBACK: Send video bytes directly (expensive) ──────────────
+  console.log(
+    " Using Bedrock direct video transcription (no cache available)...",
+  );
+
+  // Read video file as base64 via Electron
+  const base64Data = await electron.readFileAsBase64(filePath);
+  if (!base64Data) {
+    throw new Error("Failed to read video file");
+  }
+
+  const bytes = base64ToUint8Array(base64Data);
+  const format = getMediaFormat(mimeType);
+
+  if (bytes.length > MAX_INLINE_VIDEO_BYTES) {
+    throw new Error(
+      `Video is ${(bytes.length / 1024 / 1024).toFixed(1)}MB, which exceeds Nova Lite's 25MB inline limit. Trim the clip or use local transcription first.`,
+    );
+  }
+
+  let prompt = `Transcribe this video and provide accurate captions with precise timestamps.
+
+Requirements:
+1. Provide timestamped caption segments in SRT format
+2. Each caption should be max ${maxCharsPerLine} characters per line and ${maxLinesPerCaption} lines
+3. Include proper punctuation and capitalization
+4. Break at natural speech pauses
+5. Detect the language being spoken`;
+
+  if (options.speakerDiarization) {
+    prompt += `\n6. Identify different speakers if multiple people are speaking (Speaker 1, Speaker 2, etc.)`;
+  }
+
+  if (options.language) {
+    prompt += `\n7. Transcribe in ${options.language}`;
+  }
+
+  prompt += `\n\nReturn ONLY valid JSON (no markdown, no code blocks) with this structure:
+{
+  "language": "English",
+  "languageCode": "en-US",
+  "segments": [{"index": 1, "startTime": "00:00:00,000", "endTime": "00:00:05,000", "text": "...", "speaker": "Speaker 1"}],
+  "summary": "Brief content summary"
+}`;
+
+  await waitForSlot();
+
+  const response = await converseBedrock({
+    modelId: MODEL_ID,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { video: { format, source: { bytes } } },
+          { text: prompt },
+        ] as any,
+      },
+    ],
+    system: [
+      {
+        text: "You are a professional transcription AI. You MUST respond with ONLY valid JSON.",
+      },
+    ],
+    inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
+  });
+
+  if (response.usage) {
+    recordUsage({
+      promptTokenCount: response.usage.inputTokens,
+      candidatesTokenCount: response.usage.outputTokens,
+      totalTokenCount: response.usage.totalTokens,
+    });
+  }
+
+  const responseText = response.output?.message?.content?.[0]?.text || "";
+  if (!responseText) {
+    throw new Error("Empty response from Bedrock");
+  }
+
+  // Clean markdown code blocks if present
+  let cleaned = responseText.trim();
+  if (cleaned.startsWith("```json")) {
+    cleaned = cleaned.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+  } else if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "");
+  }
+
+  const parsed = JSON.parse(cleaned);
+  const result = TranscriptionSchema.parse(parsed);
+
+  console.log(" Bedrock direct transcription complete");
+  return result;
+}

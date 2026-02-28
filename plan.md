@@ -114,7 +114,7 @@ Acceptance criteria:
 
 ### Phase 4: Adaptive Bedrock Model Routing + Escalation (P1)
 Goal: pay for stronger models only when needed.
-Status: `in_progress`
+Status: `completed` (PR #28 merged)
 
 Deliverables:
 - New `src/lib/modelRoutingPolicy.ts`:
@@ -130,6 +130,7 @@ Acceptance criteria:
 
 ### Phase 5: Persistent Request Cache + Semantic Keys (P2)
 Goal: maximize reuse across repeated asks and sessions.
+Status: `in_progress`
 
 Deliverables:
 - Extend `requestCache` with persisted store (Electron/localStorage-backed).

@@ -28,10 +28,9 @@ import { evaluateTokenGuard } from './bedrockTokenEstimator';
 import { maskToolOutputsInHistory } from './toolOutputMaskingService';
 import { routeBedrockModel } from './modelRoutingPolicy';
 import {
-  buildCacheKey,
+  buildSemanticCacheKey,
   getCached,
   hashString,
-  normalizeMessage,
   setCached,
 } from './requestCache';
 import {
@@ -315,15 +314,15 @@ State-changing operations must remain executable with valid IDs and bounds.
     dynamicContext = `${dynamicContext.slice(0, dynamicCap)}\n[Planning context truncated for token efficiency]`;
   }
 
-  const planCacheKey = buildCacheKey([
-    'plan',
-    routingDecision.modelId,
-    normalizeMessage(message),
-    hashPlanningHistory(optimizedStart),
-    hashSnapshot(realSnapshot),
-    toolNames.join(','),
-    allowedRounds,
-  ]);
+  const planCacheKey = buildSemanticCacheKey({
+    intent: 'plan',
+    modelId: routingDecision.modelId,
+    message,
+    historyHash: hashPlanningHistory(optimizedStart),
+    snapshotHash: hashSnapshot(realSnapshot),
+    toolSignature: toolNames.join(','),
+    extra: String(allowedRounds),
+  });
   const cachedPlan = getCached<ExecutionPlan>(planCacheKey);
   if (cachedPlan) {
     return JSON.parse(JSON.stringify(cachedPlan)) as ExecutionPlan;

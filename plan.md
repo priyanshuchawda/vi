@@ -49,6 +49,7 @@ Key gaps vs Gemini CLI-style discipline:
 
 ### Phase 1: Token Estimator + Overflow Guard (P0)
 Goal: prevent oversized/expensive requests before they hit Bedrock.
+Status: `completed` (PR #25 merged)
 
 Deliverables:
 - New `src/lib/bedrockTokenEstimator.ts`:
@@ -75,6 +76,7 @@ Acceptance criteria:
 
 ### Phase 2: Tool Output Masking + History Pruning (P0)
 Goal: reduce context bloat from older tool outputs.
+Status: `in_progress`
 
 Deliverables:
 - New `src/lib/toolOutputMaskingService.ts` adapted for QuickCut Bedrock message shape.

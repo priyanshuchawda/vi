@@ -45,6 +45,7 @@ import {
   setCached,
 } from "./requestCache";
 import { evaluateTokenGuard } from "./bedrockTokenEstimator";
+import { maskToolOutputsInHistory } from "./toolOutputMaskingService";
 import { recordAssistantResponse } from "./aiTelemetry";
 import {
   buildAIProjectSnapshot,
@@ -494,6 +495,7 @@ export async function sendMessageWithHistory(
     if (optimizationMetrics.summarizeNeeded) {
       optimizedHistory = await summarizeHistory(optimizedHistory);
     }
+    optimizedHistory = maskToolOutputsInHistory(optimizedHistory).history;
     let dynamicContext = buildDynamicContext();
     const preflight = estimateTurnCost({
       intent: "chat",
@@ -703,6 +705,7 @@ export async function* sendMessageWithHistoryStream(
     if (optimizationMetrics.summarizeNeeded) {
       optimizedHistory = await summarizeHistory(optimizedHistory);
     }
+    optimizedHistory = maskToolOutputsInHistory(optimizedHistory).history;
     let dynamicContext = buildDynamicContext(options?.contextFlags);
     const standardTools = includeTools ? pickToolsForMessage(message) : [];
     const preflight = estimateTurnCost({

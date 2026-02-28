@@ -26,6 +26,7 @@ import { waitForSlot, withRetryOn429 } from './rateLimiter';
 import { getSessionEstimatedCost, recordUsage } from './tokenTracker';
 import { estimateTurnCost, evaluateBudgetPolicy, trimHistoryToLimit } from './costPolicy';
 import { evaluateTokenGuard } from './bedrockTokenEstimator';
+import { maskToolOutputsInHistory } from './toolOutputMaskingService';
 import {
   buildCacheKey,
   getCached,
@@ -234,6 +235,7 @@ export async function generateCompletePlan(
   if (planMetrics.summarizeNeeded) {
     optimizedStart = await summarizeHistory(optimizedStart);
   }
+  optimizedStart = maskToolOutputsInHistory(optimizedStart).history;
 
   const standardToolSet = selectPlanningTools(message, 'standard');
   const standardToolNames = standardToolSet

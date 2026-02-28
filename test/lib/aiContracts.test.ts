@@ -3,6 +3,7 @@ import { useProjectStore } from '../../src/stores/useProjectStore';
 import { useAiMemoryStore } from '../../src/stores/useAiMemoryStore';
 import {
   buildAIProjectSnapshot,
+  buildAliasedSnapshotForPlanning,
   formatSnapshotForPrompt,
 } from '../../src/lib/aiProjectSnapshot';
 import {
@@ -132,5 +133,17 @@ describe('AI contracts', () => {
     expect(matrix.tools.find((tool) => tool.name === 'set_clip_volume')?.constraints.volume).toContain('0.0');
     expect(isReadOnlyTool('get_timeline_info')).toBe(true);
     expect(matrix.unsupportedOperations.length).toBeGreaterThan(0);
+  });
+
+  it('builds aliased planning snapshot with stable clip_* IDs', () => {
+    const { snapshot, aliasMap } = buildAliasedSnapshotForPlanning([
+      'get_timeline_info',
+      'delete_clips',
+    ]);
+
+    expect(snapshot.timeline.clips[0].id).toBe('clip_1');
+    expect(snapshot.timeline.clips[1].id).toBe('clip_2');
+    expect(aliasMap.byAlias.get('clip_1')).toBe('clip-1');
+    expect(aliasMap.byAlias.get('clip_2')).toBe('clip-2');
   });
 });

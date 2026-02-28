@@ -3,6 +3,7 @@ import { allVideoEditingTools } from './videoEditingTools';
 export type ToolErrorCategory =
   | 'plan_error'
   | 'validation_error'
+  | 'validation_warning'
   | 'execution_error'
   | 'media_limit'
   | 'tool_missing'

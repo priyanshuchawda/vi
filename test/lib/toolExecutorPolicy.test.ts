@@ -95,4 +95,21 @@ describe('ToolExecutor planning guard + policy execution', () => {
     expect(results[0].result.success).toBe(false);
     expect(results[0].result.errorType).toBe('validation_error');
   });
+
+  it('delete_clips reports deleted and missing IDs at execution time', async () => {
+    const results = await ToolExecutor.executeWithPolicy(
+      [
+        { name: 'delete_clips', args: { clip_ids: ['clip-1', 'missing-clip'] } },
+      ],
+      {
+        mode: 'strict_sequential',
+        stopOnFailure: true,
+      },
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0].result.success).toBe(true);
+    expect(results[0].result.data?.deleted_count).toBe(1);
+    expect(results[0].result.data?.missing_ids).toContain('missing-clip');
+  });
 });

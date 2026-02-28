@@ -25,24 +25,9 @@ const YouTubeUploadTab = () => {
     checkAuthStatus();
   }, []);
 
-  // Listen for upload progress
-  useEffect(() => {
-    if (!window.electronAPI) return;
-
-    window.electronAPI.onYoutubeUploadProgress((progress) => {
-      setUploadProgress(progress);
-      if (progress.status === 'completed') {
-        setIsUploading(false);
-        loadRecentVideos();
-      } else if (progress.status === 'failed') {
-        setIsUploading(false);
-      }
-    });
-  }, []);
-
   const checkAuthStatus = async () => {
-    if (!window.electronAPI) return;
-    const authenticated = await window.electronAPI.youtubeIsAuthenticated();
+    if (!window.electronAPI?.youtube) return;
+    const authenticated = await window.electronAPI.youtube.isAuthenticated();
     setIsAuthenticated(authenticated);
     if (authenticated) {
       loadRecentVideos();
@@ -50,19 +35,19 @@ const YouTubeUploadTab = () => {
   };
 
   const handleLogin = async () => {
-    if (!window.electronAPI) {
+    if (!window.electronAPI?.youtube) {
       alert('Electron API not available');
       return;
     }
 
     setIsAuthenticating(true);
     try {
-      const result = await window.electronAPI.youtubeAuthenticate();
-      if (result.success) {
+      const success = await window.electronAPI.youtube.authenticate();
+      if (success) {
         setIsAuthenticated(true);
         loadRecentVideos();
       } else {
-        alert(`Authentication failed: ${result.error}`);
+        alert('Authentication failed');
       }
     } catch (error: any) {
       alert(`Error: ${error.message}`);
@@ -72,11 +57,11 @@ const YouTubeUploadTab = () => {
   };
 
   const handleLogout = async () => {
-    if (!window.electronAPI) return;
+    if (!window.electronAPI?.youtube) return;
 
     try {
-      const result = await window.electronAPI.youtubeLogout();
-      if (result.success) {
+      const success = await window.electronAPI.youtube.logout();
+      if (success) {
         setIsAuthenticated(false);
         setRecentVideos([]);
       }
@@ -86,14 +71,12 @@ const YouTubeUploadTab = () => {
   };
 
   const loadRecentVideos = async () => {
-    if (!window.electronAPI) return;
+    if (!window.electronAPI?.youtube) return;
 
     setLoadingVideos(true);
     try {
-      const result = await window.electronAPI.youtubeGetUserVideos(5);
-      if (result.success) {
-        setRecentVideos(result.videos);
-      }
+      // Current preload API does not expose list-videos yet.
+      setRecentVideos([]);
     } catch (error) {
       console.error('Error loading recent videos:', error);
     } finally {
@@ -102,7 +85,7 @@ const YouTubeUploadTab = () => {
   };
 
   const handleUpload = async () => {
-    if (!window.electronAPI) {
+    if (!window.electronAPI?.youtube) {
       alert('Electron API not available');
       return;
     }
@@ -153,7 +136,9 @@ const YouTubeUploadTab = () => {
         madeForKids,
       };
 
-      const result = await window.electronAPI.youtubeUploadVideo(videoPath, metadata);
+      const result = await window.electronAPI.youtube.uploadVideo(videoPath, metadata, (progress: YouTubeUploadProgress) => {
+        setUploadProgress(progress);
+      });
       if (result.success) {
         // Show success message with video link
         const videoUrl = `https://www.youtube.com/watch?v=${result.videoId}`;
@@ -171,8 +156,7 @@ const YouTubeUploadTab = () => {
         setTags('');
         setExportedVideoPath('');
         
-        // Reload recent videos
-        setTimeout(() => loadRecentVideos(), 2000);
+        setIsUploading(false);
       } else {
         alert(`❌ Upload Failed\n\n${result.error}`);
         setIsUploading(false);

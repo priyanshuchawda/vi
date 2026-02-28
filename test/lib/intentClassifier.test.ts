@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyIntent } from "../../src/lib/intentClassifier";
+import { classifyIntent, classifyIntentWithContext } from "../../src/lib/intentClassifier";
 
 describe("intentClassifier", () => {
   it("routes explicit execution confirmations to edit intent", () => {
@@ -17,5 +17,15 @@ describe("intentClassifier", () => {
   it("keeps simple acknowledgements as chat", () => {
     expect(classifyIntent("ok")).toBe("chat");
     expect(classifyIntent("thanks")).toBe("chat");
+  });
+
+  it("routes short confirmations based on execution context", () => {
+    expect(classifyIntentWithContext("yes do it", {})).toBe("edit");
+    expect(
+      classifyIntentWithContext("yes", {
+        hasPendingPlan: true,
+      }),
+    ).toBe("edit");
+    expect(classifyIntentWithContext("yes", {})).toBe("chat");
   });
 });

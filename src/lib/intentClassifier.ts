@@ -8,6 +8,10 @@
  */
 
 export type MessageIntent = "edit" | "chat";
+export interface IntentContext {
+  hasPendingPlan?: boolean;
+  hasRecentEditingContext?: boolean;
+}
 
 // Editing action keywords — if ANY of these appear, route to planning
 const EDIT_KEYWORDS = [
@@ -86,6 +90,7 @@ const CHAT_OVERRIDE_PATTERNS = [
 const EXECUTION_CONFIRM_PATTERNS = [
   /\b(do it|go ahead|execute|apply (it|that)|proceed|make it)\b/i,
   /\bstart editing\b/i,
+  /^(yes|yep|yeah|ok|okay|sure)\b/i,
 ];
 
 /**
@@ -97,13 +102,25 @@ const EXECUTION_CONFIRM_PATTERNS = [
  * can clarify. A false positive (classifying chat as edit) wastes an API call.
  */
 export function classifyIntent(message: string): MessageIntent {
+  return classifyIntentWithContext(message, {});
+}
+
+export function classifyIntentWithContext(
+  message: string,
+  context: IntentContext,
+): MessageIntent {
   const lower = message.toLowerCase().trim();
+  const hasExecutionContext = Boolean(context.hasPendingPlan || context.hasRecentEditingContext);
 
   // If user explicitly asks to execute/apply, route to edit.
-  // This handles short follow-ups like "ok do it".
+  // Short confirmations only route to edit when there is pending editing context.
   for (const pattern of EXECUTION_CONFIRM_PATTERNS) {
     if (pattern.test(lower)) {
-      return "edit";
+      if (hasExecutionContext) return "edit";
+      if (/\b(do it|go ahead|execute|apply (it|that)|proceed|make it|start editing)\b/i.test(lower)) {
+        return "edit";
+      }
+      return "chat";
     }
   }
 

@@ -178,15 +178,6 @@ export class ToolExecutor {
             error: "Must provide at least one clip ID to delete",
           };
         }
-        const missing = clip_ids.filter(
-          (id: string) => !state.clips.find((c) => c.id === id),
-        );
-        if (missing.length > 0) {
-          return {
-            valid: false,
-            error: `Clips not found: ${missing.join(", ")}`,
-          };
-        }
         return { valid: true };
       }
 
@@ -605,17 +596,47 @@ export class ToolExecutor {
 
         case "delete_clips": {
           const { clip_ids } = call.args;
-          const clipNames = clip_ids.map(
-            (id: string) => store.clips.find((c) => c.id === id)?.name || id,
-          );
+          const requestedIds: string[] = Array.isArray(clip_ids) ? clip_ids : [];
+          const deletedIds: string[] = [];
+          const missingIds: string[] = [];
+          const deletedNames: string[] = [];
 
-          clip_ids.forEach((id: string) => store.removeClip(id));
+          for (const id of requestedIds) {
+            const clipName = store.clips.find((c) => c.id === id)?.name;
+            const didRemove = store.removeClip(id);
+            if (didRemove) {
+              deletedIds.push(id);
+              deletedNames.push(clipName || id);
+            } else {
+              missingIds.push(id);
+            }
+          }
+
+          const deletedCount = deletedIds.length;
+          const requestedCount = requestedIds.length;
+          const wasPartial = missingIds.length > 0 && deletedCount > 0;
+          const success = deletedCount > 0;
 
           return {
             name: call.name,
             result: {
-              success: true,
-              message: `Deleted ${clip_ids.length} clip(s): ${clipNames.join(", ")}`,
+              success,
+              message: success
+                ? `Deleted ${deletedCount}/${requestedCount} clip(s): ${deletedNames.join(", ")}${wasPartial ? ` (missing: ${missingIds.join(", ")})` : ""}`
+                : `No clips were deleted. Missing clip IDs: ${missingIds.join(", ")}`,
+              ...(success
+                ? {}
+                : {
+                    error: `No matching clips found for requested IDs`,
+                    errorType: "validation_error",
+                    recoveryHint: "Call get_timeline_info to refresh clip IDs, then retry.",
+                  }),
+              data: {
+                requested_count: requestedCount,
+                deleted_count: deletedCount,
+                deleted_ids: deletedIds,
+                missing_ids: missingIds,
+              },
             },
           };
         }

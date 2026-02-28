@@ -30,21 +30,22 @@ import {
   formatSnapshotForPrompt,
   type AIProjectSnapshot,
 } from './aiProjectSnapshot';
+import { resolveAlias, resolveUuid, validateAliasReferences, type AliasMap } from './clipAliasMapper';
 import {
   formatCapabilityMatrixForPrompt,
   isReadOnlyTool,
   type ToolErrorCategory,
 } from './toolCapabilityMatrix';
-import { buildClipAliasMap, formatAliasMapForPrompt, type AliasMap } from './clipAliasMapper';
-import { compilePlan, generateCorrectionPrompt, type CompilationResult } from './planCompiler';
-import { buildFallbackExecutionPlan, shouldUseFallback, getFallbackExplanation } from './fallbackPlanGenerator';
+import { compilePlan, generateCorrectionPrompt } from './planCompiler';
+import { buildFallbackExecutionPlan, shouldUseFallback } from './fallbackPlanGenerator';
+import { recordPlanningAttempt, recordExecutionAttempt } from './aiTelemetry';
 
 const DEFAULT_MAX_ROUNDS = 3;
 const ABSOLUTE_MAX_ROUNDS = 4;
 const MAX_OPERATIONS_PER_PLAN = 20;
 const MAX_DYNAMIC_CONTEXT_CHARS = 5000;
 const PLANNING_MAX_TOKENS = 1024;
-const SUMMARY_MAX_TOKENS = 768;
+const MIN_PLAN_QUALITY_SCORE = 0.55;
 
 export interface PlanStep {
   order: number;
@@ -98,6 +99,9 @@ export interface ExecutionPlan {
   totalRounds: number;
   estimatedDuration: number; // In seconds
   requiresApproval: boolean;
+  confidenceScore?: number;
+  changeSummary?: string[];
+  rollbackNote?: string;
 }
 
 /**
@@ -191,10 +195,11 @@ export async function generateCompletePlan(
     .filter((name: string | undefined): name is string => Boolean(name));
   
   // Build aliased snapshot for LLM-safe clip references
-  const { snapshot, aliasMap } = buildAliasedSnapshotForPlanning(toolNames);
+  const realSnapshot = buildAIProjectSnapshot(toolNames);
+  const { snapshot: aliasedSnapshot, aliasMap } = buildAliasedSnapshotForPlanning(toolNames);
   
   const channelContext = truncateBlock(getChannelAnalysisContext(), 800);
-  const snapshotContext = formatSnapshotForPrompt(snapshot, 'planning', 3400);
+  const snapshotContext = formatSnapshotForPrompt(aliasedSnapshot, 'planning', 3400);
   const capabilityContext = formatCapabilityMatrixForPrompt(toolNames, 2400);
   const currentDate = new Date().toISOString().split('T')[0];
 
@@ -226,7 +231,10 @@ State-changing operations must remain executable with valid IDs and bounds.
     // Inject dynamic context into the first message of the loop
     const messageContent = (currentRound === 1)
       ? `${dynamicContext}\n\nTask: ${message}`
-      : 'Proceed with next steps or stop if done.';
+      : `Continue planning from previous tool results.
+
+Return only the next concrete operation(s) that are executable now.
+If the goal is complete, return no new tool calls.`;
 
     // Add user message to messages array
     messages.push({
@@ -303,7 +311,7 @@ State-changing operations must remain executable with valid IDs and bounds.
         } as any);
 
         // Simulate execution to get results for next round
-        const simulatedResults = simulateFunctionExecution(toolUses);
+        const simulatedResults = simulateFunctionExecution(toolUses, aliasMap);
 
         // Add tool results as a single user message with toolResult blocks
         const toolResultContent = toolUses.map((tu: any, i: number) => ({
@@ -338,11 +346,14 @@ State-changing operations must remain executable with valid IDs and bounds.
   // ===== PLAN COMPILATION: Validate and convert aliases to UUIDs =====
   // Operations at this point may contain clip aliases (clip_1, clip_2, etc.)
   // We need to validate and convert them to executable UUIDs
+  const selfCheckIssues = runPlannerSelfCheck(operations, aliasMap);
+  planningIssues.push(...selfCheckIssues);
   
   let compiledOperations = operations;
   
   // First compilation attempt
-  let compilationResult = compilePlan(operations, aliasMap, snapshot);
+  let compilationResult = compilePlan(operations, aliasMap, realSnapshot);
+  const compileFailed = compilationResult.errors.length > 0;
   
   // If compilation found critical errors, try one retry with correction prompt
   if (compilationResult.errors.length > 0 && currentRound < allowedRounds) {
@@ -399,7 +410,7 @@ State-changing operations must remain executable with valid IDs and bounds.
       
       // Try compiling the retry operations
       if (retryOperations.length > 0) {
-        const retryCompilation = compilePlan(retryOperations, aliasMap, snapshot);
+        const retryCompilation = compilePlan(retryOperations, aliasMap, realSnapshot);
         if (retryCompilation.errors.length === 0) {
           // Retry succeeded - use these operations
           compiledOperations = retryOperations;
@@ -411,23 +422,15 @@ State-changing operations must remain executable with valid IDs and bounds.
   
   // If we still have no valid operations after retry, use fallback plan
   if (shouldUseFallback(compilationResult.operations)) {
-    return buildFallbackExecutionPlan(snapshot, aliasMap, message);
+    recordPlanningAttempt({
+      compileFailed,
+      fallbackUsed: true,
+    });
+    return buildFallbackExecutionPlan(realSnapshot, aliasMap, message);
   }
   
-  // Use the compiled operations (with UUIDs) for execution
-  compiledOperations = compilationResult.operations.map((compiledOp, index) => {
-    // Find original operation to preserve metadata (round, description, isReadOnly)
-    const originalOp = operations[index] || {
-      round: currentRound,
-      description: generateOperationDescription(compiledOp.functionCall),
-      isReadOnly: isReadOnlyTool(compiledOp.functionCall.name),
-    };
-    
-    return {
-      ...originalOp,
-      functionCall: compiledOp.functionCall,
-    };
-  });
+  // Use compiled operations (already preserve round/description/isReadOnly from source ops)
+  compiledOperations = compilationResult.operations;
 
   const { ToolExecutor } = await import('./toolExecutor');
   const preflight = ToolExecutor.preflightPlan(
@@ -437,6 +440,14 @@ State-changing operations must remain executable with valid IDs and bounds.
     ...operation,
     functionCall: preflight.normalizedCalls[index] || operation.functionCall,
   }));
+  const compilationWarningIssues: PlanValidationIssue[] = compilationResult.warnings.map(
+    (warning): PlanValidationIssue => ({
+      category: 'validation_warning',
+      operationIndex: -1,
+      toolName: 'compiler',
+      message: warning,
+    }),
+  );
   const validationIssues: PlanValidationIssue[] = [
     ...planningIssues,
     ...preflight.issues.map((issue) => ({
@@ -445,26 +456,38 @@ State-changing operations must remain executable with valid IDs and bounds.
       toolName: issue.name,
       message: issue.message,
     })),
-    // Add compilation warnings (non-critical issues fixed during compilation)
-    ...compilationResult.warnings.map((warning) => ({
-      category: 'validation_warning' as const,
-      operationIndex: -1,
-      toolName: 'compiler',
-      message: warning,
-    })),
+    ...compilationWarningIssues,
   ];
   const validation: PlanValidationReport = {
     valid: validationIssues.length === 0 && preflight.valid,
     corrections: preflight.corrections,
     issues: validationIssues,
   };
+  const planQuality = assessPlanQuality(normalizedOperations, validation);
+  if (planQuality.score < MIN_PLAN_QUALITY_SCORE) {
+    recordPlanningAttempt({
+      compileFailed: true,
+      fallbackUsed: true,
+    });
+    const fallback = buildFallbackExecutionPlan(realSnapshot, aliasMap, message);
+    fallback.validation.corrections = [
+      ...fallback.validation.corrections,
+      `Low plan quality score (${planQuality.score.toFixed(2)}). Rebuilding safely from current timeline.`,
+    ];
+    return fallback;
+  }
 
-  const understanding = buildUnderstanding(message, snapshot);
+  const understanding = buildUnderstanding(message, realSnapshot);
   const steps = buildPlanSteps(normalizedOperations);
   const executionPolicy = pickExecutionPolicy(normalizedOperations);
+  const changeSummary = buildChangeSummary(normalizedOperations);
 
   // Determine if approval is needed (any state-changing operations)
   const requiresApproval = normalizedOperations.some((op) => !op.isReadOnly);
+  recordPlanningAttempt({
+    compileFailed,
+    fallbackUsed: false,
+  });
 
   return {
     understanding,
@@ -475,6 +498,9 @@ State-changing operations must remain executable with valid IDs and bounds.
     totalRounds: currentRound,
     estimatedDuration: normalizedOperations.length * 0.5, // Rough estimate
     requiresApproval,
+    confidenceScore: planQuality.score,
+    changeSummary,
+    rollbackNote: 'Undo is available immediately after execution if the result is not what you expected.',
   };
 }
 
@@ -487,16 +513,14 @@ export async function executePlan(
   originalMessage: string,
   onProgress?: (current: number, total: number, operation: PlannedOperation) => void
 ): Promise<string> {
-  if (!isBedrockConfigured()) {
-    throw new Error('AWS credentials not configured');
-  }
-
   const { ToolExecutor } = await import('./toolExecutor');
   const messages: AIChatMessage[] = [...originalHistory];
+  const beforeSnapshot = buildAIProjectSnapshot();
   const runtimePreflight = ToolExecutor.preflightPlan(
     plan.operations.map((operation) => operation.functionCall as FunctionCall),
   );
   if (!runtimePreflight.valid) {
+    recordExecutionAttempt({ validationFailed: true });
     const details = runtimePreflight.issues
       .map(
         (issue) =>
@@ -507,6 +531,7 @@ export async function executePlan(
       .join('\n');
     throw new Error(`Plan validation failed before execution:\n${details}`);
   }
+  recordExecutionAttempt({ validationFailed: false });
   const executableOperations = plan.operations.map((operation, index) => ({
     ...operation,
     functionCall: runtimePreflight.normalizedCalls[index] || operation.functionCall,
@@ -595,60 +620,29 @@ export async function executePlan(
     currentRound++;
   }
 
-  // Get final summary response with compact context to avoid large reinjection costs
-  const compactSnapshot = formatSnapshotForPrompt(
-    buildAIProjectSnapshot(),
-    'planning',
-    2000,
-  );
+  const afterSnapshot = buildAIProjectSnapshot();
+  const diff = summarizeTimelineDiff(beforeSnapshot, afterSnapshot);
 
-  const executedOperations = executableOperations
-    .map((op) => `- ${op.description}`)
+  const operationsText = executableOperations
+    .map((op, index) => `${index + 1}. ${op.description}`)
     .join('\n');
 
-  const summaryPrompt = `All requested editing operations have been completed.
-
-Executed operations:
-${executedOperations}
-
-Current project snapshot:
-${compactSnapshot}
-
-Planning validation corrections:
-${plan.validation?.corrections?.length ? plan.validation.corrections.map((c) => `- ${c}`).join('\n') : '- none'}
-
-Provide a friendly, concise summary of what was done. Do NOT call any more tools.`;
-
-  // Add summary request
-  messages.push({
-    role: 'user',
-    content: [{ text: summaryPrompt }],
-  });
-
-  // Rate-limit the final summary call
-  await waitForSlot();
-
-  const summaryResponse = await withRetryOn429(() =>
-    converseBedrock({
-      modelId: MODEL_ID,
-      messages: messages as any,
-      system: [{ text: STATIC_PLANNING_INSTRUCTION }],
-      // Bedrock requires toolConfig when messages include toolUse/toolResult blocks.
-      toolConfig: { tools: allVideoEditingTools as any },
-      inferenceConfig: { maxTokens: SUMMARY_MAX_TOKENS, temperature: 0.2 },
-    }),
-  );
-
-  // Record token usage from summary call
-  if (summaryResponse.usage) {
-    recordUsage({
-      promptTokenCount: summaryResponse.usage.inputTokens,
-      candidatesTokenCount: summaryResponse.usage.outputTokens,
-      totalTokenCount: summaryResponse.usage.totalTokens,
-    });
-  }
-
-  return summaryResponse.output?.message?.content?.[0]?.text || 'Operations completed successfully.';
+  return [
+    'Execution complete.',
+    '',
+    `What I understood: ${plan.understanding.goal}`,
+    '',
+    'Operations executed:',
+    operationsText || '- none',
+    '',
+    'Timeline diff:',
+    `- Clips: ${diff.clipCountBefore} -> ${diff.clipCountAfter}`,
+    `- Duration: ${diff.durationBefore.toFixed(1)}s -> ${diff.durationAfter.toFixed(1)}s`,
+    `- Added clips: ${diff.addedClipNames.length > 0 ? diff.addedClipNames.join(', ') : 'none'}`,
+    `- Removed clips: ${diff.removedClipNames.length > 0 ? diff.removedClipNames.join(', ') : 'none'}`,
+    '',
+    'Rollback: Use Undo to revert the changes if needed.',
+  ].join('\n');
 }
 
 function trimPlanningMessages(messages: AIChatMessage[]): void {
@@ -738,7 +732,7 @@ function selectPlanningTools(message: string) {
  * Simulate function execution to get mock results for planning.
  * Returns realistic mock data so the model can plan subsequent operations.
  */
-function simulateFunctionExecution(toolUses: any[]): any[] {
+function simulateFunctionExecution(toolUses: any[], aliasMap: AliasMap): any[] {
   const state = useProjectStore.getState();
 
   return toolUses.map(tu => {
@@ -755,7 +749,7 @@ function simulateFunctionExecution(toolUses: any[]): any[] {
           totalDuration,
           clipCount,
           clips: state.clips.map((clip: any) => ({
-            id: clip.id,
+            id: resolveUuid(clip.id, aliasMap) || clip.id,
             name: clip.name,
             startTime: clip.startTime,
             duration: clip.duration,
@@ -764,12 +758,15 @@ function simulateFunctionExecution(toolUses: any[]): any[] {
         },
       };
     } else if (name === 'get_clip_details') {
-      const clip = state.clips.find((c: any) => c.id === args.clip_id);
+      const requestedClipId = typeof args?.clip_id === 'string'
+        ? (resolveAlias(args.clip_id, aliasMap) || args.clip_id)
+        : '';
+      const clip = state.clips.find((c: any) => c.id === requestedClipId);
       if (clip) {
         return {
           success: true,
           data: {
-            id: clip.id,
+            id: resolveUuid(clip.id, aliasMap) || clip.id,
             name: clip.name,
             duration: clip.duration,
             startTime: clip.startTime,
@@ -940,4 +937,139 @@ function groupOperationsByRound(operations: PlannedOperation[]): Map<number, Pla
   }
 
   return grouped;
+}
+
+function runPlannerSelfCheck(
+  operations: PlannedOperation[],
+  aliasMap: AliasMap,
+): PlanValidationIssue[] {
+  const issues: PlanValidationIssue[] = [];
+
+  operations.forEach((operation, index) => {
+    const aliasErrors = validateAliasReferences(
+      operation.functionCall.name,
+      operation.functionCall.args || {},
+      aliasMap,
+    );
+
+    aliasErrors.forEach((message) => {
+      issues.push({
+        category: 'validation_warning',
+        operationIndex: index,
+        toolName: operation.functionCall.name,
+        message: `Planner self-check: ${message}`,
+      });
+    });
+  });
+
+  return issues;
+}
+
+function assessPlanQuality(
+  operations: PlannedOperation[],
+  validation: PlanValidationReport,
+): { score: number; notes: string[] } {
+  const notes: string[] = [];
+  let score = 1.0;
+
+  if (operations.length === 0) {
+    score -= 0.7;
+    notes.push('No operations generated');
+  }
+
+  if (operations.length > MAX_OPERATIONS_PER_PLAN) {
+    score -= 0.2;
+    notes.push('Too many operations');
+  }
+
+  const mutatingOps = operations.filter((op) => !op.isReadOnly).length;
+  if (mutatingOps === 0) {
+    score -= 0.15;
+    notes.push('Plan has no mutating operations');
+  }
+
+  if (!validation.valid) {
+    score -= 0.35;
+    notes.push('Validation is not fully clean');
+  }
+
+  if ((validation.issues || []).length > 0) {
+    score -= Math.min(0.25, validation.issues.length * 0.05);
+    notes.push(`${validation.issues.length} validation issue(s)`);
+  }
+
+  return {
+    score: Math.max(0, Math.min(1, score)),
+    notes,
+  };
+}
+
+function buildChangeSummary(operations: PlannedOperation[]): string[] {
+  const summaries: string[] = [];
+  const mutatingOps = operations.filter((op) => !op.isReadOnly);
+
+  if (mutatingOps.length === 0) {
+    summaries.push('Read-only inspection only; no timeline edits.');
+    return summaries;
+  }
+
+  const byTool = new Map<string, number>();
+  for (const op of mutatingOps) {
+    byTool.set(op.functionCall.name, (byTool.get(op.functionCall.name) || 0) + 1);
+  }
+
+  for (const [tool, count] of byTool.entries()) {
+    summaries.push(`${formatToolLabel(tool)}: ${count} operation${count > 1 ? 's' : ''}`);
+  }
+
+  return summaries;
+}
+
+function formatToolLabel(tool: string): string {
+  const labels: Record<string, string> = {
+    split_clip: 'Split clips',
+    delete_clips: 'Delete clips',
+    move_clip: 'Move clips',
+    merge_clips: 'Merge clips',
+    update_clip_bounds: 'Trim clip bounds',
+    set_clip_volume: 'Adjust clip volume',
+    toggle_clip_mute: 'Toggle clip mute',
+    set_playhead_position: 'Move playhead',
+    set_clip_speed: 'Adjust clip speed',
+    apply_clip_effect: 'Apply clip effects',
+  };
+
+  return labels[tool] || tool.replace(/_/g, ' ');
+}
+
+function summarizeTimelineDiff(
+  before: AIProjectSnapshot,
+  after: AIProjectSnapshot,
+): {
+  clipCountBefore: number;
+  clipCountAfter: number;
+  durationBefore: number;
+  durationAfter: number;
+  addedClipNames: string[];
+  removedClipNames: string[];
+} {
+  const beforeIds = new Set(before.timeline.clips.map((clip) => clip.id));
+  const afterIds = new Set(after.timeline.clips.map((clip) => clip.id));
+
+  const addedClipNames = after.timeline.clips
+    .filter((clip) => !beforeIds.has(clip.id))
+    .map((clip) => clip.name);
+
+  const removedClipNames = before.timeline.clips
+    .filter((clip) => !afterIds.has(clip.id))
+    .map((clip) => clip.name);
+
+  return {
+    clipCountBefore: before.timeline.clipCount,
+    clipCountAfter: after.timeline.clipCount,
+    durationBefore: before.timeline.totalDuration,
+    durationAfter: after.timeline.totalDuration,
+    addedClipNames,
+    removedClipNames,
+  };
 }

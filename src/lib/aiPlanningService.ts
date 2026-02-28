@@ -44,17 +44,22 @@ import {
   isReadOnlyTool,
   type ToolErrorCategory,
 } from './toolCapabilityMatrix';
-import { compilePlan, generateCorrectionPrompt, validatePlannerOutputContract } from './planCompiler';
+import { compilePlan, generateCorrectionPrompt, validatePlannerOutputContract, type CompilationError } from './planCompiler';
 import { buildFallbackExecutionPlan, shouldUseFallback } from './fallbackPlanGenerator';
 import { recordPlanningAttempt, recordExecutionAttempt } from './aiTelemetry';
 
-const DEFAULT_MAX_ROUNDS = 3;
-const ABSOLUTE_MAX_ROUNDS = 4;
+const DEFAULT_MAX_ROUNDS = 2;
+const ABSOLUTE_MAX_ROUNDS = 3;
 const MAX_OPERATIONS_PER_PLAN = 20;
 const MAX_DYNAMIC_CONTEXT_CHARS = 5000;
 const PLANNING_MAX_TOKENS = 1024;
 const MIN_PLAN_QUALITY_SCORE = 0.55;
 const PLAN_CACHE_TTL_MS = 90 * 1000;
+const RECOVERABLE_COMPILATION_CATEGORIES = new Set<CompilationError['category']>([
+  'invalid_alias',
+  'invalid_bounds',
+  'invalid_args',
+]);
 
 export interface PlanStep {
   order: number;
@@ -123,6 +128,25 @@ export interface TurnAuditPayload {
   toolInputs: Array<{ name: string; args: Record<string, any> }>;
   toolResults: Array<{ name: string; success: boolean; message?: string; error?: string }>;
   failures: string[];
+}
+
+export function shouldEscalatePlanningRounds(input: {
+  currentRound: number;
+  allowedRounds: number;
+  operationsAddedThisRound: number;
+  toolCallsInRound: number;
+  maxAllowedRounds?: number;
+}): boolean {
+  const hardCap = input.maxAllowedRounds ?? ABSOLUTE_MAX_ROUNDS;
+  if (input.allowedRounds >= hardCap) return false;
+  if (input.currentRound < input.allowedRounds) return false;
+  if (input.toolCallsInRound <= 0) return false;
+  return input.operationsAddedThisRound > 0;
+}
+
+export function shouldRetryCompilation(errors: CompilationError[]): boolean {
+  if (errors.length === 0) return false;
+  return errors.every((error) => RECOVERABLE_COMPILATION_CATEGORIES.has(error.category));
 }
 
 /**
@@ -329,6 +353,7 @@ If the goal is complete, return no new tool calls.`;
         .map((c: any) => c.toolUse);
 
       if (toolUses.length > 0) {
+        const operationsBeforeRound = operations.length;
         // Collect all tool calls from this round
         for (const [index, toolUse] of toolUses.entries()) {
           if (!isKnownTool(toolUse.name)) {
@@ -385,6 +410,15 @@ If the goal is complete, return no new tool calls.`;
         } as any);
 
         trimPlanningMessages(messages);
+        const operationsAddedThisRound = operations.length - operationsBeforeRound;
+        if (shouldEscalatePlanningRounds({
+          currentRound,
+          allowedRounds,
+          operationsAddedThisRound,
+          toolCallsInRound: toolUses.length,
+        })) {
+          allowedRounds = Math.min(ABSOLUTE_MAX_ROUNDS, allowedRounds + 1);
+        }
       } else {
         break; // No tool uses despite stop reason — planning complete
       }
@@ -414,7 +448,7 @@ If the goal is complete, return no new tool calls.`;
   const compileFailed = compilationResult.errors.length > 0;
   
   // If compilation found critical errors, try one retry with correction prompt
-  if (compilationResult.errors.length > 0 && currentRound < allowedRounds) {
+  if (shouldRetryCompilation(compilationResult.errors) && currentRound < allowedRounds) {
     const correctionPrompt = generateCorrectionPrompt(compilationResult);
     
     // Add correction prompt to conversation

@@ -139,4 +139,24 @@ describe('ToolExecutor planning guard + policy execution', () => {
     expect(lifecycleStates).toEqual(['pending', 'running', 'completed']);
     expect(hooks).toEqual(['tool.execute.before', 'tool.execute.after']);
   });
+
+  it('blocks mutating tools in ask mode with structured mode-policy errors', async () => {
+    const results = await ToolExecutor.executeWithPolicy(
+      [{ name: 'delete_clips', args: { clip_ids: ['clip-1'] } }],
+      {
+        mode: 'strict_sequential',
+        stopOnFailure: true,
+      },
+      undefined,
+      {
+        mode: 'ask',
+      },
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0].result.success).toBe(false);
+    expect(results[0].result.errorType).toBe('constraint_violation');
+    expect(results[0].result.error).toContain('not allowed in "ask" mode');
+    expect(results[0].result.recoveryHint).toContain('Switch to edit mode');
+  });
 });

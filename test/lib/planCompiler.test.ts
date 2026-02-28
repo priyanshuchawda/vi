@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compilePlan } from '../../src/lib/planCompiler';
+import { compilePlan, validatePlannerOutputContract } from '../../src/lib/planCompiler';
 import { buildClipAliasMap } from '../../src/lib/clipAliasMapper';
 import type { AIProjectSnapshot } from '../../src/lib/aiProjectSnapshot';
 import type { PlannedOperation } from '../../src/lib/aiPlanningService';
@@ -103,5 +103,30 @@ describe('planCompiler', () => {
     expect(result.errors).toHaveLength(0);
     expect(result.operations).toHaveLength(1);
     expect(result.operations[0].functionCall.args.clip_id).toBe('uuid-1');
+  });
+
+  it('validates required planner output contract fields', () => {
+    const valid = validatePlannerOutputContract({
+      understanding: {
+        goal: 'Split intro clip',
+        constraints: ['Keep total duration'],
+      },
+      operations: [],
+      riskNotes: ['No major risk'],
+      planReady: true,
+    });
+    expect(valid.valid).toBe(true);
+
+    const invalid = validatePlannerOutputContract({
+      understanding: {
+        goal: '',
+        constraints: [] as string[],
+      },
+      operations: [] as PlannedOperation[],
+      riskNotes: [] as string[],
+      planReady: undefined as unknown as boolean,
+    });
+    expect(invalid.valid).toBe(false);
+    expect(invalid.errors.some((error) => error.includes('planReady'))).toBe(true);
   });
 });

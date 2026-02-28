@@ -803,6 +803,7 @@ const ChatPanel = () => {
       validation: executionPlan.plan.validation,
       planReady: executionPlan.plan.planReady,
       planReadyReason: executionPlan.plan.planReadyReason,
+      riskNotes: executionPlan.plan.riskNotes,
       operations: executionPlan.plan.operations,
       steps: executionPlan.plan.steps,
     };
@@ -1951,6 +1952,11 @@ const ChatPanel = () => {
                   <div className="text-xs text-text-secondary mt-1">
                     {executionPlan.plan.planReadyReason}
                   </div>
+                  {Array.isArray(executionPlan.plan.riskNotes) && executionPlan.plan.riskNotes.length > 0 && (
+                    <div className="mt-2 text-xs text-text-muted">
+                      Risks: {executionPlan.plan.riskNotes.join(' | ')}
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex gap-2">

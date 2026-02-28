@@ -37,10 +37,9 @@ import {
   trimHistoryToLimit,
 } from "./costPolicy";
 import {
-  buildCacheKey,
+  buildSemanticCacheKey,
   getCached,
   hashString,
-  normalizeMessage,
   setCached,
 } from "./requestCache";
 import {
@@ -593,14 +592,14 @@ export async function sendMessageWithHistory(
       hasAttachments: Boolean(attachments && attachments.length > 0),
       degraded: preflight.degraded || budgetDecision.shouldDegrade,
     }).modelId;
-    const cacheKey = buildCacheKey([
-      "chat",
-      selectedModel,
-      normalizeMessage(message),
-      historyFingerprint(optimizedHistory),
-      hashString(dynamicContext),
-      "non_stream",
-    ]);
+    const cacheKey = buildSemanticCacheKey({
+      intent: "chat",
+      modelId: selectedModel,
+      message,
+      historyHash: historyFingerprint(optimizedHistory),
+      snapshotHash: hashString(dynamicContext),
+      mode: "non_stream",
+    });
     if (!attachments || attachments.length === 0) {
       const cached = getCached<CachedChatResponse>(cacheKey);
       if (cached) {
@@ -831,14 +830,14 @@ export async function* sendMessageWithHistoryStream(
       degraded: preflight.degraded || budgetDecision.shouldDegrade,
     }).modelId;
     const streamCacheKey = cacheableChat
-      ? buildCacheKey([
-          "chat",
-          selectedModel,
-          normalizeMessage(message),
-          historyFingerprint(optimizedHistory),
-          hashString(dynamicContext),
-          "stream",
-        ])
+      ? buildSemanticCacheKey({
+          intent: "chat",
+          modelId: selectedModel,
+          message,
+          historyHash: historyFingerprint(optimizedHistory),
+          snapshotHash: hashString(dynamicContext),
+          mode: "stream",
+        })
       : "";
     if (cacheableChat) {
       const cached = getCached<CachedChatResponse>(streamCacheKey);

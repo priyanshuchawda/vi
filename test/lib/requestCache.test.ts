@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
-  buildCacheKey,
+  buildSemanticCacheKey,
   clearRequestCache,
   getCached,
   normalizeMessage,
@@ -10,14 +10,23 @@ import {
 describe('requestCache', () => {
   it('stores and retrieves values by key', () => {
     clearRequestCache();
-    const key = buildCacheKey(['chat', 'model', 'hello']);
+    const key = buildSemanticCacheKey({
+      intent: 'chat',
+      modelId: 'model',
+      message: 'hello',
+      mode: 'stream',
+    });
     setCached(key, { text: 'world' }, 5_000);
     expect(getCached<{ text: string }>(key)).toEqual({ text: 'world' });
   });
 
   it('expires entries after TTL', async () => {
     clearRequestCache();
-    const key = buildCacheKey(['plan', 'model', 'trim clip']);
+    const key = buildSemanticCacheKey({
+      intent: 'plan',
+      modelId: 'model',
+      message: 'trim clip',
+    });
     setCached(key, { ok: true }, 10);
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(getCached<{ ok: boolean }>(key)).toBeNull();
@@ -25,5 +34,20 @@ describe('requestCache', () => {
 
   it('normalizes message text consistently', () => {
     expect(normalizeMessage('  Trim   THIS clip  ')).toBe('trim this clip');
+  });
+
+  it('hydrates persisted entries across module reload', async () => {
+    clearRequestCache();
+    const key = buildSemanticCacheKey({
+      intent: 'chat',
+      modelId: 'model',
+      message: 'persist me',
+    });
+    setCached(key, { text: 'cached' }, 5_000);
+
+    vi.resetModules();
+    const reloaded = await import('../../src/lib/requestCache');
+    expect(reloaded.getCached<{ text: string }>(key)).toEqual({ text: 'cached' });
+    reloaded.clearRequestCache();
   });
 });

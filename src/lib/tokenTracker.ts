@@ -137,6 +137,13 @@ export function getSessionPromptTokens(): number {
   return _session.inputTokens;
 }
 
+/** Get current session estimated cost using Nova Lite pricing */
+export function getSessionEstimatedCost(): number {
+  const inputCost = (_session.inputTokens / 1_000_000) * 0.06;
+  const outputCost = (_session.outputTokens / 1_000_000) * 0.24;
+  return inputCost + outputCost;
+}
+
 /**
  * Get a cost summary based on Amazon Nova Lite pricing.
  */

@@ -24,6 +24,7 @@ import { useProjectStore } from '../stores/useProjectStore';
 import { optimizeContextHistory } from './contextManager';
 import { waitForSlot, withRetryOn429 } from './rateLimiter';
 import { recordUsage } from './tokenTracker';
+import { estimateTurnCost, trimHistoryToLimit } from './costPolicy';
 import {
   buildAliasedSnapshotForPlanning,
   buildAIProjectSnapshot,
@@ -190,7 +191,7 @@ export async function generateCompletePlan(
   const operations: PlannedOperation[] = [];
   const seenOperations = new Set<string>();
   let currentRound = 0;
-  const allowedRounds = Math.min(Math.max(1, maxRounds), ABSOLUTE_MAX_ROUNDS);
+  let allowedRounds = Math.min(Math.max(1, maxRounds), ABSOLUTE_MAX_ROUNDS);
 
   // Optimize incoming history before planning loop
   const { history: initialOptimizedStart, metrics: planMetrics } = optimizeContextHistory(history);
@@ -199,9 +200,29 @@ export async function generateCompletePlan(
     optimizedStart = await summarizeHistory(optimizedStart);
   }
 
+  const standardToolSet = selectPlanningTools(message, 'standard');
+  const standardToolNames = standardToolSet
+    .map((tool: any) => tool?.toolSpec?.name)
+    .filter((name: string | undefined): name is string => Boolean(name));
+
+  const costPreflight = estimateTurnCost({
+    intent: 'edit_plan',
+    history: optimizedStart,
+    dynamicContextChars: 5000,
+    userMessageChars: message.length,
+    toolCount: standardToolNames.length,
+    maxOutputTokens: PLANNING_MAX_TOKENS,
+  });
+  if (costPreflight.degraded) {
+    optimizedStart = trimHistoryToLimit(optimizedStart, costPreflight.maxHistoryMessages);
+    allowedRounds = Math.max(1, allowedRounds - 1);
+  }
+
   // Bedrock: manual message accumulation (no chat session)
   const messages: AIChatMessage[] = [...optimizedStart];
-  const toolSet = selectPlanningTools(message);
+  const toolSet = costPreflight.economyTools
+    ? selectPlanningTools(message, 'economy')
+    : standardToolSet;
   const toolNames = toolSet
     .map((tool: any) => tool?.toolSpec?.name)
     .filter((name: string | undefined): name is string => Boolean(name));
@@ -230,8 +251,11 @@ You may call read-only tools during planning to inspect timeline/media state.
 State-changing operations must remain executable with valid IDs and bounds.
 </instruction>
 `;
-  if (dynamicContext.length > MAX_DYNAMIC_CONTEXT_CHARS) {
-    dynamicContext = `${dynamicContext.slice(0, MAX_DYNAMIC_CONTEXT_CHARS)}\n[Planning context truncated for token efficiency]`;
+  const dynamicCap = costPreflight.degraded
+    ? Math.min(MAX_DYNAMIC_CONTEXT_CHARS, costPreflight.maxDynamicContextChars)
+    : MAX_DYNAMIC_CONTEXT_CHARS;
+  if (dynamicContext.length > dynamicCap) {
+    dynamicContext = `${dynamicContext.slice(0, dynamicCap)}\n[Planning context truncated for token efficiency]`;
   }
 
   const planningIssues: PlanValidationIssue[] = [];
@@ -750,7 +774,10 @@ function isKnownTool(name: string): boolean {
   return allVideoEditingTools.some((tool: any) => tool?.toolSpec?.name === name);
 }
 
-function selectPlanningTools(message: string) {
+function selectPlanningTools(
+  message: string,
+  mode: 'standard' | 'economy' = 'standard',
+) {
   const text = message.toLowerCase();
   const base = new Set<string>([
     'get_timeline_info',
@@ -776,7 +803,7 @@ function selectPlanningTools(message: string) {
     base.add('paste_clips');
   }
 
-  if (/\b(subtitle|caption)\b/.test(text)) {
+  if (/\b(subtitle|caption)\b/.test(text) && mode === 'standard') {
     base.add('add_subtitle');
     base.add('update_subtitle');
     base.add('delete_subtitle');
@@ -785,27 +812,27 @@ function selectPlanningTools(message: string) {
     base.add('clear_all_subtitles');
   }
 
-  if (/\b(transcribe|transcription|transcript)\b/.test(text)) {
+  if (/\b(transcribe|transcription|transcript)\b/.test(text) && mode === 'standard') {
     base.add('transcribe_clip');
     base.add('transcribe_timeline');
     base.add('get_transcription');
     base.add('apply_transcript_edits');
   }
 
-  if (/\b(effect|filter|speed|highlight|chapter)\b/.test(text)) {
+  if (/\b(effect|filter|speed|highlight|chapter)\b/.test(text) && mode === 'standard') {
     base.add('set_clip_speed');
     base.add('apply_clip_effect');
     base.add('find_highlights');
     base.add('generate_chapters');
   }
 
-  if (/\b(save|export|project)\b/.test(text)) {
+  if (/\b(save|export|project)\b/.test(text) && mode === 'standard') {
     base.add('save_project');
     base.add('set_export_settings');
     base.add('get_project_info');
   }
 
-  if (/\b(search|analy|memory|scene)\b/.test(text)) {
+  if (/\b(search|analy|memory|scene)\b/.test(text) && mode === 'standard') {
     base.add('search_clips_by_content');
     base.add('get_clip_analysis');
     base.add('get_all_media_analysis');

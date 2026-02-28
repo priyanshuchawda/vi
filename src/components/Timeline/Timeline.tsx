@@ -189,13 +189,15 @@ const Timeline = () => {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Timeline Header with Controls */}
-      <div className="h-12 border-b border-white/5 flex items-center justify-between px-6 bg-bg-elevated/50 backdrop-blur-sm">
+      <div className="h-12 border-b border-white/5 flex items-center justify-between px-6 bg-bg-elevated/50 backdrop-blur-sm animate-slide-up">
         <div className="flex items-center gap-4">
           {/* Timeline Icon & Label */}
           <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
-            </svg>
+            <div className="animate-float">
+              <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+              </svg>
+            </div>
             <div className="text-xs font-semibold text-text-primary tracking-wide">
               Timeline
             </div>
@@ -224,7 +226,7 @@ const Timeline = () => {
             <button
               onClick={undo}
               disabled={!canUndo}
-              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
+              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 hover:bg-white/5 rounded-lg hover:scale-110 active:scale-95"
               title="Undo (Ctrl+Z)"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -234,7 +236,7 @@ const Timeline = () => {
             <button
               onClick={redo}
               disabled={!canRedo}
-              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
+              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 hover:bg-white/5 rounded-lg hover:scale-110 active:scale-95"
               title="Redo (Ctrl+Y)"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -245,7 +247,7 @@ const Timeline = () => {
             <button
               onClick={() => activeClipId && splitClip(activeClipId, currentTime)}
               disabled={!activeClipId}
-              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
+              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 hover:bg-white/5 rounded-lg hover:scale-110 active:scale-95"
               title="Split (S)"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -257,7 +259,7 @@ const Timeline = () => {
                 selectedClipIds.forEach(clipId => removeClip(clipId));
               }}
               disabled={selectedClipIds.length === 0}
-              className="p-1.5 text-text-muted hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition"
+              className="p-1.5 text-text-muted hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 hover:bg-red-500/5 rounded-lg hover:scale-110 active:scale-95"
               title="Delete (Del)"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -267,7 +269,7 @@ const Timeline = () => {
             <button
               onClick={mergeSelectedClips}
               disabled={selectedClipIds.length < 2}
-              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
+              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 hover:bg-white/5 rounded-lg hover:scale-110 active:scale-95"
               title="Merge"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -278,7 +280,7 @@ const Timeline = () => {
             <button
               onClick={copyClips}
               disabled={selectedClipIds.length === 0}
-              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
+              className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 hover:bg-white/5 rounded-lg hover:scale-110 active:scale-95"
               title="Copy (Ctrl+C)"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -287,7 +289,7 @@ const Timeline = () => {
             </button>
             <button
               onClick={pasteClips}
-              className="p-1.5 text-text-muted hover:text-text-primary transition"
+              className="p-1.5 text-text-muted hover:text-text-primary transition-all duration-200 hover:bg-white/5 rounded-lg hover:scale-110 active:scale-95"
               title="Paste (Ctrl+V)"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -346,9 +348,9 @@ const Timeline = () => {
           <button
             onClick={() => setSnapToGrid(!snapToGrid)}
             className={clsx(
-              "flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-all",
+              "flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-all duration-200 hover:scale-105 active:scale-95",
               snapToGrid 
-                ? "bg-accent text-white shadow-lg shadow-accent/20" 
+                ? "bg-gradient-to-r from-accent to-accent-hover text-white shadow-lg shadow-accent/30" 
                 : "bg-bg-surface text-text-muted hover:bg-accent/10 hover:text-accent"
             )}
             title={snapToGrid ? `Snap enabled (${gridSize}s grid)` : "Enable snap to grid"}
@@ -365,7 +367,7 @@ const Timeline = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPixelsPerSecond(Math.max(1, pixelsPerSecond - 10))}
-              className="p-1 hover:bg-accent/10 text-text-muted hover:text-accent rounded transition"
+              className="p-1 hover:bg-accent/10 text-text-muted hover:text-accent rounded transition-all duration-200 hover:scale-110 active:scale-95"
               title="Zoom out"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -390,7 +392,7 @@ const Timeline = () => {
             
             <button
               onClick={() => setPixelsPerSecond(Math.min(100, pixelsPerSecond + 10))}
-              className="p-1 hover:bg-accent/10 text-text-muted hover:text-accent rounded transition"
+              className="p-1 hover:bg-accent/10 text-text-muted hover:text-accent rounded transition-all duration-200 hover:scale-110 active:scale-95"
               title="Zoom in"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -441,7 +443,7 @@ const Timeline = () => {
           {/* Global Playhead Indicator */}
           <button
             type="button"
-            className="absolute top-0 bottom-0 z-50 cursor-ew-resize group pointer-events-auto"
+            className="absolute top-0 bottom-0 z-50 cursor-ew-resize group pointer-events-auto transition-all duration-150"
             style={{ left: `${currentTime * pixelsPerSecond}px` }}
             onMouseDown={handlePlayheadDragStart}
             onKeyDown={(e) => {
@@ -457,16 +459,16 @@ const Timeline = () => {
             aria-label="Playhead"
           >
             {/* Playhead triangle top */}
-            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-t-[9px] border-t-accent drop-shadow-lg"></div>
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-t-[9px] border-t-accent drop-shadow-lg transition-transform duration-150 group-hover:scale-110"></div>
 
             {/* Playhead line */}
-            <div className="w-0.5 h-full bg-accent shadow-[0_0_10px_rgba(29,185,84,0.5)] group-hover:shadow-[0_0_20px_rgba(29,185,84,0.8)] transition-shadow"></div>
+            <div className="w-0.5 h-full bg-accent shadow-[0_0_10px_rgba(29,185,84,0.5)] group-hover:shadow-[0_0_20px_rgba(29,185,84,0.8)] transition-all duration-200 group-hover:w-1"></div>
 
             {/* Grab handle at bottom */}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-accent rounded-full border-2 border-bg-secondary opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"></div>
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-accent rounded-full border-2 border-bg-secondary opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg animate-pulse-glow"></div>
 
             {/* Time display */}
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-accent text-white px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-accent text-white px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none shadow-lg animate-slide-up">
               {currentTime.toFixed(2)}s
             </div>
           </button>
@@ -555,11 +557,11 @@ const Timeline = () => {
                             setContextMenu({ x: e.clientX, y: e.clientY, clipId: clip.id });
                           }}
                           className={clsx(
-                            "h-20 rounded border cursor-pointer select-none transition flex flex-col justify-between absolute overflow-visible group",
+                            "h-20 rounded border cursor-pointer select-none transition-all duration-200 flex flex-col justify-between absolute overflow-visible group animate-fade-in hover:scale-[1.02]",
                             isActive
-                              ? "bg-accent/10 border-accent border-2 shadow-[0_0_20px_rgba(29,185,84,0.3)]"
+                              ? "bg-accent/10 border-accent border-2 shadow-[0_0_20px_rgba(29,185,84,0.3)] z-20"
                               : isSelected
-                                ? "bg-accent/5 border-accent shadow-[0_0_15px_rgba(29,185,84,0.2)]"
+                                ? "bg-accent/5 border-accent shadow-[0_0_15px_rgba(29,185,84,0.2)] z-10"
                                 : isTextClip
                                   ? "bg-green-500/10 border-green-500/30 hover:bg-green-500/20 hover:border-green-400"
                                   : isAudioTrack
@@ -591,27 +593,27 @@ const Timeline = () => {
                           {/* Trim Handles */}
                           <button
                             type="button"
-                            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-accent/0 group-hover:bg-accent/20 hover:!bg-accent z-30 transition-colors rounded-l"
+                            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-accent/0 group-hover:bg-accent/20 hover:!bg-accent z-30 transition-all duration-200 rounded-l hover:w-3"
                             onMouseDown={(e) => startTrim(e, clip.id, 'start', clip.start)}
                             aria-label="Trim clip start"
                           />
                           <button
                             type="button"
-                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-accent/0 group-hover:bg-accent/20 hover:!bg-accent z-30 transition-colors rounded-r"
+                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-accent/0 group-hover:bg-accent/20 hover:!bg-accent z-30 transition-all duration-200 rounded-r hover:w-3"
                             onMouseDown={(e) => startTrim(e, clip.id, 'end', clip.end)}
                             aria-label="Trim clip end"
                           />
 
                           {/* Volume/Mute Controls */}
-                          <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-40">
+                          <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 z-40">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 toggleClipMute(clip.id);
                               }}
                               className={clsx(
-                                "p-1 rounded backdrop-blur-sm transition-colors",
-                                clip.muted ? "bg-red-500/80 text-white" : "bg-bg-primary/80 text-text-primary hover:bg-bg-primary"
+                                "p-1 rounded backdrop-blur-sm transition-all duration-200 hover:scale-110 active:scale-95",
+                                clip.muted ? "bg-red-500/80 text-white shadow-lg shadow-red-500/30" : "bg-bg-primary/80 text-text-primary hover:bg-bg-primary"
                               )}
                               title={clip.muted ? "Unmute" : "Mute"}
                             >
@@ -632,7 +634,7 @@ const Timeline = () => {
                                 e.stopPropagation();
                                 setShowVolumeFor(showVolumeFor === clip.id ? null : clip.id);
                               }}
-                              className="p-1 rounded bg-bg-primary/80 backdrop-blur-sm text-text-primary hover:bg-bg-primary transition-colors"
+                              className="p-1 rounded bg-bg-primary/80 backdrop-blur-sm text-text-primary hover:bg-bg-primary transition-all duration-200 hover:scale-110 active:scale-95"
                               title="Volume"
                             >
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -644,7 +646,7 @@ const Timeline = () => {
                           {/* Volume Slider */}
                           {showVolumeFor === clip.id && (
                             <div
-                              className="absolute -top-12 left-1/2 -translate-x-1/2 bg-bg-elevated border border-border-primary rounded-lg shadow-lg p-2 z-50 flex flex-col items-center gap-1"
+                              className="absolute -top-12 left-1/2 -translate-x-1/2 bg-bg-elevated border border-border-primary rounded-lg shadow-lg p-2 z-50 flex flex-col items-center gap-1 animate-scale-in"
                               onClick={(e) => e.stopPropagation()}
                               onKeyDown={(e) => e.stopPropagation()}
                               role="dialog"

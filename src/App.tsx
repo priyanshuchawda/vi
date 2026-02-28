@@ -83,8 +83,8 @@ function App() {
       <Toast />
       <AutoSave />
 
-      {/* LEFT: Vertical Icon Toolbar - 64px fixed width */}
-      <div className="w-16 bg-bg-secondary flex flex-col items-center py-4 gap-2 z-20">
+      {/* LEFT: Vertical Icon Toolbar - 64px fixed width with premium styling */}
+      <div className="w-16 bg-gradient-to-b from-bg-secondary via-bg-secondary to-bg-elevated border-r border-white/5 flex flex-col items-center py-4 gap-2 z-20 shadow-2xl">
         <Toolbar 
           onToggleFilePanel={() => setIsFilePanelOpen(!isFilePanelOpen)}
           onToggleRightPanel={() => setIsRightPanelOpen(!isRightPanelOpen)}
@@ -98,35 +98,40 @@ function App() {
         {/* Top section: Panels + Preview + AI Chat */}
         <div className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 240px)' }}>
           
-          {/* LEFT: File Panel */}
+          {/* LEFT: File Panel with smooth transition */}
           {isFilePanelOpen && (
-            <FilePanel isOpen={isFilePanelOpen} onClose={() => setIsFilePanelOpen(false)} />
+            <div className="animate-slide-in">
+              <FilePanel isOpen={isFilePanelOpen} onClose={() => setIsFilePanelOpen(false)} />
+            </div>
           )}
 
-          {/* CENTER: HERO PREVIEW - Dominant area */}
-          <div className="flex-1 bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-primary flex flex-col p-6">
+          {/* CENTER: HERO PREVIEW - Dominant area with subtle gradient */}
+          <div className="flex-1 bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-primary flex flex-col p-6 relative">
+            <div className="absolute inset-0 bg-gradient-to-tr from-accent/[0.02] to-transparent pointer-events-none"></div>
             <Preview />
           </div>
 
-          {/* RIGHT: AI Chat Panel - Native integration */}
+          {/* RIGHT: AI Chat Panel - Native integration with smooth transition */}
           {isChatOpen && (
             <div 
-              className="bg-bg-secondary flex flex-col h-full"
+              className="bg-gradient-to-b from-bg-secondary to-bg-elevated flex flex-col h-full shadow-2xl border-l border-white/5 animate-slide-in-right"
               style={{ width: isDesktop ? '420px' : '100%' }}
             >
               <ChatPanel />
             </div>
           )}
 
-          {/* RIGHT: Tools Panel */}
+          {/* RIGHT: Tools Panel with smooth transition */}
           {isRightPanelOpen && !isChatOpen && (
-            <RightPanel isOpen={isRightPanelOpen} onClose={() => setIsRightPanelOpen(false)} />
+            <div className="animate-slide-in-right">
+              <RightPanel isOpen={isRightPanelOpen} onClose={() => setIsRightPanelOpen(false)} />
+            </div>
           )}
         </div>
 
-        {/* BOTTOM: Timeline - Fixed height, full width */}
+        {/* BOTTOM: Timeline - Fixed height, full width with premium styling */}
         <div 
-          className="bg-bg-secondary flex flex-col"
+          className="bg-gradient-to-b from-bg-secondary to-bg-elevated flex flex-col border-t border-white/5 shadow-2xl"
           style={{ height: '240px' }}
         >
           <Timeline />

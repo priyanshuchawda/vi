@@ -612,15 +612,15 @@ const ChatPanel = () => {
 
   return (
     <div
-      className="h-full flex flex-col"
+      className="h-full flex flex-col overflow-hidden"
       style={{
         width: '100%',
       }}
     >
       {/* Header */}
-      <div className="border-b border-white/5 p-4 flex items-center justify-between bg-bg-elevated/50 backdrop-blur-sm">
+      <div className="border-b border-white/5 p-4 flex items-center justify-between bg-bg-elevated/50 backdrop-blur-sm animate-slide-up">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-accent/20 to-accent/10 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-gradient-to-br from-accent/20 to-accent/10 rounded-lg flex items-center justify-center animate-float">
             <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
@@ -634,7 +634,7 @@ const ChatPanel = () => {
         <div className="flex items-center gap-1">
           <button
             onClick={() => setShowLogs((v) => !v)}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition ${showLogs ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${showLogs ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
             title="Session logs"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -643,7 +643,7 @@ const ChatPanel = () => {
           </button>
           <button
             onClick={toggleAutoExecute}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition ${autoExecute ? 'text-green-400 bg-green-500/10 hover:bg-green-500/15' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${autoExecute ? 'text-green-400 bg-green-500/10 hover:bg-green-500/15' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
             title={autoExecute ? "Auto-execute ON" : "Auto-execute OFF"}
           >
             {autoExecute ? (
@@ -658,7 +658,7 @@ const ChatPanel = () => {
           </button>
           <button
             onClick={handleClearChat}
-            className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition"
+            className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
             title="Clear chat"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -667,7 +667,7 @@ const ChatPanel = () => {
           </button>
           <button
             onClick={togglePanel}
-            className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition"
+            className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
             title="Close (Ctrl+K)"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -679,9 +679,9 @@ const ChatPanel = () => {
 
       {/* Auto-Execute Mode Banner */}
       {autoExecute && (
-        <div className="px-4 py-2 bg-green-500/5 border-b border-green-500/10">
+        <div className="px-4 py-2 bg-green-500/5 border-b border-green-500/10 animate-slide-up">
           <div className="flex items-center gap-2 text-xs text-green-400">
-            <svg className="w-3.5 h-3.5 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="w-3.5 h-3.5 animate-pulse-glow" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
             </svg>
             <span>Auto-execute enabled. Operations will run automatically without approval.</span>
@@ -691,7 +691,7 @@ const ChatPanel = () => {
 
       {/* Channel Analysis Context Banner */}
       {analysisData && (
-        <div className="px-4 py-2 bg-blue-500/10 border-b border-blue-500/20">
+        <div className="px-4 py-2 bg-blue-500/10 border-b border-blue-500/20 animate-slide-up" style={{ animationDelay: '0.1s', animationFillMode: 'both' }}>
           <div className="flex items-center gap-2 text-xs text-blue-400">
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3h.5a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-.5a1.5 1.5 0 00-3 0v.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1h-.5a1.5 1.5 0 010-3H4a1 1 0 001-1V6a1 1 0 011-1h3a1 1 0 001-1v-.5z" />

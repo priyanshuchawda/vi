@@ -18,7 +18,7 @@ const Toolbar = ({
   isRightPanelOpen = false
 }: ToolbarProps = {}) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const { activeClipId, currentTime, removeClip, splitClip, clips, setNotification, selectedClipIds, mergeSelectedClips, copyClips, pasteClips, saveProject, loadProject, undo, redo, exportFormat, exportResolution, subtitles, subtitleStyle } = useProjectStore();
+  const { activeClipId, currentTime, removeClip, splitClip, clips, setNotification, selectedClipIds, mergeSelectedClips, copyClips, pasteClips, saveProject, loadProject, undo, redo, exportFormat, exportResolution, subtitles, subtitleStyle, setExportedVideoPath } = useProjectStore();
   const { profile } = useProfileStore();
   const { togglePanel, isOpen: isChatOpen } = useChatStore();
   const [isExporting, setIsExporting] = useState(false);
@@ -123,6 +123,7 @@ const Toolbar = ({
       try {
         const resolution = exportResolution === 'original' ? undefined : exportResolution;
         await window.electronAPI.exportVideo(clipsToExport, outputPath, exportFormat, resolution, subtitles, subtitleStyle);
+        setExportedVideoPath(outputPath); // Save the exported video path
         setNotification({ type: 'success', message: `Export Complete! (${exportFormat.toUpperCase()} @ ${exportResolution})` });
       } catch (error) {
         console.error(error);
@@ -146,39 +147,40 @@ const Toolbar = ({
         {/* AI Chat Toggle */}
         <button 
           onClick={togglePanel}
-          className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all group relative ${
+          className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 group relative ${
             isChatOpen 
-              ? 'bg-accent text-white shadow-lg shadow-accent/20' 
-              : 'text-text-muted hover:text-accent hover:bg-accent/10'
+              ? 'bg-gradient-to-br from-accent to-accent-hover text-white shadow-lg shadow-accent/30 scale-105' 
+              : 'text-text-muted hover:text-accent hover:bg-accent/10 hover:scale-110 active:scale-95'
           }`}
           title="AI Copilot (Ctrl+K)"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-5 h-5 transition-transform duration-200 ${isChatOpen ? 'scale-110' : 'group-hover:scale-110'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
           </svg>
-          <div className="absolute left-full ml-2 px-2 py-1 bg-bg-elevated text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-border-primary">
-            AI Copilot
+          <div className="absolute left-full ml-3 px-3 py-2 bg-bg-elevated/95 backdrop-blur-sm text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-white/10 transition-opacity duration-200">
+            <span className="text-text-primary font-medium">AI Copilot</span>
+            <kbd className="ml-2">Ctrl+K</kbd>
           </div>
         </button>
 
-        <div className="w-8 h-px bg-border-primary"></div>
+        <div className="w-8 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
 
         {/* Media Library Toggle */}
         {onToggleFilePanel && (
           <button 
             onClick={onToggleFilePanel}
-            className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all group relative ${
+            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 group relative ${
               isFilePanelOpen 
-                ? 'bg-accent text-white shadow-lg shadow-accent/20' 
-                : 'text-text-muted hover:text-accent hover:bg-accent/10'
+                ? 'bg-gradient-to-br from-accent to-accent-hover text-white shadow-lg shadow-accent/30 scale-105' 
+                : 'text-text-muted hover:text-accent hover:bg-accent/10 hover:scale-110 active:scale-95'
             }`}
             title="Media Library"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className={`w-5 h-5 transition-transform duration-200 ${isFilePanelOpen ? 'scale-110' : 'group-hover:scale-110'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
-            <div className="absolute left-full ml-2 px-2 py-1 bg-bg-elevated text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-border-primary">
-              Media Library
+            <div className="absolute left-full ml-3 px-3 py-2 bg-bg-elevated/95 backdrop-blur-sm text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-white/10 transition-opacity duration-200">
+              <span className="text-text-primary font-medium">Media Library</span>
             </div>
           </button>
         )}
@@ -187,35 +189,35 @@ const Toolbar = ({
         {onToggleRightPanel && (
           <button 
             onClick={onToggleRightPanel}
-            className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all group relative ${
+            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 group relative ${
               isRightPanelOpen 
-                ? 'bg-accent text-white shadow-lg shadow-accent/20' 
-                : 'text-text-muted hover:text-accent hover:bg-accent/10'
+                ? 'bg-gradient-to-br from-accent to-accent-hover text-white shadow-lg shadow-accent/30 scale-105' 
+                : 'text-text-muted hover:text-accent hover:bg-accent/10 hover:scale-110 active:scale-95'
             }`}
             title="Tools Panel"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className={`w-5 h-5 transition-transform duration-200 ${isRightPanelOpen ? 'scale-110' : 'group-hover:scale-110'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
             </svg>
-            <div className="absolute left-full ml-2 px-2 py-1 bg-bg-elevated text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-border-primary">
-              Tools Panel
+            <div className="absolute left-full ml-3 px-3 py-2 bg-bg-elevated/95 backdrop-blur-sm text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-white/10 transition-opacity duration-200">
+              <span className="text-text-primary font-medium">Tools Panel</span>
             </div>
           </button>
         )}
 
-        <div className="w-8 h-px bg-border-primary"></div>
+        <div className="w-8 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
       </div>
 
       {/* Middle Section: Export Progress */}
       {isExporting && (
-        <div className="flex flex-col items-center gap-2 w-full px-2">
-          <div className="w-full h-1 bg-bg-elevated rounded-full overflow-hidden">
+        <div className="flex flex-col items-center gap-2 w-full px-2 animate-fade-in">
+          <div className="w-full h-1.5 bg-bg-elevated rounded-full overflow-hidden shadow-inner">
             <div 
-              className="h-full bg-accent transition-all duration-300"
+              className="h-full bg-gradient-to-r from-accent to-accent-hover transition-all duration-300 shadow-lg shadow-accent/50"
               style={{ width: `${Math.max(0, Math.min(100, exportProgress))}%` }}
             />
           </div>
-          <div className="text-[9px] text-accent font-bold">{Math.round(exportProgress)}%</div>
+          <div className="text-[10px] text-accent font-bold animate-pulse-glow">{Math.round(exportProgress)}%</div>
         </div>
       )}
 
@@ -224,40 +226,41 @@ const Toolbar = ({
         {/* Profile */}
         <button
           onClick={() => setShowProfileModal(true)}
-          className="w-10 h-10 flex items-center justify-center hover:bg-accent/10 rounded-lg transition-all group relative"
+          className="w-11 h-11 flex items-center justify-center hover:bg-accent/10 rounded-xl transition-all duration-200 group relative hover:scale-110 active:scale-95"
           title="Profile"
         >
           {profile && profile.channelAnalysis ? (
             <div className="relative">
-              <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-accent transition-transform duration-200 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-bg-secondary"></div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-gradient-to-br from-green-400 to-green-600 rounded-full border-2 border-bg-secondary shadow-lg shadow-green-500/50"></div>
             </div>
           ) : (
-            <svg className="w-5 h-5 text-text-muted group-hover:text-accent transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-text-muted group-hover:text-accent transition-all duration-200 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
           )}
-          <div className="absolute left-full ml-2 px-2 py-1 bg-bg-elevated text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-border-primary">
-            Profile
+          <div className="absolute left-full ml-3 px-3 py-2 bg-bg-elevated/95 backdrop-blur-sm text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-white/10 transition-opacity duration-200">
+            <span className="text-text-primary font-medium">Profile</span>
           </div>
         </button>
 
-        <div className="w-8 h-px bg-border-primary my-1"></div>
+        <div className="w-8 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-1"></div>
 
         {/* Export Button */}
         <button 
           onClick={handleExportProject}
           disabled={clips.length === 0 || isExporting}
-          className="w-10 h-10 flex items-center justify-center bg-accent hover:bg-accent-hover text-white rounded-lg transition-all disabled:opacity-30 disabled:bg-bg-surface disabled:text-text-muted shadow-lg shadow-accent/20 group relative" 
+          className="w-11 h-11 flex items-center justify-center bg-gradient-to-br from-accent to-accent-hover hover:from-accent-hover hover:to-accent text-white rounded-xl transition-all duration-200 disabled:opacity-30 disabled:from-bg-surface disabled:to-bg-surface disabled:text-text-muted shadow-lg shadow-accent/30 hover:shadow-accent/50 group relative hover:scale-110 active:scale-95 disabled:hover:scale-100 disabled:shadow-none" 
           title="Export Project"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 transition-transform duration-200 group-hover:scale-110 group-hover:translate-y-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
-          <div className="absolute left-full ml-2 px-2 py-1 bg-bg-elevated text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-border-primary">
-            Export ({exportFormat.toUpperCase()} @ {exportResolution === 'original' ? 'Original' : exportResolution})
+          <div className="absolute left-full ml-3 px-3 py-2 bg-bg-elevated/95 backdrop-blur-sm text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-white/10 transition-opacity duration-200">
+            <div className="text-text-primary font-medium">Export</div>
+            <div className="text-text-muted text-[10px] mt-0.5">{exportFormat.toUpperCase()} @ {exportResolution === 'original' ? 'Original' : exportResolution}</div>
           </div>
         </button>
       </div>

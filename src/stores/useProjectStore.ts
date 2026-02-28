@@ -121,6 +121,7 @@ interface ProjectState {
   };
   activeSidebarTab: SidebarTab;
   defaultImageDuration: number; // Default duration for imported images in seconds
+  exportedVideoPath: string | null; // Path to the last exported video
   addClip: (clip: Omit<Clip, 'id' | 'duration' | 'start' | 'end' | 'startTime'> & { duration: number }) => void;
   removeClip: (id: string) => void;
   setActiveClip: (id: string | null) => void;
@@ -172,6 +173,7 @@ interface ProjectState {
   updateTranscriptEditSettings: (settings: Partial<ProjectState['transcriptEditSettings']>) => void;
   setActiveSidebarTab: (tab: SidebarTab) => void;
   setDefaultImageDuration: (duration: number) => void;
+  setExportedVideoPath: (path: string | null) => void;
 }
 
 const saveToHistory = (state: ProjectState) => {
@@ -241,6 +243,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
   activeSidebarTab: (localStorage.getItem('activeSidebarTab') as SidebarTab) || 'media', // Default to media tab
   defaultImageDuration: 5, // Default 5 seconds for images
+  exportedVideoPath: null, // No exported video initially
   addClip: (clip) =>
     set((state) => {
       // Auto-assign track based on media type
@@ -1207,5 +1210,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   setDefaultImageDuration: (duration) => {
     set({ defaultImageDuration: duration });
+  },
+
+  setExportedVideoPath: (path) => {
+    set({ exportedVideoPath: path });
   },
 }));

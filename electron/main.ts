@@ -14,6 +14,12 @@ import ffmpeg, {
 } from "./ffmpeg/processor.js";
 import { transcribeVideo, transcribeTimeline } from "./utils/transcription.js";
 import { ChannelAnalysisService } from "./services/channelAnalysisService.js";
+import { 
+  authenticateUser, 
+  isAuthenticated, 
+  logout as youtubeLogout 
+} from "./services/youtubeAuthService.js";
+import { uploadVideo } from "./services/youtubeUploadService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -664,6 +670,64 @@ ipcMain.handle("memory:getDir", async () => {
   const paths = getProjectMemoryPaths(); // Default project
   await ensureMemoryDirs();
   return { dir: MEMORY_BASE_DIR, index: paths.index, analyses: paths.analyses };
+});
+
+// ===========================
+// YouTube Upload Handlers
+// ===========================
+
+// Check if user is authenticated with YouTube
+ipcMain.handle("youtube:isAuthenticated", async () => {
+  try {
+    return isAuthenticated();
+  } catch (error) {
+    console.error("[YouTube] Error checking authentication:", error);
+    return false;
+  }
+});
+
+// Authenticate user with YouTube
+ipcMain.handle("youtube:authenticate", async () => {
+  try {
+    if (!mainWindow) {
+      throw new Error("Main window not available");
+    }
+    const success = await authenticateUser(mainWindow);
+    return success;
+  } catch (error) {
+    console.error("[YouTube] Authentication error:", error);
+    throw error;
+  }
+});
+
+// Logout from YouTube
+ipcMain.handle("youtube:logout", async () => {
+  try {
+    return youtubeLogout();
+  } catch (error) {
+    console.error("[YouTube] Logout error:", error);
+    return false;
+  }
+});
+
+// Upload video to YouTube
+ipcMain.handle("youtube:uploadVideo", async (event, { filePath, metadata }) => {
+  try {
+    console.log("[YouTube] Starting upload:", filePath);
+    
+    const videoId = await uploadVideo(filePath, metadata, (progress) => {
+      // Send progress updates to renderer
+      if (mainWindow) {
+        mainWindow.webContents.send("youtube:uploadProgress", progress);
+      }
+    });
+
+    console.log("[YouTube] Upload completed:", videoId);
+    return { success: true, videoId };
+  } catch (error: any) {
+    console.error("[YouTube] Upload error:", error);
+    return { success: false, error: error.message || "Upload failed" };
+  }
 });
 
 app.whenReady().then(() => {

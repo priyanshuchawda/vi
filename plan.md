@@ -130,7 +130,7 @@ Acceptance criteria:
 
 ### Phase 5: Persistent Request Cache + Semantic Keys (P2)
 Goal: maximize reuse across repeated asks and sessions.
-Status: `in_progress`
+Status: `completed` (PR #29 merged)
 
 Deliverables:
 - Extend `requestCache` with persisted store (Electron/localStorage-backed).
@@ -151,6 +151,7 @@ Acceptance criteria:
 
 ### Phase 6: Unified Cost Governance + UI/Telemetry (P3)
 Goal: make budget behavior explicit, measurable, and safe.
+Status: `in_progress`
 
 Deliverables:
 - Per-workflow budgets (chat/planning/caption/memory) in `costPolicy`.

@@ -71,6 +71,20 @@ export type ExportFormat = 'mp4' | 'mov' | 'avi' | 'webm';
 export type ExportResolution = '1920x1080' | '1280x720' | '854x480' | 'original';
 export type SidebarTab = 'project' | 'media' | 'text' | 'settings' | 'memory';
 
+export interface TurnAuditRecord {
+  id: string;
+  turnId: string;
+  mode: 'edit' | 'plan' | 'ask';
+  preSnapshotHash: string;
+  postSnapshotHash: string;
+  diffSummary: string[];
+  toolInputs: Array<{ name: string; args: Record<string, any> }>;
+  toolResults: Array<{ name: string; success: boolean; message?: string; error?: string }>;
+  failures: string[];
+  retries: number;
+  createdAt: number;
+}
+
 interface HistoryState {
   clips: Clip[];
   activeClipId: string | null;
@@ -88,6 +102,7 @@ interface ProjectState {
   copiedClips: Clip[];
   projectPath: string | null;
   projectId: string | null; // Unique ID for project-specific memory storage
+  turnAudits: TurnAuditRecord[];
   history: HistoryState[];
   historyIndex: number;
   exportFormat: ExportFormat;
@@ -174,6 +189,8 @@ interface ProjectState {
   setActiveSidebarTab: (tab: SidebarTab) => void;
   setDefaultImageDuration: (duration: number) => void;
   setExportedVideoPath: (path: string | null) => void;
+  addTurnAudit: (audit: Omit<TurnAuditRecord, 'id' | 'createdAt'>) => void;
+  getTurnAudit: (turnId: string) => TurnAuditRecord | undefined;
 }
 
 const saveToHistory = (state: ProjectState) => {
@@ -210,6 +227,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   copiedClips: [],
   projectPath: null,
   projectId: null,
+  turnAudits: [],
   history: [],
   historyIndex: -1,
   exportFormat: 'mp4',
@@ -536,6 +554,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         activeClipId: state.activeClipId,
         selectedClipIds: state.selectedClipIds,
         currentTime: state.currentTime,
+        turnAudits: state.turnAudits,
         memory: memoryEntries, // Include memory in project file
         chat: chatData, // Include chat history in project file
       };
@@ -583,6 +602,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           activeClipId: projectData.activeClipId || null,
           selectedClipIds: projectData.selectedClipIds || [],
           currentTime: projectData.currentTime || 0,
+          turnAudits: projectData.turnAudits || [],
           subtitles: projectData.subtitles || [],
           subtitleStyle: projectData.subtitleStyle || {
             fontSize: 24,
@@ -640,6 +660,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       currentTime: 0,
       projectPath: null,
       projectId: null,
+      turnAudits: [],
       subtitles: [],
       transcription: null,
       history: [],
@@ -783,6 +804,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         activeClipId: state.activeClipId,
         selectedClipIds: state.selectedClipIds,
         currentTime: state.currentTime,
+        turnAudits: state.turnAudits,
         subtitles: state.subtitles,
         subtitleStyle: state.subtitleStyle,
       };
@@ -1222,5 +1244,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   setExportedVideoPath: (path) => {
     set({ exportedVideoPath: path });
+  },
+
+  addTurnAudit: (audit) => {
+    set((state) => ({
+      turnAudits: [
+        ...state.turnAudits,
+        {
+          ...audit,
+          id: uuidv4(),
+          createdAt: Date.now(),
+        },
+      ].slice(-200),
+    }));
+  },
+
+  getTurnAudit: (turnId) => {
+    return get().turnAudits
+      .slice()
+      .reverse()
+      .find((audit) => audit.turnId === turnId);
   },
 }));

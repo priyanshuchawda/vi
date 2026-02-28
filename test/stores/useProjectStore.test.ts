@@ -13,6 +13,7 @@ describe('useProjectStore', () => {
       notification: null,
       copiedClips: [],
       projectPath: null,
+      turnAudits: [],
     });
   });
 
@@ -262,6 +263,28 @@ describe('useProjectStore', () => {
       const state = useProjectStore.getState();
       expect(state.clips[0].name).toBe('video 2');
       expect(state.clips[1].name).toBe('video 1');
+    });
+  });
+
+  describe('turn audits', () => {
+    it('should persist and fetch turn audit records', () => {
+      const { addTurnAudit, getTurnAudit } = useProjectStore.getState();
+      addTurnAudit({
+        turnId: 'turn-1',
+        mode: 'edit',
+        preSnapshotHash: 'pre-hash',
+        postSnapshotHash: 'post-hash',
+        diffSummary: ['Clips: 1 -> 2'],
+        toolInputs: [{ name: 'split_clip', args: { clip_id: 'a', time_in_clip: 2 } }],
+        toolResults: [{ name: 'split_clip', success: true, message: 'ok' }],
+        failures: [],
+        retries: 0,
+      });
+
+      const audit = getTurnAudit('turn-1');
+      expect(audit).toBeDefined();
+      expect(audit?.preSnapshotHash).toBe('pre-hash');
+      expect(audit?.toolInputs[0].name).toBe('split_clip');
     });
   });
 });

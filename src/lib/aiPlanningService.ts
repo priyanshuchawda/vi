@@ -99,6 +99,8 @@ export interface ExecutionPlan {
   totalRounds: number;
   estimatedDuration: number; // In seconds
   requiresApproval: boolean;
+  planReady: boolean;
+  planReadyReason: string;
   confidenceScore?: number;
   changeSummary?: string[];
   rollbackNote?: string;
@@ -484,6 +486,13 @@ If the goal is complete, return no new tool calls.`;
 
   // Determine if approval is needed (any state-changing operations)
   const requiresApproval = normalizedOperations.some((op) => !op.isReadOnly);
+  const readiness = evaluatePlanReadiness({
+    compileSucceeded: compilationResult.errors.length === 0,
+    selfCheckIssueCount: selfCheckIssues.length,
+    confidenceScore: planQuality.score,
+    preflightValid: preflight.valid,
+    operationCount: normalizedOperations.length,
+  });
   recordPlanningAttempt({
     compileFailed,
     fallbackUsed: false,
@@ -498,6 +507,8 @@ If the goal is complete, return no new tool calls.`;
     totalRounds: currentRound,
     estimatedDuration: normalizedOperations.length * 0.5, // Rough estimate
     requiresApproval,
+    planReady: readiness.planReady,
+    planReadyReason: readiness.planReadyReason,
     confidenceScore: planQuality.score,
     changeSummary,
     rollbackNote: 'Undo is available immediately after execution if the result is not what you expected.',
@@ -1011,6 +1022,49 @@ function assessPlanQuality(
   return {
     score: Math.max(0, Math.min(1, score)),
     notes,
+  };
+}
+
+function evaluatePlanReadiness(input: {
+  compileSucceeded: boolean;
+  selfCheckIssueCount: number;
+  confidenceScore: number;
+  preflightValid: boolean;
+  operationCount: number;
+}): { planReady: boolean; planReadyReason: string } {
+  if (!input.compileSucceeded) {
+    return {
+      planReady: false,
+      planReadyReason: 'Compile failed for one or more planned operations.',
+    };
+  }
+  if (input.operationCount === 0) {
+    return {
+      planReady: false,
+      planReadyReason: 'No executable operations were produced.',
+    };
+  }
+  if (input.selfCheckIssueCount > 0) {
+    return {
+      planReady: false,
+      planReadyReason: `Planner self-check reported ${input.selfCheckIssueCount} issue(s).`,
+    };
+  }
+  if (!input.preflightValid) {
+    return {
+      planReady: false,
+      planReadyReason: 'Runtime preflight validation failed.',
+    };
+  }
+  if (input.confidenceScore < MIN_PLAN_QUALITY_SCORE) {
+    return {
+      planReady: false,
+      planReadyReason: `Confidence too low (${Math.round(input.confidenceScore * 100)}%).`,
+    };
+  }
+  return {
+    planReady: true,
+    planReadyReason: 'Plan passed compile, self-check, confidence, and preflight gates.',
   };
 }
 

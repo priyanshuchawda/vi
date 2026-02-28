@@ -78,6 +78,8 @@ export function buildFallbackExecutionPlan(
     totalRounds: 1,
     estimatedDuration: operations.length * 0.5,
     requiresApproval: operations.some(op => !op.isReadOnly),
+    planReady: false,
+    planReadyReason: 'Fallback inspection plan only. Rebuild or refine before execution.',
   };
 }
 

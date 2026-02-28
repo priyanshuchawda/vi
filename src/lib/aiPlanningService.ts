@@ -10,7 +10,6 @@
 
 import {
   converseBedrock,
-  MODEL_ID,
   isBedrockConfigured,
 } from './bedrockGateway';
 import type { AIChatMessage } from './aiService';
@@ -27,6 +26,7 @@ import { getSessionEstimatedCost, recordUsage } from './tokenTracker';
 import { estimateTurnCost, evaluateBudgetPolicy, trimHistoryToLimit } from './costPolicy';
 import { evaluateTokenGuard } from './bedrockTokenEstimator';
 import { maskToolOutputsInHistory } from './toolOutputMaskingService';
+import { routeBedrockModel } from './modelRoutingPolicy';
 import {
   buildCacheKey,
   getCached,
@@ -273,6 +273,11 @@ export async function generateCompletePlan(
   const toolNames = toolSet
     .map((tool: any) => tool?.toolSpec?.name)
     .filter((name: string | undefined): name is string => Boolean(name));
+  const routingDecision = routeBedrockModel({
+    intent: 'plan',
+    message,
+    degraded: costPreflight.degraded || budgetDecision.shouldDegrade,
+  });
   
   // Build aliased snapshot for LLM-safe clip references
   const realSnapshot = buildAIProjectSnapshot(toolNames);
@@ -312,7 +317,7 @@ State-changing operations must remain executable with valid IDs and bounds.
 
   const planCacheKey = buildCacheKey([
     'plan',
-    MODEL_ID,
+    routingDecision.modelId,
     normalizeMessage(message),
     hashPlanningHistory(optimizedStart),
     hashSnapshot(realSnapshot),
@@ -377,7 +382,7 @@ If the goal is complete, return no new tool calls.`;
 
     const response = await withRetryOn429(() =>
       converseBedrock({
-        modelId: MODEL_ID,
+        modelId: routingDecision.modelId,
         messages: messages as any,
         system: [{ text: STATIC_PLANNING_INSTRUCTION }],
         toolConfig: { tools: toolSet as any },
@@ -509,7 +514,7 @@ If the goal is complete, return no new tool calls.`;
     
     const retryResponse = await withRetryOn429(() =>
       converseBedrock({
-        modelId: MODEL_ID,
+        modelId: routingDecision.modelId,
         messages: messages as any,
         system: [{ text: STATIC_PLANNING_INSTRUCTION }],
         toolConfig: { tools: toolSet as any },

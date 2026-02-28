@@ -13,7 +13,6 @@
 
 import {
   converseBedrock,
-  MODEL_ID,
   isBedrockConfigured,
 } from "./bedrockGateway";
 import type { MediaAttachment } from "../types/chat";
@@ -49,6 +48,7 @@ import {
   evaluateTokenGuard,
 } from "./bedrockTokenEstimator";
 import { maskToolOutputsInHistory } from "./toolOutputMaskingService";
+import { routeBedrockModel } from "./modelRoutingPolicy";
 import { recordAssistantResponse } from "./aiTelemetry";
 import {
   buildAIProjectSnapshot,
@@ -383,8 +383,9 @@ export async function summarizeHistory(
     const prompt = buildSummarizePrompt(history);
 
     await waitForSlot();
+    const summaryModel = routeBedrockModel({ intent: "compression" }).modelId;
     const response = await converseBedrock({
-      modelId: MODEL_ID,
+      modelId: summaryModel,
       messages: [{ role: "user", content: [{ text: prompt }] }],
       system: [
         {
@@ -402,7 +403,7 @@ export async function summarizeHistory(
 
     await waitForSlot();
     const verifyResponse = await converseBedrock({
-      modelId: MODEL_ID,
+      modelId: summaryModel,
       messages: [
         {
           role: "user",
@@ -586,9 +587,15 @@ export async function sendMessageWithHistory(
     }
 
     let fullMessage = `${dynamicContext}\n\nUser Query: ${message}`;
+    const selectedModel = routeBedrockModel({
+      intent: "chat",
+      message,
+      hasAttachments: Boolean(attachments && attachments.length > 0),
+      degraded: preflight.degraded || budgetDecision.shouldDegrade,
+    }).modelId;
     const cacheKey = buildCacheKey([
       "chat",
-      MODEL_ID,
+      selectedModel,
       normalizeMessage(message),
       historyFingerprint(optimizedHistory),
       hashString(dynamicContext),
@@ -665,7 +672,7 @@ export async function sendMessageWithHistory(
 
     await waitForSlot();
     const response = await converseBedrock({
-      modelId: MODEL_ID,
+      modelId: selectedModel,
       messages: messages as any,
       system: [{ text: STATIC_SYSTEM_INSTRUCTION_NO_TOOLS }],
       inferenceConfig: { maxTokens: CHAT_MAX_TOKENS, temperature: 0.2 },
@@ -750,7 +757,7 @@ export async function* sendMessageWithHistoryStream(
     );
   }
 
-  const includeTools = options?.includeTools ?? true; // Default: include tools (backward compat)
+    const includeTools = options?.includeTools ?? true; // Default: include tools (backward compat)
 
   try {
     // Run full context optimization pipeline
@@ -817,10 +824,16 @@ export async function* sendMessageWithHistoryStream(
         ? await buildMediaParts(attachments)
         : [];
     const cacheableChat = !includeTools && mediaParts.length === 0;
+    const selectedModel = routeBedrockModel({
+      intent: includeTools ? "plan" : "chat",
+      message,
+      hasAttachments: mediaParts.length > 0,
+      degraded: preflight.degraded || budgetDecision.shouldDegrade,
+    }).modelId;
     const streamCacheKey = cacheableChat
       ? buildCacheKey([
           "chat",
-          MODEL_ID,
+          selectedModel,
           normalizeMessage(message),
           historyFingerprint(optimizedHistory),
           hashString(dynamicContext),
@@ -897,7 +910,7 @@ export async function* sendMessageWithHistoryStream(
 
     // Build the command — conditionally include tools
     const commandInput: Record<string, unknown> = {
-      modelId: MODEL_ID,
+      modelId: selectedModel,
       messages: messages as any,
       system: [{ text: systemText }],
       inferenceConfig: {
@@ -1089,7 +1102,7 @@ export async function* sendToolResultsToAI(
     await waitForSlot();
 
     const response = await converseBedrock({
-      modelId: MODEL_ID,
+      modelId: routeBedrockModel({ intent: "tool_followup" }).modelId,
       messages: messages as any,
       system: [{ text: STATIC_SYSTEM_INSTRUCTION_WITH_TOOLS }],
       // Required by Bedrock when conversation includes toolUse/toolResult blocks.

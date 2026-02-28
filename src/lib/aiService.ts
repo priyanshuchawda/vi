@@ -87,18 +87,19 @@ You have access to video editing tools that let you manipulate the timeline dire
 
 AVAILABLE TOOLS:
 1. get_timeline_info: Get current state of timeline (clips, selections, duration)
-2. split_clip: Split a clip into two parts at a specific time
-3. delete_clips: Remove one or more clips from timeline
-4. move_clip: Move a clip to a different position or track
-5. merge_clips: Combine multiple clips into one
-6. copy_clips + paste_clips: Duplicate clips
-7. set_clip_volume: Adjust volume (0.0 to 1.0)
-8. toggle_clip_mute: Mute or unmute clips
-9. select_clips: Select specific clips for operations
-10. undo_action / redo_action: Undo/redo editing history
-11. set_playhead_position: Move the playhead
-12. update_clip_bounds: Trim start/end of a clip
-13. get_clip_details: Get detailed information about a clip
+2. ask_clarification: Ask a structured clarification question with answer options
+3. split_clip: Split a clip into two parts at a specific time
+4. delete_clips: Remove one or more clips from timeline
+5. move_clip: Move a clip to a different position or track
+6. merge_clips: Combine multiple clips into one
+7. copy_clips + paste_clips: Duplicate clips
+8. set_clip_volume: Adjust volume (0.0 to 1.0)
+9. toggle_clip_mute: Mute or unmute clips
+10. select_clips: Select specific clips for operations
+11. undo_action / redo_action: Undo/redo editing history
+12. set_playhead_position: Move the playhead
+13. update_clip_bounds: Trim start/end of a clip
+14. get_clip_details: Get detailed information about a clip
 
 WHEN TO USE TOOLS:
 - User asks to perform editing operations ("split this", "move clip", "adjust volume")
@@ -116,6 +117,7 @@ IMPORTANT RULES:
 - Always reference clips by their ID, not just by name (multiple clips can have same name)
 - For time-based operations, clarify if time is relative to clip start or timeline position
 - When multiple clips match a description, ask user to clarify or select all matches
+- If any required detail is missing, call ask_clarification with concise options instead of guessing
 - Use this response structure for edit requests:
   1) What I understood
   2) Exact operations to run
@@ -815,6 +817,7 @@ function pickToolsForMessage(message: string) {
   const text = message.toLowerCase();
   const selected = new Set<string>([
     "get_timeline_info",
+    "ask_clarification",
     "get_clip_details",
     "split_clip",
     "delete_clips",

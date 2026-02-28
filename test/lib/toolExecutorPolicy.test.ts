@@ -159,4 +159,32 @@ describe('ToolExecutor planning guard + policy execution', () => {
     expect(results[0].result.error).toContain('not allowed in "ask" mode');
     expect(results[0].result.recoveryHint).toContain('Switch to edit mode');
   });
+
+  it('allows ask_clarification in ask mode and returns prompt payload', async () => {
+    const results = await ToolExecutor.executeWithPolicy(
+      [
+        {
+          name: 'ask_clarification',
+          args: {
+            question: 'Which clip should I edit?',
+            options: ['Clip 1', 'Clip 2'],
+            context: 'Two candidate clips were found.',
+          },
+        },
+      ],
+      {
+        mode: 'strict_sequential',
+        stopOnFailure: true,
+      },
+      undefined,
+      {
+        mode: 'ask',
+      },
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0].result.success).toBe(true);
+    expect(results[0].result.data?.question).toContain('Which clip');
+    expect(results[0].result.data?.options).toHaveLength(2);
+  });
 });

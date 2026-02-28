@@ -22,6 +22,35 @@ export const getTimelineInfoDeclaration = {
   },
 };
 
+export const askClarificationDeclaration = {
+  toolSpec: {
+    name: "ask_clarification",
+    description:
+      "Use when required information is missing or ambiguous before editing (for example: which clip, which range, which track). Ask one focused question with explicit answer options.",
+    inputSchema: {
+      json: {
+        type: "object",
+        properties: {
+          question: {
+            type: "string",
+            description: "Short clarification question for the user.",
+          },
+          options: {
+            type: "array",
+            items: { type: "string" },
+            description: "2-6 mutually exclusive answer options.",
+          },
+          context: {
+            type: "string",
+            description: "Optional short context describing why clarification is needed.",
+          },
+        },
+        required: ["question", "options"],
+      },
+    },
+  },
+};
+
 export const splitClipDeclaration = {
   toolSpec: {
     name: "split_clip",
@@ -802,6 +831,7 @@ export const generateChaptersDeclaration = {
 export const allVideoEditingTools = [
   // Timeline & Clip Management
   getTimelineInfoDeclaration,
+  askClarificationDeclaration,
   splitClipDeclaration,
   deleteClipsDeclaration,
   moveClipDeclaration,

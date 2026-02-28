@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
+import { getSessionStats as getTrackedSessionStats, resetSession as resetTrackedSession } from '../lib/tokenTracker';
 import type {
   ChatMessage,
   ChatContext,
@@ -150,34 +151,28 @@ export const useChatStore = create<ChatStore>()(
         const messages = state.messages.map(msg =>
           msg.id === messageId ? { ...msg, tokens } : msg
         );
-
-        // Update session totals
-        const sessionTokens = {
-          totalPromptTokens: state.sessionTokens.totalPromptTokens + tokens.promptTokens,
-          totalResponseTokens: state.sessionTokens.totalResponseTokens + tokens.responseTokens,
-          totalTokens: state.sessionTokens.totalTokens + tokens.totalTokens,
-          totalCachedTokens: state.sessionTokens.totalCachedTokens + (tokens.cachedTokens || 0),
-        };
-
-        return { messages, sessionTokens };
+        return { messages };
       }),
 
-      clearChat: () => set({
-        messages: [{
-          id: uuidv4(),
-          role: 'system',
-          content: 'Chat cleared. How can I help with your video project? Attach files for AI analysis.',
-          timestamp: Date.now(),
-        }],
-        sessionTokens: {
-          totalPromptTokens: 0,
-          totalResponseTokens: 0,
-          totalTokens: 0,
-          totalCachedTokens: 0,
-        },
-        turns: [],
-        activeTurnId: null,
-      }),
+      clearChat: () => {
+        resetTrackedSession();
+        set({
+          messages: [{
+            id: uuidv4(),
+            role: 'system',
+            content: 'Chat cleared. How can I help with your video project? Attach files for AI analysis.',
+            timestamp: Date.now(),
+          }],
+          sessionTokens: {
+            totalPromptTokens: 0,
+            totalResponseTokens: 0,
+            totalTokens: 0,
+            totalCachedTokens: 0,
+          },
+          turns: [],
+          activeTurnId: null,
+        });
+      },
 
       togglePanel: () => set((state) => ({ isOpen: !state.isOpen })),
 
@@ -191,22 +186,22 @@ export const useChatStore = create<ChatStore>()(
 
       getSessionStats: () => {
         const state = get();
+        const trackedStats = getTrackedSessionStats();
         const messageCount = state.messages.filter(m => m.role !== 'system').length;
 
         // Amazon Nova Lite on-demand pricing
         const inputCostPer1M = 0.06;   // $0.06 per 1M input tokens
         const outputCostPer1M = 0.24;  // $0.24 per 1M output tokens
 
-        // Bedrock prompt-cache tokens are not currently tracked in this app
-        const inputCost = (state.sessionTokens.totalPromptTokens / 1_000_000) * inputCostPer1M;
-        const outputCost = (state.sessionTokens.totalResponseTokens / 1_000_000) * outputCostPer1M;
+        const inputCost = (trackedStats.inputTokens / 1_000_000) * inputCostPer1M;
+        const outputCost = (trackedStats.outputTokens / 1_000_000) * outputCostPer1M;
 
         return {
           messageCount,
-          totalPromptTokens: state.sessionTokens.totalPromptTokens,
-          totalResponseTokens: state.sessionTokens.totalResponseTokens,
-          totalTokens: state.sessionTokens.totalTokens,
-          totalCachedTokens: state.sessionTokens.totalCachedTokens,
+          totalPromptTokens: trackedStats.inputTokens,
+          totalResponseTokens: trackedStats.outputTokens,
+          totalTokens: trackedStats.totalTokens,
+          totalCachedTokens: 0,
           estimatedCost: inputCost + outputCost,
           cachedSavings: 0,
         };
@@ -227,13 +222,20 @@ export const useChatStore = create<ChatStore>()(
 
       exportChatForProject: () => {
         const state = get();
+        const trackedStats = getTrackedSessionStats();
         return {
           messages: state.messages,
-          sessionTokens: state.sessionTokens,
+          sessionTokens: {
+            totalPromptTokens: trackedStats.inputTokens,
+            totalResponseTokens: trackedStats.outputTokens,
+            totalTokens: trackedStats.totalTokens,
+            totalCachedTokens: 0,
+          },
         };
       },
 
       clearChatForNewProject: () => {
+        resetTrackedSession();
         set({
           messages: [{
             id: uuidv4(),

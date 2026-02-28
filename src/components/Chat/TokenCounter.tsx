@@ -44,17 +44,12 @@ export const TokenCounter: React.FC = () => {
         return null;
     }
 
-    const hasCachedTokens = stats.totalCachedTokens > 0;
-
     return (
         <div className="group relative">
             {/* Compact Display */}
             <div className={`flex items-center gap-2 text-sm ${getContextColor()} cursor-help`}>
                 {stats.totalTokens > 0 && (
                     <span className="font-mono">T {formatTokens(stats.totalTokens)}</span>
-                )}
-                {hasCachedTokens && (
-                    <span className="text-xs text-blue-400">C {formatTokens(stats.totalCachedTokens)}</span>
                 )}
                 <span className={`text-xs font-mono ${getRpdColor()}`}>
                     {rateStats.requestsToday}/{rateStats.rpdLimit}
@@ -82,12 +77,6 @@ export const TokenCounter: React.FC = () => {
                                 <span className="text-gray-400">Output:</span>
                                 <span className="text-white font-mono">{stats.totalResponseTokens.toLocaleString()}</span>
                             </div>
-                            {hasCachedTokens && (
-                                <div className="flex justify-between">
-                                    <span className="text-blue-400">Cached:</span>
-                                    <span className="text-blue-400 font-mono">{stats.totalCachedTokens.toLocaleString()}</span>
-                                </div>
-                            )}
                             <div className="flex justify-between font-semibold pt-1 border-t border-gray-700">
                                 <span className="text-gray-300">Total:</span>
                                 <span className="text-white font-mono">{stats.totalTokens.toLocaleString()}</span>
@@ -102,12 +91,6 @@ export const TokenCounter: React.FC = () => {
                                 <span className="text-gray-400">Est. Cost:</span>
                                 <span className="text-green-400 font-mono">{formatCost(stats.estimatedCost)}</span>
                             </div>
-                            {hasCachedTokens && (
-                                <div className="flex justify-between">
-                                    <span className="text-gray-400">Saved:</span>
-                                    <span className="text-blue-400 font-mono">{formatCost(stats.cachedSavings || 0)}</span>
-                                </div>
-                            )}
                             <div className="flex justify-between">
                                 <span className="text-gray-400">Context:</span>
                                 <span className={`font-mono ${getContextColor()}`}>{contextUsagePercent.toFixed(2)}%</span>

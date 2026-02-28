@@ -67,6 +67,15 @@ const ChatPanel = () => {
     modelContent: any;
     history: any[];
   } | null>(null);
+  const [pendingClarification, setPendingClarification] = useState<{
+    question: string;
+    options: string[];
+    context?: string;
+    functionCall: any;
+    modelContent: any;
+    history: any[];
+    turnId: string | null;
+  } | null>(null);
   const [isExecutingTools, setIsExecutingTools] = useState(false);
   const [toolExecutionProgress, setToolExecutionProgress] = useState<{
     current: number;
@@ -220,6 +229,47 @@ const ChatPanel = () => {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
+  };
+
+  const openClarificationPrompt = (params: {
+    functionCalls: any[];
+    modelContent: any;
+    history: any[];
+    turnId: string | null;
+  }): boolean => {
+    const clarificationCall = params.functionCalls.find(isClarificationToolCall);
+    if (!clarificationCall) return false;
+
+    const question = String(clarificationCall.args?.question || 'Need clarification');
+    const options = Array.isArray(clarificationCall.args?.options)
+      ? clarificationCall.args.options
+      : [];
+    const context = clarificationCall.args?.context
+      ? String(clarificationCall.args.context)
+      : undefined;
+
+    setPendingToolCalls(null);
+    setPendingClarification({
+      question,
+      options,
+      context,
+      functionCall: clarificationCall,
+      modelContent: params.modelContent,
+      history: params.history,
+      turnId: params.turnId,
+    });
+
+    if (params.turnId) {
+      setTurnStatus(params.turnId, 'awaiting_approval');
+      appendTurnPart(params.turnId, {
+        type: 'tool_call',
+        name: clarificationCall.name,
+        args: clarificationCall.args || {},
+        state: 'pending',
+        timestamp: Date.now(),
+      });
+    }
+    return true;
   };
 
   const handleSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
@@ -511,8 +561,19 @@ const ChatPanel = () => {
         if (chunk.type === 'upload_progress' && chunk.uploadProgress) {
           setUploadStatus(`Uploading ${chunk.uploadProgress.fileName}...`);
         } else if (chunk.type === 'tool_plan') {
-          // Auto-execute read-only tools without approval prompt.
           const functionCalls = chunk.functionCalls || [];
+          if (openClarificationPrompt({
+            functionCalls,
+            modelContent: chunk.modelContent,
+            history: aiHistory,
+            turnId,
+          })) {
+            setUploadStatus(null);
+            setIsTyping(false);
+            return;
+          }
+
+          // Auto-execute read-only tools without approval prompt.
           if (functionCalls.length > 0 && functionCalls.every(isReadOnlyToolCall)) {
             const [{ ToolExecutor }, { sendToolResultsToAI }] = await Promise.all([
               import('../../lib/toolExecutor'),
@@ -568,6 +629,7 @@ const ChatPanel = () => {
 
           // Non-read-only calls require approval.
           setUploadStatus(null);
+          setPendingClarification(null);
           setPendingToolCalls({
             functionCalls,
             modelContent: chunk.modelContent,
@@ -864,8 +926,130 @@ const ChatPanel = () => {
     }
   };
 
+  const handleClarificationAnswer = async (answer: string) => {
+    if (!pendingClarification) return;
+    const clarification = pendingClarification;
+    setPendingClarification(null);
+    setIsTyping(true);
+    let turnFailed = false;
+
+    if (clarification.turnId) {
+      setTurnStatus(clarification.turnId, 'executing');
+      appendTurnPart(clarification.turnId, {
+        type: 'text',
+        role: 'user',
+        text: `Clarification: ${answer}`,
+        timestamp: Date.now(),
+      });
+      appendTurnPart(clarification.turnId, {
+        type: 'tool_result',
+        name: 'ask_clarification',
+        success: true,
+        message: `User selected: ${answer}`,
+        timestamp: Date.now(),
+      });
+    }
+
+    try {
+      const { sendToolResultsToAI } = await import('../../lib/aiService');
+      const toolResults = [
+        {
+          name: 'ask_clarification',
+          toolUseId: clarification.functionCall.id,
+          result: {
+            success: true,
+            message: `User selected: ${answer}`,
+            data: {
+              answer,
+            },
+          },
+        },
+      ];
+
+      let fullResponse = '';
+      let isFirstChunk = true;
+      let currentMessageId = '';
+
+      for await (const chunk of sendToolResultsToAI(
+        clarification.history,
+        clarification.modelContent,
+        toolResults,
+      )) {
+        if (chunk.type === 'tool_plan') {
+          const functionCalls = chunk.functionCalls || [];
+          if (openClarificationPrompt({
+            functionCalls,
+            modelContent: chunk.modelContent,
+            history: clarification.history,
+            turnId: clarification.turnId,
+          })) {
+            setIsTyping(false);
+            return;
+          }
+          setPendingToolCalls({
+            functionCalls,
+            modelContent: chunk.modelContent,
+            history: clarification.history,
+          });
+          if (clarification.turnId) {
+            setTurnStatus(clarification.turnId, 'awaiting_approval');
+            functionCalls.forEach((call) => {
+              appendTurnPart(clarification.turnId!, {
+                type: 'tool_call',
+                name: call.name,
+                args: call.args || {},
+                state: 'pending',
+                timestamp: Date.now(),
+              });
+            });
+          }
+          setIsTyping(false);
+          return;
+        }
+
+        if (chunk.type === 'text' && chunk.text) {
+          fullResponse += chunk.text;
+          if (isFirstChunk) {
+            addMessage('assistant', fullResponse);
+            const lastMessage = useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
+            currentMessageId = lastMessage.id;
+            isFirstChunk = false;
+          } else {
+            updateLastMessage(fullResponse);
+          }
+        } else if (chunk.type === 'metadata' && chunk.tokens) {
+          if (currentMessageId) {
+            updateMessageTokens(currentMessageId, chunk.tokens);
+          }
+        }
+      }
+
+      if (clarification.turnId) {
+        closeTurn(clarification.turnId, 'completed');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed after clarification';
+      addMessage('assistant', `Error after clarification: ${message}`, { error: true });
+      if (clarification.turnId) {
+        appendTurnPart(clarification.turnId, {
+          type: 'error',
+          message,
+          timestamp: Date.now(),
+        });
+        closeTurn(clarification.turnId, 'error');
+      }
+      turnFailed = true;
+    } finally {
+      if (turnFailed) {
+        setPendingToolCalls(null);
+      }
+      setIsTyping(false);
+    }
+  };
+
   const handleExecuteTools = async () => {
     if (!pendingToolCalls) return;
+    setPendingClarification(null);
     
     if (activeTurnId) {
       setTurnStatus(activeTurnId, 'executing');
@@ -1020,6 +1204,9 @@ const ChatPanel = () => {
       }
       case 'get_timeline_info': {
         return `Get timeline information`;
+      }
+      case 'ask_clarification': {
+        return `Ask clarification: ${call.args?.question || 'Need more details'}`;
       }
       default:
         return `Execute ${call.name}`;
@@ -1336,6 +1523,39 @@ const ChatPanel = () => {
         {messages.map((message) => (
           <ChatMessage key={message.id} message={message} />
         ))}
+
+        {pendingClarification && (
+          <div className="mb-4 border-2 border-amber-500 rounded-lg p-4 bg-bg-secondary shadow-lg">
+            <div className="flex items-start gap-3">
+              <div className="flex-1">
+                <h3 className="font-semibold text-text-primary mb-1">Need Clarification</h3>
+                <p className="text-text-secondary text-sm mb-2">{pendingClarification.question}</p>
+                {pendingClarification.context && (
+                  <div className="text-xs text-amber-300 mb-3">{pendingClarification.context}</div>
+                )}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {pendingClarification.options.map((option) => (
+                    <button
+                      key={option}
+                      onClick={() => handleClarificationAnswer(option)}
+                      disabled={isTyping}
+                      className="px-3 py-1.5 text-sm bg-amber-500/20 text-amber-200 rounded-lg hover:bg-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setPendingClarification(null)}
+                  disabled={isTyping}
+                  className="px-3 py-1.5 text-sm border border-border-primary rounded-lg hover:bg-bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tool Approval UI */}
         {pendingToolCalls && (
@@ -1737,8 +1957,13 @@ function isReadOnlyToolCall(call: { name: string }): boolean {
     'get_clip_analysis',
     'get_all_media_analysis',
     'search_clips_by_content',
+    'ask_clarification',
   ]);
   return readOnlyTools.has(call.name);
+}
+
+function isClarificationToolCall(call: { name: string }): boolean {
+  return call.name === 'ask_clarification';
 }
 
 function formatOperationName(name: string): string {

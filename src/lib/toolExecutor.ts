@@ -512,6 +512,17 @@ export class ToolExecutor {
         return { valid: true };
       }
 
+      case "ask_clarification": {
+        const { question, options } = call.args;
+        if (typeof question !== "string" || question.trim().length === 0) {
+          return { valid: false, error: "question is required" };
+        }
+        if (!Array.isArray(options) || options.length < 2) {
+          return { valid: false, error: "options must include at least two choices" };
+        }
+        return { valid: true };
+      }
+
       case "get_timeline_info":
       case "paste_clips":
       case "update_subtitle_style":
@@ -599,6 +610,25 @@ export class ToolExecutor {
                 isPlaying: store.isPlaying,
                 canUndo: store.canUndo(),
                 canRedo: store.canRedo(),
+              },
+            },
+          };
+        }
+
+        case "ask_clarification": {
+          const question = String(call.args?.question || "Need clarification");
+          const options = Array.isArray(call.args?.options)
+            ? call.args.options
+            : [];
+          return {
+            name: call.name,
+            result: {
+              success: true,
+              message: "Clarification requested",
+              data: {
+                question,
+                options,
+                context: call.args?.context,
               },
             },
           };

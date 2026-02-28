@@ -689,6 +689,7 @@ function selectPlanningTools(message: string) {
   const text = message.toLowerCase();
   const base = new Set<string>([
     'get_timeline_info',
+    'ask_clarification',
     'get_clip_details',
     'split_clip',
     'delete_clips',

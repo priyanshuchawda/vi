@@ -26,6 +26,7 @@ export interface ToolCapability {
 
 const READ_ONLY_TOOLS = new Set<string>([
   'get_timeline_info',
+  'ask_clarification',
   'get_clip_details',
   'get_subtitles',
   'get_transcription',

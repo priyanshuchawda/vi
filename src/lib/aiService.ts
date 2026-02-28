@@ -28,6 +28,7 @@ import {
 } from "./contextManager";
 import { waitForSlot } from "./rateLimiter";
 import { recordUsage, getSessionPromptTokens } from "./tokenTracker";
+import { estimateTurnCost, trimHistoryToLimit } from "./costPolicy";
 import { recordAssistantResponse } from "./aiTelemetry";
 import {
   buildAIProjectSnapshot,
@@ -384,7 +385,15 @@ export async function summarizeHistory(
  * When no flags are passed, includes everything (backward compat).
  */
 function buildDynamicContext(flags?: ContextFlags): string {
+  return buildDynamicContextWithOptions(flags);
+}
+
+function buildDynamicContextWithOptions(
+  flags?: ContextFlags,
+  options?: DynamicContextBuildOptions,
+): string {
   const currentDate = new Date().toISOString().split("T")[0];
+  const maxChars = options?.maxChars ?? MAX_DYNAMIC_CONTEXT_CHARS;
 
   // Default: include all (backward compatibility for planning service)
   const includeAll = !flags;
@@ -419,9 +428,9 @@ function buildDynamicContext(flags?: ContextFlags): string {
     context += `\n<grounding>\nBase your answer on the above context for the user's project state.\n</grounding>`;
   }
 
-  return context.length <= MAX_DYNAMIC_CONTEXT_CHARS
+  return context.length <= maxChars
     ? context
-    : `${context.slice(0, MAX_DYNAMIC_CONTEXT_CHARS)}\n[Context truncated for token efficiency]`;
+    : `${context.slice(0, maxChars)}\n[Context truncated for token efficiency]`;
 }
 
 // ─── StreamChunk Interface ────────────────────────────────────────────────────
@@ -459,14 +468,30 @@ export async function sendMessageWithHistory(
   }
 
   try {
-    const dynamicContext = buildDynamicContext();
-
     // Run full context optimization pipeline
     const { optimized: initialOptimizedHistory, metrics: optimizationMetrics } =
       await runContextOptimization(history);
     let optimizedHistory = initialOptimizedHistory;
     if (optimizationMetrics.summarizeNeeded) {
       optimizedHistory = await summarizeHistory(optimizedHistory);
+    }
+    let dynamicContext = buildDynamicContext();
+    const preflight = estimateTurnCost({
+      intent: "chat",
+      history: optimizedHistory,
+      dynamicContextChars: dynamicContext.length,
+      userMessageChars: message.length,
+      toolCount: 0,
+      maxOutputTokens: CHAT_MAX_TOKENS,
+    });
+    if (preflight.degraded) {
+      optimizedHistory = trimHistoryToLimit(
+        optimizedHistory,
+        preflight.maxHistoryMessages,
+      );
+      dynamicContext = buildDynamicContextWithOptions(undefined, {
+        maxChars: preflight.maxDynamicContextChars,
+      });
     }
 
     const fullMessage = `${dynamicContext}\n\nUser Query: ${message}`;
@@ -531,6 +556,10 @@ export interface StreamOptions {
   contextFlags?: ContextFlags;
 }
 
+interface DynamicContextBuildOptions {
+  maxChars?: number;
+}
+
 /**
  * Stream a message with conversation history.
  * Uses ConverseCommand (non-streaming for tool detection, same as original AI approach).
@@ -551,14 +580,31 @@ export async function* sendMessageWithHistoryStream(
   const includeTools = options?.includeTools ?? true; // Default: include tools (backward compat)
 
   try {
-    const dynamicContext = buildDynamicContext(options?.contextFlags);
-
     // Run full context optimization pipeline
     const { optimized: initialOptimizedHistory, metrics: optimizationMetrics } =
       await runContextOptimization(history);
     let optimizedHistory = initialOptimizedHistory;
     if (optimizationMetrics.summarizeNeeded) {
       optimizedHistory = await summarizeHistory(optimizedHistory);
+    }
+    let dynamicContext = buildDynamicContext(options?.contextFlags);
+    const standardTools = includeTools ? pickToolsForMessage(message) : [];
+    const preflight = estimateTurnCost({
+      intent: includeTools ? "edit_plan" : "chat",
+      history: optimizedHistory,
+      dynamicContextChars: dynamicContext.length,
+      userMessageChars: message.length,
+      toolCount: standardTools.length,
+      maxOutputTokens: includeTools ? TOOL_CHAT_MAX_TOKENS : CHAT_MAX_TOKENS,
+    });
+    if (preflight.degraded) {
+      optimizedHistory = trimHistoryToLimit(
+        optimizedHistory,
+        preflight.maxHistoryMessages,
+      );
+      dynamicContext = buildDynamicContextWithOptions(options?.contextFlags, {
+        maxChars: preflight.maxDynamicContextChars,
+      });
     }
 
     // Build multimodal parts if attachments exist
@@ -608,7 +654,10 @@ export async function* sendMessageWithHistoryStream(
     // Only include tool config when editing intent is detected
     // This saves ~1500 tokens per chat-only message
     if (includeTools) {
-      commandInput.toolConfig = { tools: pickToolsForMessage(message) as any };
+      const tools = preflight.economyTools
+        ? pickToolsForMessage(message, "economy")
+        : standardTools;
+      commandInput.toolConfig = { tools: tools as any };
     }
 
     const response = await converseBedrock(commandInput as any);
@@ -813,7 +862,10 @@ export async function* sendToolResultsToAI(
   }
 }
 
-function pickToolsForMessage(message: string) {
+function pickToolsForMessage(
+  message: string,
+  mode: "standard" | "economy" = "standard",
+) {
   const text = message.toLowerCase();
   const selected = new Set<string>([
     "get_timeline_info",
@@ -837,7 +889,7 @@ function pickToolsForMessage(message: string) {
     selected.add("copy_clips");
     selected.add("paste_clips");
   }
-  if (/\b(subtitle|caption)\b/.test(text)) {
+  if (/\b(subtitle|caption)\b/.test(text) && mode === "standard") {
     selected.add("add_subtitle");
     selected.add("update_subtitle");
     selected.add("delete_subtitle");
@@ -845,24 +897,24 @@ function pickToolsForMessage(message: string) {
     selected.add("get_subtitles");
     selected.add("clear_all_subtitles");
   }
-  if (/\b(transcribe|transcription|transcript)\b/.test(text)) {
+  if (/\b(transcribe|transcription|transcript)\b/.test(text) && mode === "standard") {
     selected.add("transcribe_clip");
     selected.add("transcribe_timeline");
     selected.add("get_transcription");
     selected.add("apply_transcript_edits");
   }
-  if (/\b(effect|filter|speed|highlight|chapter)\b/.test(text)) {
+  if (/\b(effect|filter|speed|highlight|chapter)\b/.test(text) && mode === "standard") {
     selected.add("set_clip_speed");
     selected.add("apply_clip_effect");
     selected.add("find_highlights");
     selected.add("generate_chapters");
   }
-  if (/\b(save|export|project)\b/.test(text)) {
+  if (/\b(save|export|project)\b/.test(text) && mode === "standard") {
     selected.add("save_project");
     selected.add("set_export_settings");
     selected.add("get_project_info");
   }
-  if (/\b(search|analy|memory|scene)\b/.test(text)) {
+  if (/\b(search|analy|memory|scene)\b/.test(text) && mode === "standard") {
     selected.add("search_clips_by_content");
     selected.add("get_clip_analysis");
     selected.add("get_all_media_analysis");

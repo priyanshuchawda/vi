@@ -27,8 +27,16 @@ import {
   type OptimizationMetrics,
 } from "./contextManager";
 import { waitForSlot } from "./rateLimiter";
-import { recordUsage, getSessionPromptTokens } from "./tokenTracker";
-import { estimateTurnCost, trimHistoryToLimit } from "./costPolicy";
+import {
+  recordUsage,
+  getSessionEstimatedCost,
+  getSessionPromptTokens,
+} from "./tokenTracker";
+import {
+  estimateTurnCost,
+  evaluateBudgetPolicy,
+  trimHistoryToLimit,
+} from "./costPolicy";
 import {
   buildCacheKey,
   getCached,
@@ -492,13 +500,28 @@ export async function sendMessageWithHistory(
       toolCount: 0,
       maxOutputTokens: CHAT_MAX_TOKENS,
     });
-    if (preflight.degraded) {
+    const budgetDecision = evaluateBudgetPolicy({
+      estimatedTurnCostUsd: preflight.estimatedTotalCost,
+      currentSessionCostUsd: getSessionEstimatedCost(),
+    });
+    if (budgetDecision.shouldBlock) {
+      throw new Error(
+        "Cost policy blocked this turn. Reduce request scope or adjust budget settings.",
+      );
+    }
+    if (preflight.degraded || budgetDecision.shouldDegrade) {
+      const maxHistoryMessages = budgetDecision.shouldDegrade
+        ? Math.min(preflight.maxHistoryMessages, 6)
+        : preflight.maxHistoryMessages;
+      const maxDynamicContextChars = budgetDecision.shouldDegrade
+        ? Math.min(preflight.maxDynamicContextChars, 1800)
+        : preflight.maxDynamicContextChars;
       optimizedHistory = trimHistoryToLimit(
         optimizedHistory,
-        preflight.maxHistoryMessages,
+        maxHistoryMessages,
       );
       dynamicContext = buildDynamicContextWithOptions(undefined, {
-        maxChars: preflight.maxDynamicContextChars,
+        maxChars: maxDynamicContextChars,
       });
     }
 
@@ -645,13 +668,28 @@ export async function* sendMessageWithHistoryStream(
       toolCount: standardTools.length,
       maxOutputTokens: includeTools ? TOOL_CHAT_MAX_TOKENS : CHAT_MAX_TOKENS,
     });
-    if (preflight.degraded) {
+    const budgetDecision = evaluateBudgetPolicy({
+      estimatedTurnCostUsd: preflight.estimatedTotalCost,
+      currentSessionCostUsd: getSessionEstimatedCost(),
+    });
+    if (budgetDecision.shouldBlock) {
+      throw new Error(
+        "Cost policy blocked this turn. Reduce request scope or adjust budget settings.",
+      );
+    }
+    if (preflight.degraded || budgetDecision.shouldDegrade) {
+      const maxHistoryMessages = budgetDecision.shouldDegrade
+        ? Math.min(preflight.maxHistoryMessages, 6)
+        : preflight.maxHistoryMessages;
+      const maxDynamicContextChars = budgetDecision.shouldDegrade
+        ? Math.min(preflight.maxDynamicContextChars, 1800)
+        : preflight.maxDynamicContextChars;
       optimizedHistory = trimHistoryToLimit(
         optimizedHistory,
-        preflight.maxHistoryMessages,
+        maxHistoryMessages,
       );
       dynamicContext = buildDynamicContextWithOptions(options?.contextFlags, {
-        maxChars: preflight.maxDynamicContextChars,
+        maxChars: maxDynamicContextChars,
       });
     }
 

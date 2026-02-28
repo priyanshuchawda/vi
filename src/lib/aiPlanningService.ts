@@ -23,8 +23,8 @@ import type { FunctionCall, ToolResult } from './videoEditingTools';
 import { useProjectStore } from '../stores/useProjectStore';
 import { optimizeContextHistory } from './contextManager';
 import { waitForSlot, withRetryOn429 } from './rateLimiter';
-import { recordUsage } from './tokenTracker';
-import { estimateTurnCost, trimHistoryToLimit } from './costPolicy';
+import { getSessionEstimatedCost, recordUsage } from './tokenTracker';
+import { estimateTurnCost, evaluateBudgetPolicy, trimHistoryToLimit } from './costPolicy';
 import {
   buildCacheKey,
   getCached,
@@ -245,8 +245,18 @@ export async function generateCompletePlan(
     toolCount: standardToolNames.length,
     maxOutputTokens: PLANNING_MAX_TOKENS,
   });
-  if (costPreflight.degraded) {
-    optimizedStart = trimHistoryToLimit(optimizedStart, costPreflight.maxHistoryMessages);
+  const budgetDecision = evaluateBudgetPolicy({
+    estimatedTurnCostUsd: costPreflight.estimatedTotalCost,
+    currentSessionCostUsd: getSessionEstimatedCost(),
+  });
+  if (budgetDecision.shouldBlock) {
+    throw new Error('Cost policy blocked plan generation. Reduce scope or adjust budget settings.');
+  }
+  if (costPreflight.degraded || budgetDecision.shouldDegrade) {
+    const maxHistoryMessages = budgetDecision.shouldDegrade
+      ? Math.min(costPreflight.maxHistoryMessages, 6)
+      : costPreflight.maxHistoryMessages;
+    optimizedStart = trimHistoryToLimit(optimizedStart, maxHistoryMessages);
     allowedRounds = Math.max(1, allowedRounds - 1);
   }
 
@@ -283,8 +293,13 @@ You may call read-only tools during planning to inspect timeline/media state.
 State-changing operations must remain executable with valid IDs and bounds.
 </instruction>
 `;
-  const dynamicCap = costPreflight.degraded
-    ? Math.min(MAX_DYNAMIC_CONTEXT_CHARS, costPreflight.maxDynamicContextChars)
+  const dynamicCap = costPreflight.degraded || budgetDecision.shouldDegrade
+    ? Math.min(
+        MAX_DYNAMIC_CONTEXT_CHARS,
+        budgetDecision.shouldDegrade
+          ? Math.min(costPreflight.maxDynamicContextChars, 1800)
+          : costPreflight.maxDynamicContextChars,
+      )
     : MAX_DYNAMIC_CONTEXT_CHARS;
   if (dynamicContext.length > dynamicCap) {
     dynamicContext = `${dynamicContext.slice(0, dynamicCap)}\n[Planning context truncated for token efficiency]`;

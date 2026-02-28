@@ -192,5 +192,5 @@ Secondary:
 2. [x] PR-C1B: request fingerprint cache (chat + planning)
 3. [x] PR-C1C: unified usage/cost accounting and UI cleanup
 4. [x] PR-C2A: adaptive planning rounds + correction retry gate
-5. [ ] PR-C2B: budget-aware memory analysis tiers
+5. [x] PR-C2B: budget-aware memory analysis tiers
 6. [ ] PR-C3A: manual compact action + budget settings

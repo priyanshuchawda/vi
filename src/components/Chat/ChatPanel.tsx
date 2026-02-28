@@ -8,6 +8,7 @@ import ChatInput from './ChatInput';
 import TypingIndicator from './TypingIndicator';
 import { TokenCounter } from './TokenCounter';
 import type { ChatTurn, MediaAttachment } from '../../types/chat';
+import { getBudgetPolicy, updateBudgetPolicy, type BudgetPolicy } from '../../lib/costPolicy';
 
 interface SessionLogEntry {
   id: string;
@@ -50,6 +51,8 @@ const ChatPanel = () => {
   const [showMemoryDetails, setShowMemoryDetails] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [showTelemetry, setShowTelemetry] = useState(false);
+  const [showBudgetControls, setShowBudgetControls] = useState(false);
+  const [budgetDraft, setBudgetDraft] = useState<BudgetPolicy>(() => getBudgetPolicy());
   const [auditTurnId, setAuditTurnId] = useState<string | null>(null);
   const [telemetryRates, setTelemetryRates] = useState<{
     plan_compile_fail_rate: number;
@@ -767,6 +770,42 @@ const ChatPanel = () => {
     }
   };
 
+  const handleCompactContext = () => {
+    const systemMessage = messages.find((message) => message.role === 'system');
+    const nonSystemMessages = messages.filter((message) => message.role !== 'system');
+    if (nonSystemMessages.length <= 8) {
+      return;
+    }
+
+    const retainedMessages = nonSystemMessages.slice(-8);
+    const compactedCount = nonSystemMessages.length - retainedMessages.length;
+    const compactSummary = {
+      id: `compact-${Date.now()}`,
+      role: 'system' as const,
+      content: `Context compacted manually. Archived ${compactedCount} older messages to reduce token usage.`,
+      timestamp: Date.now(),
+    };
+
+    useChatStore.setState({
+      messages: [
+        ...(systemMessage ? [systemMessage] : []),
+        compactSummary,
+        ...retainedMessages,
+      ],
+    });
+  };
+
+  const handleOpenBudgetControls = () => {
+    setBudgetDraft(getBudgetPolicy());
+    setShowBudgetControls((value) => !value);
+  };
+
+  const handleSaveBudgetPolicy = () => {
+    const saved = updateBudgetPolicy(budgetDraft);
+    setBudgetDraft(saved);
+    setShowBudgetControls(false);
+  };
+
   const handleCopyLogs = async () => {
     if (sessionLogs.length === 0) return;
     const payload = sessionLogs
@@ -1354,6 +1393,24 @@ const ChatPanel = () => {
             </svg>
           </button>
           <button
+            onClick={handleCompactContext}
+            className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
+            title="Compact context"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8h16M4 12h12M4 16h8" />
+            </svg>
+          </button>
+          <button
+            onClick={handleOpenBudgetControls}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${showBudgetControls ? 'text-amber-300 bg-amber-500/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
+            title="Cost budget settings"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-10V6m0 12v-2M5 12a7 7 0 1014 0 7 7 0 10-14 0z" />
+            </svg>
+          </button>
+          <button
             onClick={toggleAutoExecute}
             className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${autoExecute ? 'text-green-400 bg-green-500/10 hover:bg-green-500/15' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
             title={autoExecute ? "Auto-execute ON" : "Auto-execute OFF"}
@@ -1388,6 +1445,103 @@ const ChatPanel = () => {
           </button>
         </div>
       </div>
+
+      {showBudgetControls && (
+        <div className="px-4 py-3 border-b border-amber-500/20 bg-amber-500/5 animate-slide-up">
+          <div className="text-xs text-amber-200 font-medium mb-2">Budget Policy</div>
+          <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <label className="flex flex-col gap-1 text-text-muted">
+              Turn Soft ($)
+              <input
+                type="number"
+                min={0}
+                step={0.001}
+                value={budgetDraft.perTurnSoftUsd}
+                onChange={(event) =>
+                  setBudgetDraft((prev) => ({
+                    ...prev,
+                    perTurnSoftUsd: Number(event.target.value),
+                  }))
+                }
+                className="bg-black/20 border border-white/10 rounded px-2 py-1 text-text-primary"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-text-muted">
+              Turn Hard ($)
+              <input
+                type="number"
+                min={0}
+                step={0.001}
+                value={budgetDraft.perTurnHardUsd}
+                onChange={(event) =>
+                  setBudgetDraft((prev) => ({
+                    ...prev,
+                    perTurnHardUsd: Number(event.target.value),
+                  }))
+                }
+                className="bg-black/20 border border-white/10 rounded px-2 py-1 text-text-primary"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-text-muted">
+              Session Soft ($)
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={budgetDraft.perSessionSoftUsd}
+                onChange={(event) =>
+                  setBudgetDraft((prev) => ({
+                    ...prev,
+                    perSessionSoftUsd: Number(event.target.value),
+                  }))
+                }
+                className="bg-black/20 border border-white/10 rounded px-2 py-1 text-text-primary"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-text-muted">
+              Session Hard ($)
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={budgetDraft.perSessionHardUsd}
+                onChange={(event) =>
+                  setBudgetDraft((prev) => ({
+                    ...prev,
+                    perSessionHardUsd: Number(event.target.value),
+                  }))
+                }
+                className="bg-black/20 border border-white/10 rounded px-2 py-1 text-text-primary"
+              />
+            </label>
+          </div>
+          <div className="flex items-center justify-between mt-2">
+            <label className="text-[11px] text-text-muted flex items-center gap-2">
+              On Soft Cap
+              <select
+                value={budgetDraft.onCap}
+                onChange={(event) =>
+                  setBudgetDraft((prev) => ({
+                    ...prev,
+                    onCap: event.target.value as BudgetPolicy['onCap'],
+                  }))
+                }
+                className="bg-black/20 border border-white/10 rounded px-2 py-1 text-text-primary"
+              >
+                <option value="ask">ask</option>
+                <option value="degrade">degrade</option>
+                <option value="block">block</option>
+              </select>
+            </label>
+            <button
+              onClick={handleSaveBudgetPolicy}
+              className="px-2 py-1 text-[11px] rounded bg-amber-500/20 text-amber-100 hover:bg-amber-500/30 transition-colors"
+            >
+              Save Policy
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Auto-Execute Mode Banner */}
       {autoExecute && (

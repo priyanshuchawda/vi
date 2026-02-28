@@ -1156,6 +1156,14 @@ const ChatPanel = () => {
                     {turn.mode.toUpperCase()} · {formatTurnStatus(turn.status)}
                   </span>
                   <span className="text-text-muted">
+                    {formatTurnElapsed(turn)}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <span className="text-text-muted truncate">
+                    {getTurnLatestSummary(turn)}
+                  </span>
+                  <span className="text-text-muted shrink-0">
                     {turn.parts.length} part{turn.parts.length !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -1570,4 +1578,37 @@ function formatRate(value?: number): string {
 
 function formatTurnStatus(status: ChatTurn['status']): string {
   return status.replace(/_/g, ' ');
+}
+
+function formatTurnElapsed(turn: ChatTurn): string {
+  const end = turn.endedAt ?? Date.now();
+  const ms = Math.max(0, end - turn.startedAt);
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remSeconds = seconds % 60;
+  return `${minutes}m ${remSeconds}s`;
+}
+
+function getTurnLatestSummary(turn: ChatTurn): string {
+  const last = turn.parts[turn.parts.length - 1];
+  if (!last) return 'No events yet';
+  switch (last.type) {
+    case 'text':
+      return `${last.role}: ${last.text}`;
+    case 'tool_call':
+      return `Tool ${last.name} ${last.state}`;
+    case 'tool_result':
+      return `${last.name}: ${last.success ? 'success' : 'failed'}`;
+    case 'step_start':
+      return `Started: ${last.label}`;
+    case 'step_finish':
+      return `${last.success ? 'Finished' : 'Failed'}: ${last.label}`;
+    case 'status':
+      return `Status: ${formatTurnStatus(last.to)}`;
+    case 'error':
+      return `Error: ${last.message}`;
+    default:
+      return 'Updated';
+  }
 }

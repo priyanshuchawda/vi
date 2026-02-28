@@ -101,5 +101,7 @@ describe('fallbackPlanGenerator', () => {
     expect(plan.operations[0].functionCall.name).toBe('get_timeline_info');
     expect(plan.operations[0].isReadOnly).toBe(true);
     expect(plan.requiresApproval).toBe(false);
+    expect(plan.planReady).toBe(false);
+    expect(plan.planReadyReason).toContain('Fallback');
   });
 });

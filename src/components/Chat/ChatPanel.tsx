@@ -204,7 +204,24 @@ const ChatPanel = () => {
     };
 
     try {
-      if (executionPlan && executionContext.hasPendingPlan && isExecutionConfirmation(content)) {
+      const activeAwaitingTurn = activeTurnId
+        ? turns.find((turn) => turn.id === activeTurnId && turn.status === 'awaiting_approval' && !turn.endedAt)
+        : null;
+      const hasReadyPendingPlan = Boolean(
+        executionPlan &&
+        executionPlan.plan.planReady &&
+        executionContext.hasPendingPlan &&
+        activeAwaitingTurn
+      );
+
+      if (isExecutionConfirmation(content) && executionPlan && executionContext.hasPendingPlan && !hasReadyPendingPlan) {
+        assistantMessage(
+          `Plan is not ready for execution yet. ${executionPlan.plan.planReadyReason || 'Please refine or rebuild the plan first.'}`
+        );
+        return;
+      }
+
+      if (hasReadyPendingPlan && isExecutionConfirmation(content)) {
         assistantMessage('Using your pending plan and executing it now.');
         await handleExecutePlan();
         return;
@@ -215,7 +232,7 @@ const ChatPanel = () => {
       const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant')?.content || '';
       const recentEditingContext = hasRecentEditingContext(messages);
       let intent = classifyIntentWithContext(content, {
-        hasPendingPlan: executionContext.hasPendingPlan,
+        hasPendingPlan: hasReadyPendingPlan,
         hasRecentEditingContext: recentEditingContext,
       });
       if (
@@ -295,7 +312,7 @@ const ChatPanel = () => {
             });
             setLastPlanExecutionError(null);
             setExecutionContext({
-              hasPendingPlan: true,
+              hasPendingPlan: plan.planReady,
               lastUserMessageForPlan: content,
             });
             setIsTyping(false);
@@ -303,7 +320,7 @@ const ChatPanel = () => {
           }
 
           // Auto-execute if enabled OR no approval is required (read-only plans)
-          if (autoExecute || !plan.requiresApproval) {
+          if (plan.planReady && (autoExecute || !plan.requiresApproval)) {
             if (turnId) {
               setTurnStatus(turnId, 'executing');
               appendTurnPart(turnId, {
@@ -394,7 +411,7 @@ const ChatPanel = () => {
           }
           setLastPlanExecutionError(null);
           setExecutionContext({
-            hasPendingPlan: true,
+            hasPendingPlan: plan.planReady,
             lastUserMessageForPlan: content,
           });
           setIsTyping(false);
@@ -615,6 +632,8 @@ const ChatPanel = () => {
       understanding: executionPlan.plan.understanding,
       executionPolicy: executionPlan.plan.executionPolicy,
       validation: executionPlan.plan.validation,
+      planReady: executionPlan.plan.planReady,
+      planReadyReason: executionPlan.plan.planReadyReason,
       operations: executionPlan.plan.operations,
       steps: executionPlan.plan.steps,
     };
@@ -628,6 +647,14 @@ const ChatPanel = () => {
 
   const handleExecutePlan = async () => {
     if (!executionPlan) return;
+    if (!executionPlan.plan.planReady) {
+      addMessage(
+        'assistant',
+        `Execution blocked: ${executionPlan.plan.planReadyReason || 'plan is not ready yet. Please refine or rebuild.'}`,
+        { error: true }
+      );
+      return;
+    }
     if (executionPlan.plan.validation && executionPlan.plan.validation.valid === false) {
       addMessage(
         'assistant',
@@ -728,6 +755,14 @@ const ChatPanel = () => {
     setExecutionPlan(null);
     setLastPlanExecutionError(null);
     clearExecutionContext();
+  };
+
+  const handleRefinePlan = () => {
+    if (!executionPlan) return;
+    addMessage(
+      'assistant',
+      'Tell me exactly what to change in this plan, and I will regenerate a refined version.'
+    );
   };
 
   const handleRebuildPlanFromCurrentTimeline = async () => {
@@ -1457,14 +1492,43 @@ const ChatPanel = () => {
                     );
                   })}
                 </div>
+
+                <div className={`mb-3 rounded-lg border p-3 ${
+                  executionPlan.plan.planReady
+                    ? 'bg-emerald-500/10 border-emerald-500/30'
+                    : 'bg-amber-500/10 border-amber-500/30'
+                }`}>
+                  <div className={`text-xs font-semibold ${
+                    executionPlan.plan.planReady ? 'text-emerald-200' : 'text-amber-200'
+                  }`}>
+                    {executionPlan.plan.planReady ? 'Plan Ready' : 'Plan Not Ready'}
+                  </div>
+                  <div className="text-xs text-text-secondary mt-1">
+                    {executionPlan.plan.planReadyReason}
+                  </div>
+                </div>
                 
                 <div className="flex gap-2">
                   <button
                     onClick={handleExecutePlan}
-                    disabled={isExecutingTools}
+                    disabled={isExecutingTools || !executionPlan.plan.planReady}
                     className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors flex items-center gap-2"
                   >
-                    {isExecutingTools ? 'Executing...' : `Approve & Execute (${executionPlan.plan.operations.length})`}
+                    {isExecutingTools ? 'Executing...' : `Execute (${executionPlan.plan.operations.length})`}
+                  </button>
+                  <button
+                    onClick={handleRefinePlan}
+                    disabled={isExecutingTools}
+                    className="px-3 py-1.5 text-sm border border-border-primary rounded-lg hover:bg-bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Refine
+                  </button>
+                  <button
+                    onClick={handleRebuildPlanFromCurrentTimeline}
+                    disabled={isGeneratingPlan || isExecutingTools}
+                    className="px-3 py-1.5 text-sm border border-border-primary rounded-lg hover:bg-bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isGeneratingPlan ? 'Rebuilding...' : 'Rebuild'}
                   </button>
                   <button
                     onClick={handleCopyExecutionPlan}
@@ -1485,13 +1549,6 @@ const ChatPanel = () => {
                 {lastPlanExecutionError && (
                   <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
                     <div className="text-xs text-red-200 whitespace-pre-wrap">{lastPlanExecutionError}</div>
-                    <button
-                      onClick={handleRebuildPlanFromCurrentTimeline}
-                      disabled={isGeneratingPlan || isExecutingTools}
-                      className="mt-2 px-3 py-1.5 text-sm bg-red-500/20 text-red-200 rounded-lg hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Rebuild plan from current timeline
-                    </button>
                   </div>
                 )}
                 

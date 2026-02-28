@@ -76,7 +76,7 @@ Acceptance criteria:
 
 ### Phase 2: Tool Output Masking + History Pruning (P0)
 Goal: reduce context bloat from older tool outputs.
-Status: `in_progress`
+Status: `completed` (PR #26 merged)
 
 Deliverables:
 - New `src/lib/toolOutputMaskingService.ts` adapted for QuickCut Bedrock message shape.
@@ -96,6 +96,7 @@ Acceptance criteria:
 
 ### Phase 3: Two-Pass Compression (P0)
 Goal: improve compression reliability and reduce summary information loss.
+Status: `in_progress`
 
 Deliverables:
 - Extend `summarizeHistory` pipeline to:

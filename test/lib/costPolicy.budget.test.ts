@@ -63,4 +63,20 @@ describe('costPolicy budget controls', () => {
     expect(policy.perSessionSoftUsd).toBeGreaterThanOrEqual(0);
     expect(policy.perSessionHardUsd).toBeGreaterThanOrEqual(policy.perSessionSoftUsd);
   });
+
+  it('applies higher workflow budget caps for edit planning intent', () => {
+    const chatDecision = evaluateBudgetPolicy({
+      estimatedTurnCostUsd: 0.004,
+      currentSessionCostUsd: 0,
+      intent: 'chat',
+    });
+    const planDecision = evaluateBudgetPolicy({
+      estimatedTurnCostUsd: 0.004,
+      currentSessionCostUsd: 0,
+      intent: 'edit_plan',
+    });
+
+    expect(planDecision.appliedTurnSoftUsd).toBeGreaterThan(chatDecision.appliedTurnSoftUsd);
+    expect(planDecision.appliedTurnHardUsd).toBeGreaterThan(chatDecision.appliedTurnHardUsd);
+  });
 });

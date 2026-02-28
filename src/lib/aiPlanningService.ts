@@ -252,6 +252,7 @@ export async function generateCompletePlan(
   const budgetDecision = evaluateBudgetPolicy({
     estimatedTurnCostUsd: costPreflight.estimatedTotalCost,
     currentSessionCostUsd: getSessionEstimatedCost(),
+    intent: 'edit_plan',
   });
   if (budgetDecision.shouldBlock) {
     throw new Error('Cost policy blocked plan generation. Reduce scope or adjust budget settings.');

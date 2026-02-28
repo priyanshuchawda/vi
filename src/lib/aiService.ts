@@ -563,6 +563,7 @@ export async function sendMessageWithHistory(
     const budgetDecision = evaluateBudgetPolicy({
       estimatedTurnCostUsd: preflight.estimatedTotalCost,
       currentSessionCostUsd: getSessionEstimatedCost(),
+      intent: "chat",
     });
     if (budgetDecision.shouldBlock) {
       throw new Error(
@@ -780,6 +781,7 @@ export async function* sendMessageWithHistoryStream(
     const budgetDecision = evaluateBudgetPolicy({
       estimatedTurnCostUsd: preflight.estimatedTotalCost,
       currentSessionCostUsd: getSessionEstimatedCost(),
+      intent: includeTools ? "edit_plan" : "chat",
     });
     if (budgetDecision.shouldBlock) {
       throw new Error(

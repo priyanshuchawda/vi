@@ -1,11 +1,13 @@
 import React from 'react';
 import { useChatStore } from '../../stores/useChatStore';
 import { getStats } from '../../lib/rateLimiter';
+import { getBudgetPolicy } from '../../lib/costPolicy';
 
 export const TokenCounter: React.FC = () => {
     const getSessionStats = useChatStore((state) => state.getSessionStats);
     const stats = getSessionStats();
     const rateStats = getStats();
+    const budget = getBudgetPolicy();
 
     // Format large numbers with K/M suffix
     const formatTokens = (tokens: number): string => {
@@ -98,6 +100,14 @@ export const TokenCounter: React.FC = () => {
                             <div className="flex justify-between">
                                 <span className="text-gray-400">Messages:</span>
                                 <span className="text-white font-mono">{stats.messageCount}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">Turn cap:</span>
+                                <span className="text-white font-mono">${budget.perTurnSoftUsd.toFixed(4)} / ${budget.perTurnHardUsd.toFixed(4)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">Session cap:</span>
+                                <span className="text-white font-mono">${budget.perSessionSoftUsd.toFixed(4)} / ${budget.perSessionHardUsd.toFixed(4)}</span>
                             </div>
                             {/* Context window bar */}
                             <div className="h-1 bg-gray-700 rounded-full overflow-hidden mt-1">

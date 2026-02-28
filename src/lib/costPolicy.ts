@@ -42,6 +42,10 @@ export interface BudgetPolicyDecision {
   shouldDegrade: boolean;
   shouldBlock: boolean;
   reason?: string;
+  appliedTurnSoftUsd: number;
+  appliedTurnHardUsd: number;
+  appliedSessionSoftUsd: number;
+  appliedSessionHardUsd: number;
 }
 
 const INPUT_COST_PER_1M = 0.06;
@@ -201,13 +205,26 @@ export function updateBudgetPolicy(next: Partial<BudgetPolicy>): BudgetPolicy {
 export function evaluateBudgetPolicy(input: {
   estimatedTurnCostUsd: number;
   currentSessionCostUsd: number;
+  intent?: TurnIntent;
 }): BudgetPolicyDecision {
   const policy = getBudgetPolicy();
+  const intent = input.intent ?? 'chat';
+  const multipliers: Record<TurnIntent, number> = {
+    chat: 1,
+    edit_plan: 1.35,
+    tool_followup: 1.1,
+  };
+  const scale = multipliers[intent] ?? 1;
+  const turnSoft = Number((policy.perTurnSoftUsd * scale).toFixed(4));
+  const turnHard = Number((policy.perTurnHardUsd * scale).toFixed(4));
+  const sessionSoft = Number((policy.perSessionSoftUsd * scale).toFixed(4));
+  const sessionHard = Number((policy.perSessionHardUsd * scale).toFixed(4));
+
   const nextSessionCost = input.currentSessionCostUsd + input.estimatedTurnCostUsd;
-  const overTurnSoft = input.estimatedTurnCostUsd > policy.perTurnSoftUsd;
-  const overTurnHard = input.estimatedTurnCostUsd > policy.perTurnHardUsd;
-  const overSessionSoft = nextSessionCost > policy.perSessionSoftUsd;
-  const overSessionHard = nextSessionCost > policy.perSessionHardUsd;
+  const overTurnSoft = input.estimatedTurnCostUsd > turnSoft;
+  const overTurnHard = input.estimatedTurnCostUsd > turnHard;
+  const overSessionSoft = nextSessionCost > sessionSoft;
+  const overSessionHard = nextSessionCost > sessionHard;
 
   const hardBreach = overTurnHard || overSessionHard;
   const softBreach = overTurnSoft || overSessionSoft;
@@ -229,5 +246,9 @@ export function evaluateBudgetPolicy(input: {
     shouldDegrade,
     shouldBlock,
     reason,
+    appliedTurnSoftUsd: turnSoft,
+    appliedTurnHardUsd: turnHard,
+    appliedSessionSoftUsd: sessionSoft,
+    appliedSessionHardUsd: sessionHard,
   };
 }

@@ -49,11 +49,69 @@ interface AnalysisTask {
   clipOptions?: VideoClipOptions;
 }
 
+export type AnalysisBudgetTier = "low" | "standard" | "high";
+
+interface AnalysisTierConfig {
+  maxTokens: number;
+  maxRetries: number;
+  temperature: number;
+  maxTags: number;
+}
+
+const ANALYSIS_TIER_CONFIG: Record<AnalysisBudgetTier, AnalysisTierConfig> = {
+  low: {
+    maxTokens: 768,
+    maxRetries: 1,
+    temperature: 0.1,
+    maxTags: 5,
+  },
+  standard: {
+    maxTokens: 1400,
+    maxRetries: 2,
+    temperature: 0.2,
+    maxTags: 8,
+  },
+  high: {
+    maxTokens: 2048,
+    maxRetries: 3,
+    temperature: 0.2,
+    maxTags: 10,
+  },
+};
+
 /**
  * Get the appropriate analysis prompt based on media type
  * Nova Lite doesn't have responseSchema — we add JSON instructions to the prompt
  */
-function getAnalysisPrompt(mediaType: string, fileName: string): string {
+function getAnalysisPrompt(
+  mediaType: string,
+  fileName: string,
+  tier: AnalysisBudgetTier,
+): string {
+  const tierGuidance: Record<AnalysisBudgetTier, string> = {
+    low: `<budget_mode>
+Tier: low
+- Prioritize concise, high-signal analysis
+- Keep analysis to one compact paragraph
+- Return up to ${ANALYSIS_TIER_CONFIG.low.maxTags} tags
+- Include scenes only for major moments
+</budget_mode>`,
+    standard: `<budget_mode>
+Tier: standard
+- Balance depth and cost
+- Keep analysis to 1-2 short paragraphs
+- Return up to ${ANALYSIS_TIER_CONFIG.standard.maxTags} tags
+- Include key scenes relevant for editing
+</budget_mode>`,
+    high: `<budget_mode>
+Tier: high
+- Provide richer editing insights while staying factual
+- Keep analysis to 2 concise paragraphs max
+- Return up to ${ANALYSIS_TIER_CONFIG.high.maxTags} tags
+- Include detailed key scenes and quality observations
+</budget_mode>`,
+  };
+
   const baseInstruction = `<role>
 You are a specialized media analysis AI for QuickCut, a professional video editing application.
 You analyze media files to extract detailed, structured information for video editors.
@@ -89,6 +147,7 @@ The "scenes", "audioInfo", and "visualInfo" fields are optional — include them
     return (
       baseInstruction +
       `
+${tierGuidance[tier]}
 
 <analysis_focus>
 - Identify key scenes with approximate timestamps
@@ -104,6 +163,7 @@ The "scenes", "audioInfo", and "visualInfo" fields are optional — include them
     return (
       baseInstruction +
       `
+${tierGuidance[tier]}
 
 <analysis_focus>
 - Describe what you hear (speech, music, sound effects)
@@ -119,6 +179,7 @@ The "scenes", "audioInfo", and "visualInfo" fields are optional — include them
     return (
       baseInstruction +
       `
+${tierGuidance[tier]}
 
 <analysis_focus>
 - Describe composition, colors, and style
@@ -134,6 +195,7 @@ The "scenes", "audioInfo", and "visualInfo" fields are optional — include them
   return (
     baseInstruction +
     `
+${tierGuidance[tier]}
 
 <analysis_focus>
 - Summarize the document's content and purpose
@@ -162,6 +224,37 @@ function getMediaFormat(mimeType: string): string {
 
 // Max size for inline bytes in Bedrock: 25MB
 const MAX_INLINE_SIZE = 25 * 1024 * 1024;
+
+export function selectAnalysisTier(input: {
+  mediaType: AnalysisTask["mediaType"];
+  fileSize: number;
+  duration?: number;
+  queueDepth: number;
+  activeAnalyses: number;
+}): AnalysisBudgetTier {
+  const pressure = input.queueDepth + input.activeAnalyses;
+  const largeFile = input.fileSize > MAX_INLINE_SIZE;
+
+  if (largeFile || pressure >= 4) {
+    return "low";
+  }
+
+  if (input.mediaType === "image" && input.fileSize <= 5 * 1024 * 1024) {
+    return "high";
+  }
+
+  if (
+    input.mediaType === "video" &&
+    input.fileSize <= 12 * 1024 * 1024 &&
+    (input.duration ?? 0) > 0 &&
+    (input.duration ?? 0) <= 60 &&
+    pressure <= 1
+  ) {
+    return "high";
+  }
+
+  return "standard";
+}
 
 /**
  * Read a file as base64 from disk via Electron IPC
@@ -272,12 +365,20 @@ async function analyzeFile(task: AnalysisTask): Promise<void> {
     ` [AI Memory] Starting analysis for "${task.fileName}" (${(task.fileSize / 1024 / 1024).toFixed(2)} MB)`,
   );
 
-  const MAX_RETRIES = 3;
+  const tier = selectAnalysisTier({
+    mediaType: task.mediaType,
+    fileSize: task.fileSize,
+    duration: task.duration,
+    queueDepth: analysisQueue.length,
+    activeAnalyses,
+  });
+  const tierConfig = ANALYSIS_TIER_CONFIG[tier];
+  const MAX_RETRIES = tierConfig.maxRetries;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const prompt = getAnalysisPrompt(task.mediaType, task.fileName);
+      const prompt = getAnalysisPrompt(task.mediaType, task.fileName, tier);
 
       // Build Bedrock content blocks
       const content: Array<Record<string, any>> = [];
@@ -357,7 +458,7 @@ Provide conservative analysis and explicitly mention limited confidence due to m
       content.push({ text: prompt });
 
       console.log(
-        ` Analyzing ${task.mediaType}: "${task.fileName}" (attempt ${attempt}/${MAX_RETRIES})...`,
+        ` Analyzing ${task.mediaType}: "${task.fileName}" [tier=${tier}] (attempt ${attempt}/${MAX_RETRIES})...`,
       );
 
       // Use shared rate limiter
@@ -379,6 +480,7 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
 - Do not speculate or assume information not present
 - Verbosity: Medium (detailed but concise)
 - Tone: Technical and precise
+- Budget tier: ${tier}
 </constraints>`;
 
       const response = await converseBedrock({
@@ -390,7 +492,10 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
           },
         ],
         system: [{ text: systemPrompt }],
-        inferenceConfig: { maxTokens: 2048, temperature: 0.2 },
+        inferenceConfig: {
+          maxTokens: tierConfig.maxTokens,
+          temperature: tierConfig.temperature,
+        },
       });
 
       // Record token usage

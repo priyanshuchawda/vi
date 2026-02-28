@@ -123,7 +123,7 @@ interface ProjectState {
   defaultImageDuration: number; // Default duration for imported images in seconds
   exportedVideoPath: string | null; // Path to the last exported video
   addClip: (clip: Omit<Clip, 'id' | 'duration' | 'start' | 'end' | 'startTime'> & { duration: number }) => void;
-  removeClip: (id: string) => void;
+  removeClip: (id: string) => boolean;
   setActiveClip: (id: string | null) => void;
   setCurrentTime: (time: number) => void;
   setIsPlaying: (isPlaying: boolean) => void;
@@ -277,22 +277,30 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       };
       return { ...newState, ...saveToHistory({ ...state, ...newState }) };
     }),
-  removeClip: (id) =>
+  removeClip: (id) => {
+    let removed = false;
     set((state) => {
+      const exists = state.clips.some((c) => c.id === id);
+      if (!exists) {
+        return state;
+      }
+      removed = true;
       const newState = {
         clips: state.clips.filter((c) => c.id !== id),
         activeClipId: state.activeClipId === id ? null : state.activeClipId,
       };
-      
+
       // Sync memory with updated project state
       const clipIds = newState.clips.map(c => c.id);
       // Import lazily to avoid circular dependencies
       import('./useAiMemoryStore').then(({ useAiMemoryStore }) => {
         useAiMemoryStore.getState().syncWithProject(clipIds);
       });
-      
+
       return { ...newState, ...saveToHistory({ ...state, ...newState }) };
-    }),
+    });
+    return removed;
+  },
   setActiveClip: (id) => set({ activeClipId: id, currentTime: 0, isPlaying: false }),
   setCurrentTime: (time) => set({ currentTime: time }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),

@@ -301,7 +301,7 @@ export function buildAliasedSnapshotForPlanning(
   
   // Create aliased clips array
   const aliasedClips = fullSnapshot.timeline.clips.map((clip, index) => {
-    const alias = `clip_${index + 1}`;
+    const alias = aliasMap.byUuid.get(clip.id) || `clip_${index + 1}`;
     return {
       ...clip,
       id: alias, // Replace UUID with alias

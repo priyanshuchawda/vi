@@ -7,7 +7,7 @@ import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import TypingIndicator from './TypingIndicator';
 import { TokenCounter } from './TokenCounter';
-import type { MediaAttachment } from '../../types/chat';
+import type { ChatTurn, MediaAttachment } from '../../types/chat';
 
 interface SessionLogEntry {
   id: string;
@@ -31,6 +31,15 @@ const ChatPanel = () => {
     setIsTyping,
     autoExecute,
     toggleAutoExecute,
+    executionContext,
+    setExecutionContext,
+    clearExecutionContext,
+    turns,
+    activeTurnId,
+    startTurn,
+    appendTurnPart,
+    setTurnStatus,
+    closeTurn,
   } = useChatStore();
   const { clips, currentTime } = useProjectStore();
   const { analysisData } = useOnboardingStore();
@@ -40,6 +49,13 @@ const ChatPanel = () => {
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [showMemoryDetails, setShowMemoryDetails] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  const [showTelemetry, setShowTelemetry] = useState(false);
+  const [telemetryRates, setTelemetryRates] = useState<{
+    plan_compile_fail_rate: number;
+    fallback_rate: number;
+    execution_validation_fail_rate: number;
+    repeat_response_rate: number;
+  } | null>(null);
   const [sessionLogs, setSessionLogs] = useState<SessionLogEntry[]>([]);
   const hasInitializedLogsRef = useRef(false);
   const seenLogIdsRef = useRef(new Set<string>());
@@ -64,6 +80,7 @@ const ChatPanel = () => {
     history: any[];
   } | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [lastPlanExecutionError, setLastPlanExecutionError] = useState<string | null>(null);
 
   // Get memory stats
   const completedMemoryEntries = entries.filter(e => e.status === 'completed');
@@ -105,6 +122,17 @@ const ChatPanel = () => {
     });
   }, [messages]);
 
+  useEffect(() => {
+    if (!showTelemetry) return;
+    import('../../lib/aiTelemetry')
+      .then(({ getTelemetryRates }) => {
+        setTelemetryRates(getTelemetryRates());
+      })
+      .catch(() => {
+        setTelemetryRates(null);
+      });
+  }, [showTelemetry, messages.length]);
+
   // Update context when clips or time changes
   useEffect(() => {
     // Context will be used when AI is integrated
@@ -112,21 +140,53 @@ const ChatPanel = () => {
 
   const handleSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
     // Add user message with attachments
-    addMessage('user', content, undefined, attachments);
+    const userMessageId = addMessage('user', content, undefined, attachments);
     setIsTyping(true);
     setUploadStatus(null);
+    let turnId: string | null = null;
+    let turnClosed = false;
+
+    const assistantMessage = (text: string, metadata?: { error?: boolean }) => {
+      const id = addMessage('assistant', text, metadata);
+      if (turnId) {
+        appendTurnPart(turnId, {
+          type: 'text',
+          role: 'assistant',
+          text,
+          timestamp: Date.now(),
+        });
+      }
+      return id;
+    };
 
     try {
+      if (executionPlan && executionContext.hasPendingPlan && isExecutionConfirmation(content)) {
+        assistantMessage('Using your pending plan and executing it now.');
+        await handleExecutePlan();
+        return;
+      }
+
       // Import intent classifier (zero-cost, local)
-      const { classifyIntent, detectContextNeeds } = await import('../../lib/intentClassifier');
-      let intent = classifyIntent(content);
+      const { classifyIntentWithContext, detectContextNeeds } = await import('../../lib/intentClassifier');
       const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant')?.content || '';
+      const recentEditingContext = hasRecentEditingContext(messages);
+      let intent = classifyIntentWithContext(content, {
+        hasPendingPlan: executionContext.hasPendingPlan,
+        hasRecentEditingContext: recentEditingContext,
+      });
       if (
         (isExecutionConfirmation(content) && looksLikeEditPlan(lastAssistantMessage)) ||
-        (isAmbiguousContinuation(content) && hasRecentEditingContext(messages))
+        (isAmbiguousContinuation(content) && recentEditingContext)
       ) {
         intent = 'edit';
       }
+      turnId = startTurn(userMessageId, intent === 'edit' ? 'plan' : 'ask');
+      appendTurnPart(turnId, {
+        type: 'text',
+        role: 'user',
+        text: content,
+        timestamp: Date.now(),
+      });
       const contextFlags = detectContextNeeds(content, intent);
 
       console.log(`Intent: ${intent} | Context: T=${contextFlags.includeTimeline} M=${contextFlags.includeMemory} C=${contextFlags.includeChannel}`);
@@ -141,10 +201,18 @@ const ChatPanel = () => {
 
       // ── EDIT INTENT: Use planning pipeline ──────────────────────────
       if (intent === 'edit') {
+        if (turnId) {
+          setTurnStatus(turnId, 'planning');
+          appendTurnPart(turnId, {
+            type: 'step_start',
+            label: 'Generating execution plan',
+            timestamp: Date.now(),
+          });
+        }
         setIsGeneratingPlan(true);
         const { generateCompletePlan } = await import('../../lib/aiPlanningService');
 
-        addMessage('assistant', 'Analyzing your request and generating execution plan...');
+        assistantMessage('Analyzing your request and generating execution plan...');
         
         const plan = await generateCompletePlan(content, aiHistory, 3);
 
@@ -168,10 +236,23 @@ const ChatPanel = () => {
               `Plan needs fixes before execution.\n\n${issuePreview || 'Validation failed.'}\n\nI kept the draft plan visible so you can review and adjust.`,
               { error: true }
             );
+            if (turnId) {
+              appendTurnPart(turnId, {
+                type: 'error',
+                message: issuePreview || 'Plan validation failed',
+                timestamp: Date.now(),
+              });
+              setTurnStatus(turnId, 'awaiting_approval');
+            }
             setExecutionPlan({
               plan,
               originalMessage: content,
               history: aiHistory,
+            });
+            setLastPlanExecutionError(null);
+            setExecutionContext({
+              hasPendingPlan: true,
+              lastUserMessageForPlan: content,
             });
             setIsTyping(false);
             return;
@@ -179,8 +260,16 @@ const ChatPanel = () => {
 
           // Auto-execute if enabled OR no approval is required (read-only plans)
           if (autoExecute || !plan.requiresApproval) {
+            if (turnId) {
+              setTurnStatus(turnId, 'executing');
+              appendTurnPart(turnId, {
+                type: 'step_start',
+                label: 'Executing plan',
+                timestamp: Date.now(),
+              });
+            }
             const readOnlyNotice = !plan.requiresApproval ? ' (read-only plan)' : '';
-            addMessage('assistant', `Auto-executing ${plan.operations.length} operation${plan.operations.length > 1 ? 's' : ''}${readOnlyNotice}...`);
+            assistantMessage(`Auto-executing ${plan.operations.length} operation${plan.operations.length > 1 ? 's' : ''}${readOnlyNotice}...`);
             
             try {
               const { executePlan } = await import('../../lib/aiPlanningService');
@@ -204,7 +293,17 @@ const ChatPanel = () => {
               useChatStore.setState({
                 messages: msgs.slice(0, -1)
               });
-              addMessage('assistant', finalResponse);
+              assistantMessage(finalResponse);
+              if (turnId) {
+                appendTurnPart(turnId, {
+                  type: 'step_finish',
+                  label: 'Plan execution',
+                  success: true,
+                  timestamp: Date.now(),
+                });
+                closeTurn(turnId, 'completed');
+                turnClosed = true;
+              }
             } catch (error) {
               console.error('Auto-execution error:', error);
               let errorMessage = 'Error during auto-execution:\n\n';
@@ -213,10 +312,20 @@ const ChatPanel = () => {
               } else {
                 errorMessage += 'Unknown error occurred';
               }
-              addMessage('assistant', errorMessage, { error: true });
+              assistantMessage(errorMessage, { error: true });
+              if (turnId) {
+                appendTurnPart(turnId, {
+                  type: 'error',
+                  message: errorMessage,
+                  timestamp: Date.now(),
+                });
+                closeTurn(turnId, 'error');
+                turnClosed = true;
+              }
             } finally {
               setIsTyping(false);
               setToolExecutionProgress(null);
+              clearExecutionContext();
             }
             return;
           }
@@ -226,6 +335,20 @@ const ChatPanel = () => {
             plan,
             originalMessage: content,
             history: aiHistory,
+          });
+          if (turnId) {
+            setTurnStatus(turnId, 'awaiting_approval');
+            appendTurnPart(turnId, {
+              type: 'step_finish',
+              label: 'Plan generation',
+              success: true,
+              timestamp: Date.now(),
+            });
+          }
+          setLastPlanExecutionError(null);
+          setExecutionContext({
+            hasPendingPlan: true,
+            lastUserMessageForPlan: content,
           });
           setIsTyping(false);
           return;
@@ -240,6 +363,16 @@ const ChatPanel = () => {
           'assistant',
           "I couldn't generate executable edit operations from that. Please confirm exactly what to apply (clips/timestamps), and I'll execute it with tools."
         );
+        if (turnId) {
+          appendTurnPart(turnId, {
+            type: 'error',
+            message: "Couldn't generate executable edit operations",
+            timestamp: Date.now(),
+          });
+          closeTurn(turnId, 'error');
+          turnClosed = true;
+        }
+        clearExecutionContext();
         setIsTyping(false);
         return;
       }
@@ -300,6 +433,10 @@ const ChatPanel = () => {
               }
             }
 
+            if (turnId) {
+              closeTurn(turnId, 'completed');
+              turnClosed = true;
+            }
             setIsTyping(false);
             return;
           }
@@ -311,6 +448,19 @@ const ChatPanel = () => {
             modelContent: chunk.modelContent,
             history: aiHistory,
           });
+          if (turnId) {
+            const safeTurnId = turnId;
+            setTurnStatus(safeTurnId, 'awaiting_approval');
+            functionCalls.forEach((call) => {
+              appendTurnPart(safeTurnId, {
+                type: 'tool_call',
+                name: call.name,
+                args: call.args || {},
+                state: 'pending',
+                timestamp: Date.now(),
+              });
+            });
+          }
           setIsTyping(false);
           return;
         } else if (chunk.type === 'text' && chunk.text) {
@@ -331,6 +481,10 @@ const ChatPanel = () => {
           }
         }
       }
+      if (turnId) {
+        closeTurn(turnId, 'completed');
+        turnClosed = true;
+      }
 
     } catch (error) {
       console.error('Error communicating with AI:', error);
@@ -348,8 +502,20 @@ const ChatPanel = () => {
         errorMessage += 'Failed to communicate with AI.';
       }
 
-      addMessage('assistant', errorMessage, { error: true });
+      assistantMessage(errorMessage, { error: true });
+      if (turnId && !turnClosed) {
+        appendTurnPart(turnId, {
+          type: 'error',
+          message: errorMessage,
+          timestamp: Date.now(),
+        });
+        closeTurn(turnId, 'error');
+        turnClosed = true;
+      }
     } finally {
+      if (turnId && !turnClosed) {
+        closeTurn(turnId, 'interrupted');
+      }
       setIsTyping(false);
       setIsGeneratingPlan(false);
       setUploadStatus(null);
@@ -383,6 +549,12 @@ const ChatPanel = () => {
     setSessionLogs([]);
   };
 
+  const handleResetTelemetry = async () => {
+    const { resetTelemetry, getTelemetryRates } = await import('../../lib/aiTelemetry');
+    resetTelemetry();
+    setTelemetryRates(getTelemetryRates());
+  };
+
   const handleCopyExecutionPlan = async () => {
     if (!executionPlan) return;
 
@@ -412,8 +584,18 @@ const ChatPanel = () => {
       return;
     }
     
+    if (activeTurnId) {
+      setTurnStatus(activeTurnId, 'executing');
+      appendTurnPart(activeTurnId, {
+        type: 'step_start',
+        label: 'Manual plan execution',
+        timestamp: Date.now(),
+      });
+    }
     setIsExecutingTools(true);
     setIsTyping(true);
+    setLastPlanExecutionError(null);
+    let executionSucceeded = false;
     
     try {
       const { executePlan } = await import('../../lib/aiPlanningService');
@@ -437,6 +619,17 @@ const ChatPanel = () => {
       
       // Add final response
       addMessage('assistant', finalResponse);
+      if (activeTurnId) {
+        appendTurnPart(activeTurnId, {
+          type: 'step_finish',
+          label: 'Manual plan execution',
+          success: true,
+          timestamp: Date.now(),
+        });
+        closeTurn(activeTurnId, 'completed');
+      }
+      clearExecutionContext();
+      executionSucceeded = true;
       
     } catch (error) {
       console.error('Plan execution error:', error);
@@ -455,23 +648,78 @@ const ChatPanel = () => {
       }
       
       addMessage('assistant', errorMessage, { error: true });
+      if (activeTurnId) {
+        appendTurnPart(activeTurnId, {
+          type: 'error',
+          message: errorMessage,
+          timestamp: Date.now(),
+        });
+        closeTurn(activeTurnId, 'error');
+      }
+      setLastPlanExecutionError(errorMessage);
     } finally {
       setIsExecutingTools(false);
       setIsTyping(false);
-      setExecutionPlan(null);
+      if (executionSucceeded) {
+        setExecutionPlan(null);
+        clearExecutionContext();
+      }
     }
   };
 
   const handleRejectPlan = () => {
     addMessage('assistant', 'Execution plan rejected. How else can I help you?');
     setExecutionPlan(null);
+    setLastPlanExecutionError(null);
+    clearExecutionContext();
+  };
+
+  const handleRebuildPlanFromCurrentTimeline = async () => {
+    if (!executionPlan) return;
+    setIsGeneratingPlan(true);
+    setIsTyping(true);
+    setLastPlanExecutionError(null);
+
+    try {
+      const { generateCompletePlan } = await import('../../lib/aiPlanningService');
+      const rebuilt = await generateCompletePlan(
+        executionPlan.originalMessage,
+        executionPlan.history,
+        3,
+      );
+      setExecutionPlan({
+        ...executionPlan,
+        plan: rebuilt,
+      });
+      addMessage('assistant', 'Rebuilt plan from current timeline state. Please review and execute.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to rebuild plan';
+      addMessage('assistant', `Failed to rebuild plan: ${message}`, { error: true });
+      setLastPlanExecutionError(`Failed to rebuild plan: ${message}`);
+    } finally {
+      setIsTyping(false);
+      setIsGeneratingPlan(false);
+    }
   };
 
   const handleExecuteTools = async () => {
     if (!pendingToolCalls) return;
     
+    if (activeTurnId) {
+      setTurnStatus(activeTurnId, 'executing');
+      pendingToolCalls.functionCalls.forEach((call) => {
+        appendTurnPart(activeTurnId, {
+          type: 'tool_call',
+          name: call.name,
+          args: call.args || {},
+          state: 'running',
+          timestamp: Date.now(),
+        });
+      });
+    }
     setIsExecutingTools(true);
     setIsTyping(true);
+    let toolExecutionFailed = false;
     
     try {
       // Import ToolExecutor
@@ -493,6 +741,18 @@ const ChatPanel = () => {
           });
         }
       );
+      if (activeTurnId) {
+        results.forEach((result) => {
+          appendTurnPart(activeTurnId, {
+            type: 'tool_result',
+            name: result.name,
+            success: Boolean(result.result.success),
+            message: result.result.message,
+            error: result.result.error,
+            timestamp: Date.now(),
+          });
+        });
+      }
       
       // Clear progress
       setToolExecutionProgress(null);
@@ -529,12 +789,26 @@ const ChatPanel = () => {
     } catch (error) {
       console.error('Tool execution error:', error);
       addMessage('assistant', 'Error executing operations: ' + (error as Error).message, { error: true });
+      if (activeTurnId) {
+        appendTurnPart(activeTurnId, {
+          type: 'error',
+          message: String((error as Error).message || error),
+          timestamp: Date.now(),
+        });
+        closeTurn(activeTurnId, 'error');
+      }
+      toolExecutionFailed = true;
     } finally {
       setIsExecutingTools(false);
       setIsTyping(false);
       setPendingToolCalls(null);
+      if (activeTurnId && !toolExecutionFailed) {
+        closeTurn(activeTurnId, 'completed');
+      }
     }
   };
+
+  const recentTurns: ChatTurn[] = turns.slice(-5).reverse();
 
   const getToolDescription = (call: { name: string; args: any }): string => {
     const state = useProjectStore.getState();
@@ -639,6 +913,15 @@ const ChatPanel = () => {
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17h6M9 13h6M9 9h6M5 5h14v14H5z" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setShowTelemetry((v) => !v)}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${showTelemetry ? 'text-cyan-300 bg-cyan-500/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
+            title="AI reliability telemetry"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 12l3-3 2 2 5-5M5 19h14" />
             </svg>
           </button>
           <button
@@ -815,6 +1098,34 @@ const ChatPanel = () => {
         </div>
       )}
 
+      {showTelemetry && (
+        <div className="border-b border-border-primary bg-cyan-500/5">
+          <div className="px-4 py-2 flex items-center justify-between">
+            <div className="text-xs text-cyan-200">AI Reliability Telemetry</div>
+            <button
+              onClick={handleResetTelemetry}
+              className="text-[11px] px-2 py-1 rounded bg-bg-elevated border border-border-primary hover:bg-bg-surface text-text-secondary"
+            >
+              Reset
+            </button>
+          </div>
+          <div className="px-4 pb-3 grid grid-cols-1 gap-1.5 text-[11px]">
+            <div className="text-text-secondary">
+              plan_compile_fail_rate: <span className="text-cyan-200">{formatRate(telemetryRates?.plan_compile_fail_rate)}</span>
+            </div>
+            <div className="text-text-secondary">
+              fallback_rate: <span className="text-cyan-200">{formatRate(telemetryRates?.fallback_rate)}</span>
+            </div>
+            <div className="text-text-secondary">
+              execution_validation_fail_rate: <span className="text-cyan-200">{formatRate(telemetryRates?.execution_validation_fail_rate)}</span>
+            </div>
+            <div className="text-text-secondary">
+              repeat_response_rate: <span className="text-cyan-200">{formatRate(telemetryRates?.repeat_response_rate)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Context Info */}
       {clips.length > 0 && (
         <div className="px-4 py-2 bg-bg-surface/30 border-b border-border-primary">
@@ -823,6 +1134,33 @@ const ChatPanel = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
             <span>{clips.length} clip{clips.length !== 1 ? 's' : ''} in project</span>
+          </div>
+        </div>
+      )}
+
+      {recentTurns.length > 0 && (
+        <div className="border-b border-border-primary bg-bg-surface/30 px-4 py-2">
+          <div className="text-xs text-text-secondary mb-1">Turn Timeline</div>
+          <div className="space-y-1">
+            {recentTurns.map((turn) => (
+              <div
+                key={turn.id}
+                className={`text-[11px] rounded px-2 py-1 border ${
+                  turn.id === activeTurnId
+                    ? 'border-accent/40 bg-accent/10'
+                    : 'border-border-primary bg-bg-primary/60'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-text-primary">
+                    {turn.mode.toUpperCase()} · {formatTurnStatus(turn.status)}
+                  </span>
+                  <span className="text-text-muted">
+                    {turn.parts.length} part{turn.parts.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -939,6 +1277,38 @@ const ChatPanel = () => {
                         Execution policy: {executionPlan.plan.executionPolicy.mode} (read-only batch up to {executionPlan.plan.executionPolicy.maxReadOnlyBatchSize})
                       </div>
                     )}
+                    <div className="mt-3 grid grid-cols-1 gap-2 text-xs">
+                      <div className="bg-bg-surface border border-border-primary rounded p-2">
+                        <div className="text-purple-300 font-medium mb-1">Why this plan</div>
+                        <div className="text-text-muted">
+                          Generated from current timeline and tool constraints with runtime-safe preflight checks.
+                        </div>
+                      </div>
+                      <div className="bg-bg-surface border border-border-primary rounded p-2">
+                        <div className="text-purple-300 font-medium mb-1">What will change</div>
+                        {Array.isArray(executionPlan.plan.changeSummary) && executionPlan.plan.changeSummary.length > 0 ? (
+                          executionPlan.plan.changeSummary.map((line: string) => (
+                            <div key={line} className="text-text-muted">• {line}</div>
+                          ))
+                        ) : (
+                          <div className="text-text-muted">No explicit change summary available.</div>
+                        )}
+                      </div>
+                      <div className="bg-bg-surface border border-border-primary rounded p-2">
+                        <div className="text-purple-300 font-medium mb-1">Confidence</div>
+                        <div className="text-text-muted">
+                          {typeof executionPlan.plan.confidenceScore === 'number'
+                            ? `${Math.round(executionPlan.plan.confidenceScore * 100)}%`
+                            : 'n/a'}
+                        </div>
+                      </div>
+                      <div className="bg-bg-surface border border-border-primary rounded p-2">
+                        <div className="text-purple-300 font-medium mb-1">Rollback</div>
+                        <div className="text-text-muted">
+                          {executionPlan.plan.rollbackNote || 'Undo is available immediately after execution.'}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1024,7 +1394,7 @@ const ChatPanel = () => {
                                   {op.description}
                                 </div>
                                 <div className="text-xs text-text-muted font-mono mt-1">
-                                  {op.functionCall.name}
+                                  {formatOperationName(op.functionCall.name)}
                                 </div>
                               </div>
                               {!op.isReadOnly && (
@@ -1063,6 +1433,19 @@ const ChatPanel = () => {
                     Reject
                   </button>
                 </div>
+
+                {lastPlanExecutionError && (
+                  <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                    <div className="text-xs text-red-200 whitespace-pre-wrap">{lastPlanExecutionError}</div>
+                    <button
+                      onClick={handleRebuildPlanFromCurrentTimeline}
+                      disabled={isGeneratingPlan || isExecutingTools}
+                      className="mt-2 px-3 py-1.5 text-sm bg-red-500/20 text-red-200 rounded-lg hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Rebuild plan from current timeline
+                    </button>
+                  </div>
+                )}
                 
                 {toolExecutionProgress && (
                   <div className="mt-3">
@@ -1129,7 +1512,7 @@ export default ChatPanel;
 
 function isExecutionConfirmation(input: string): boolean {
   const text = input.toLowerCase().trim();
-  return /\b(do it|go ahead|execute|apply (it|that)|proceed|make it)\b/.test(text);
+  return /\b(do it|go ahead|execute|apply (it|that)|proceed|make it|yes|ok|okay|sure|continue)\b/.test(text);
 }
 
 function looksLikeEditPlan(text: string): boolean {
@@ -1171,4 +1554,20 @@ function isReadOnlyToolCall(call: { name: string }): boolean {
     'search_clips_by_content',
   ]);
   return readOnlyTools.has(call.name);
+}
+
+function formatOperationName(name: string): string {
+  return name
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function formatRate(value?: number): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '0.0%';
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatTurnStatus(status: ChatTurn['status']): string {
+  return status.replace(/_/g, ' ');
 }

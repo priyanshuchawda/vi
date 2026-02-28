@@ -1,3 +1,5 @@
+You have this respo means you are contributing remember so you must read contributing.md
+
 # QuickCut
 
 QuickCut is an AI-enabled desktop video editor built with Electron, React, TypeScript, and FFmpeg.

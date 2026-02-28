@@ -28,6 +28,7 @@ import {
 } from "./contextManager";
 import { waitForSlot } from "./rateLimiter";
 import { recordUsage, getSessionPromptTokens } from "./tokenTracker";
+import { recordAssistantResponse } from "./aiTelemetry";
 import {
   buildAIProjectSnapshot,
   formatSnapshotForPrompt,
@@ -115,7 +116,11 @@ IMPORTANT RULES:
 - Always reference clips by their ID, not just by name (multiple clips can have same name)
 - For time-based operations, clarify if time is relative to clip start or timeline position
 - When multiple clips match a description, ask user to clarify or select all matches
-- Explain your plan before executing - don't just silently call tools
+- Use this response structure for edit requests:
+  1) What I understood
+  2) Exact operations to run
+  3) Confirmation gate only if mutating
+  4) Post-execution timeline diff
 - If an operation seems destructive (delete, overwrite), be extra clear about what will happen
 </video-editing-tools>`;
 
@@ -631,6 +636,7 @@ export async function* sendMessageWithHistoryStream(
       (c: any) => c.text,
     );
     if (textContent?.text) {
+      recordAssistantResponse(textContent.text);
       yield { type: "text", text: textContent.text };
     }
 
@@ -750,7 +756,7 @@ export async function* sendToolResultsToAI(
       content: [
         ...toolResultContent,
         {
-          text: "Tool execution results are authoritative. Summarize what changed, mention any failures, and suggest next steps.",
+          text: "Tool execution results are authoritative. Reply in this structure: 1) What changed, 2) Any failures, 3) Timeline diff if available, 4) Next best action.",
         },
       ],
     });
@@ -775,6 +781,7 @@ export async function* sendToolResultsToAI(
       (c: any) => c.text,
     );
     if (textContent?.text) {
+      recordAssistantResponse(textContent.text);
       yield { type: "text", text: textContent.text };
     }
 

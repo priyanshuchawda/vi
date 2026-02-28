@@ -132,6 +132,10 @@ export function aliasArgsToUuid(
     if (Array.isArray(args.clip_ids)) {
       const resolvedIds: string[] = [];
       for (const alias of args.clip_ids) {
+        if (alias === 'all' && (toolName === 'select_clips' || toolName === 'set_clip_volume')) {
+          resolvedIds.push(alias);
+          continue;
+        }
         const uuid = resolveAlias(alias, aliasMap);
         if (uuid) {
           resolvedIds.push(uuid);
@@ -174,6 +178,9 @@ export function validateAliasReferences(
   // Array of clip_ids
   if (Array.isArray(args.clip_ids)) {
     for (const id of args.clip_ids) {
+      if (id === 'all') {
+        continue;
+      }
       if (typeof id === 'string' && !aliasMap.byAlias.has(id)) {
         errors.push(`clip_id "${id}" is not valid. Use one of: ${validAliases.join(', ')}`);
       }

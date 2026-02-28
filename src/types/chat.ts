@@ -1,4 +1,38 @@
 export type MessageRole = 'user' | 'assistant' | 'system';
+export type ChatTurnMode = 'ask' | 'plan' | 'edit';
+export type ChatTurnStatus =
+  | 'idle'
+  | 'planning'
+  | 'awaiting_approval'
+  | 'executing'
+  | 'retry'
+  | 'completed'
+  | 'error'
+  | 'interrupted';
+
+export type TurnPart =
+  | { type: 'text'; text: string; role: 'user' | 'assistant'; timestamp: number }
+  | { type: 'tool_call'; name: string; args: Record<string, any>; state: 'pending' | 'running' | 'completed' | 'error'; timestamp: number }
+  | { type: 'tool_result'; name: string; success: boolean; message?: string; error?: string; timestamp: number }
+  | { type: 'step_start'; label: string; timestamp: number }
+  | { type: 'step_finish'; label: string; success: boolean; timestamp: number }
+  | { type: 'error'; message: string; timestamp: number };
+
+export interface ChatTurn {
+  id: string;
+  userMessageId: string;
+  mode: ChatTurnMode;
+  status: ChatTurnStatus;
+  parts: TurnPart[];
+  startedAt: number;
+  endedAt?: number;
+  closeReason?: 'completed' | 'error' | 'interrupted';
+  retryInfo?: {
+    attempt: number;
+    message: string;
+    nextAt: number;
+  };
+}
 
 export interface MediaAttachment {
   id: string;

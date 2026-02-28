@@ -1,10 +1,22 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import type { ChatMessage, ChatContext, TokenInfo, SessionStats, MediaAttachment } from '../types/chat';
+import type {
+  ChatMessage,
+  ChatContext,
+  TokenInfo,
+  SessionStats,
+  MediaAttachment,
+  ChatTurn,
+  ChatTurnMode,
+  ChatTurnStatus,
+  TurnPart,
+} from '../types/chat';
 
 interface ChatStore {
   messages: ChatMessage[];
+  turns: ChatTurn[];
+  activeTurnId: string | null;
   isOpen: boolean;
   isTyping: boolean;
   context: ChatContext;
@@ -17,8 +29,13 @@ interface ChatStore {
   currentProjectId: string | null;
   autoExecute: boolean;
   panelWidth: number;
+  executionContext: {
+    hasPendingPlan: boolean;
+    lastUserMessageForPlan: string | null;
+    updatedAt: number | null;
+  };
 
-  addMessage: (role: 'user' | 'assistant', content: string, metadata?: ChatMessage['metadata'], attachments?: MediaAttachment[]) => void;
+  addMessage: (role: 'user' | 'assistant', content: string, metadata?: ChatMessage['metadata'], attachments?: MediaAttachment[]) => string;
   updateLastMessage: (content: string) => void;
   updateMessageTokens: (messageId: string, tokens: TokenInfo) => void;
   clearChat: () => void;
@@ -32,6 +49,12 @@ interface ChatStore {
   clearChatForNewProject: () => void;
   toggleAutoExecute: () => void;
   setPanelWidth: (width: number) => void;
+  setExecutionContext: (context: Partial<ChatStore['executionContext']>) => void;
+  clearExecutionContext: () => void;
+  startTurn: (userMessageId: string, mode: ChatTurnMode) => string;
+  appendTurnPart: (turnId: string, part: TurnPart) => void;
+  setTurnStatus: (turnId: string, status: ChatTurnStatus, retryInfo?: ChatTurn['retryInfo']) => void;
+  closeTurn: (turnId: string, reason: ChatTurn['closeReason']) => void;
 }
 
 const MIN_PANEL_WIDTH = 280;
@@ -53,6 +76,8 @@ export const useChatStore = create<ChatStore>()(
           timestamp: Date.now(),
         }
       ],
+      turns: [],
+      activeTurnId: null,
       isOpen: false,
       isTyping: false,
       context: {},
@@ -65,17 +90,26 @@ export const useChatStore = create<ChatStore>()(
       currentProjectId: null,
       autoExecute: false,
       panelWidth: 320,
+      executionContext: {
+        hasPendingPlan: false,
+        lastUserMessageForPlan: null,
+        updatedAt: null,
+      },
 
-      addMessage: (role, content, metadata, attachments) => set((state) => ({
-        messages: [...state.messages, {
-          id: uuidv4(),
-          role,
-          content,
-          timestamp: Date.now(),
-          metadata,
-          attachments,
-        }],
-      })),
+      addMessage: (role, content, metadata, attachments) => {
+        const id = uuidv4();
+        set((state) => ({
+          messages: [...state.messages, {
+            id,
+            role,
+            content,
+            timestamp: Date.now(),
+            metadata,
+            attachments,
+          }],
+        }));
+        return id;
+      },
 
       updateLastMessage: (content) => set((state) => {
         const messages = [...state.messages];
@@ -120,6 +154,8 @@ export const useChatStore = create<ChatStore>()(
           totalTokens: 0,
           totalCachedTokens: 0,
         },
+        turns: [],
+        activeTurnId: null,
       }),
 
       togglePanel: () => set((state) => ({ isOpen: !state.isOpen })),
@@ -191,12 +227,74 @@ export const useChatStore = create<ChatStore>()(
             totalCachedTokens: 0,
           },
           currentProjectId: null,
+          turns: [],
+          activeTurnId: null,
         });
       },
 
       toggleAutoExecute: () => set((state) => ({ autoExecute: !state.autoExecute })),
 
       setPanelWidth: (width) => set({ panelWidth: clampPanelWidth(width) }),
+      setExecutionContext: (newContext) => set((state) => ({
+        executionContext: {
+          ...state.executionContext,
+          ...newContext,
+          updatedAt: Date.now(),
+        },
+      })),
+      clearExecutionContext: () => set({
+        executionContext: {
+          hasPendingPlan: false,
+          lastUserMessageForPlan: null,
+          updatedAt: Date.now(),
+        },
+      }),
+      startTurn: (userMessageId, mode) => {
+        const id = uuidv4();
+        const now = Date.now();
+        set((state) => ({
+          turns: [
+            ...state.turns,
+            {
+              id,
+              userMessageId,
+              mode,
+              status: mode === 'plan' ? 'planning' : 'idle',
+              parts: [],
+              startedAt: now,
+            },
+          ],
+          activeTurnId: id,
+        }));
+        return id;
+      },
+      appendTurnPart: (turnId, part) => set((state) => ({
+        turns: state.turns.map((turn) =>
+          turn.id === turnId
+            ? { ...turn, parts: [...turn.parts, part] }
+            : turn
+        ),
+      })),
+      setTurnStatus: (turnId, status, retryInfo) => set((state) => ({
+        turns: state.turns.map((turn) =>
+          turn.id === turnId
+            ? { ...turn, status, retryInfo }
+            : turn
+        ),
+      })),
+      closeTurn: (turnId, reason) => set((state) => ({
+        turns: state.turns.map((turn) =>
+          turn.id === turnId
+            ? {
+                ...turn,
+                status: reason === 'error' ? 'error' : reason === 'interrupted' ? 'interrupted' : 'completed',
+                closeReason: reason,
+                endedAt: Date.now(),
+              }
+            : turn
+        ),
+        activeTurnId: state.activeTurnId === turnId ? null : state.activeTurnId,
+      })),
     }),
     {
       name: 'quickcut-chat-storage',
@@ -215,6 +313,9 @@ export const useChatStore = create<ChatStore>()(
         currentProjectId: state.currentProjectId,
         autoExecute: state.autoExecute,
         panelWidth: state.panelWidth,
+        executionContext: state.executionContext,
+        turns: state.turns,
+        activeTurnId: state.activeTurnId,
       }),
     }
   )

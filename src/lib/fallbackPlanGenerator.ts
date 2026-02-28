@@ -13,62 +13,26 @@ import type { AliasMap } from './clipAliasMapper';
  * Generate a safe fallback plan based on project state
  * 
  * Strategy:
- * - If 1 clip: Trim first 5 seconds
- * - If 2+ clips: Keep first clip, delete rest
- * - If timeline empty: Return explanation (no operations)
+ * - Never mutate timeline by default
+ * - Use read-only inspection to recover context safely
+ * - If timeline empty: no operations
  */
 export function generateFallbackPlan(
-  snapshot: AIProjectSnapshot,
+  _snapshot: AIProjectSnapshot,
   _aliasMap: AliasMap,
   _userMessage: string,
 ): PlannedOperation[] {
-  const operations: PlannedOperation[] = [];
-  const clips = snapshot.timeline.clips;
-
-  if (clips.length === 0) {
-    // No clips - cannot generate operations    return operations;
-  }
-
-  if (clips.length === 1) {
-    // Single clip: trim to first 5 seconds (safe operation)
-    const clip = clips[0];
-    const targetDuration = Math.min(5.0, clip.duration);
-    
-    if (clip.duration > targetDuration + 0.5) { // Worth trimming
-      operations.push({
-        round: 1,
-        functionCall: {
-          name: 'update_clip_bounds',
-          args: {
-            clip_id: clip.id, // Use real UUID here since this is post-alias resolution
-            new_start: clip.sourceStart,
-            new_end: clip.sourceStart + targetDuration,
-          },
-        },
-        description: `Trim clip to ${targetDuration} seconds`,
-        isReadOnly: false,
-      });
-    }
-  } else {
-    // Multiple clips: Keep first, delete others (common cleanup operation)
-    const otherClips = clips.slice(1);
-
-    if (otherClips.length > 0) {
-      operations.push({
-        round: 1,
-        functionCall: {
-          name: 'delete_clips',
-          args: {
-            clip_ids: otherClips.map(c => c.id), // Use real UUIDs
-          },
-        },
-        description: `Remove ${otherClips.length} clip(s), keep first clip`,
-        isReadOnly: false,
-      });
-    }
-  }
-
-  return operations;
+  return [
+    {
+      round: 1,
+      functionCall: {
+        name: 'get_timeline_info',
+        args: {},
+      },
+      description: 'Inspect timeline to rebuild a valid execution plan',
+      isReadOnly: true,
+    },
+  ];
 }
 
 /**
@@ -82,11 +46,11 @@ export function buildFallbackExecutionPlan(
   const operations = generateFallbackPlan(snapshot, aliasMap, userMessage);
 
   const understanding: PlanUnderstanding = {
-    goal: 'Apply safe default operation (LLM planning failed)',
+    goal: 'Rebuild plan safely from current timeline state',
     constraints: [
       'LLM returned invalid or empty plan',
-      'Fallback to deterministic safe operation',
-      'Avoid data loss',
+      'Fallback uses read-only inspection only',
+      'No destructive edits in fallback mode',
     ],
   };
 
@@ -134,8 +98,8 @@ export function getFallbackExplanation(clipCount: number): string {
   }
   
   if (clipCount === 1) {
-    return "I had trouble understanding your specific request, so I've prepared a simple trim operation. Please refine your request with more specific details (clip names, timestamps, etc.)";
+    return "I couldn't compile a safe edit plan. I prepared a read-only timeline inspection so we can rebuild an executable plan from current state.";
   }
-  
-  return "I had trouble understanding your specific request, so I've prepared a basic cleanup operation. Please provide more specific instructions (which clips, what times, etc.)";
+
+  return "I couldn't compile a safe edit plan. I prepared a read-only timeline inspection so we can rebuild an executable plan from current state.";
 }

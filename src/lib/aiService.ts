@@ -44,7 +44,10 @@ import {
   normalizeMessage,
   setCached,
 } from "./requestCache";
-import { evaluateTokenGuard } from "./bedrockTokenEstimator";
+import {
+  estimateBedrockRequestTokens,
+  evaluateTokenGuard,
+} from "./bedrockTokenEstimator";
 import { maskToolOutputsInHistory } from "./toolOutputMaskingService";
 import { recordAssistantResponse } from "./aiTelemetry";
 import {
@@ -62,6 +65,7 @@ const MAX_DYNAMIC_CONTEXT_CHARS = 5000;
 const CHAT_CACHE_TTL_MS = 2 * 60 * 1000;
 const TOKEN_GUARD_SOFT_LIMIT = 160_000;
 const TOKEN_GUARD_HARD_LIMIT = 220_000;
+let summarizeFailureStreak = 0;
 
 // ─── Message Types (Bedrock Converse API format) ──────────────────────────────
 
@@ -370,6 +374,9 @@ export async function summarizeHistory(
   history: AIChatMessage[],
 ): Promise<AIChatMessage[]> {
   if (!isBedrockConfigured()) return history;
+  if (summarizeFailureStreak >= 2) {
+    return history;
+  }
 
   try {
     console.log(" Auto-summarizing conversation history...");
@@ -388,14 +395,62 @@ export async function summarizeHistory(
     });
 
     const summaryText = response.output?.message?.content?.[0]?.text || "";
-    if (!summaryText) return history;
+    if (!summaryText) {
+      summarizeFailureStreak += 1;
+      return history;
+    }
 
-    console.log(" Conversation condensed to summary.");
-    return buildCondensedHistory(summaryText);
+    await waitForSlot();
+    const verifyResponse = await converseBedrock({
+      modelId: MODEL_ID,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              text:
+                `Improve this conversation summary if it is missing concrete IDs, timestamps, failed attempts, or pending tasks. ` +
+                `If complete, return it unchanged.\n\nSUMMARY:\n${summaryText}`,
+            },
+          ],
+        },
+      ],
+      system: [
+        {
+          text: "You are a summary verifier. Return only the final improved summary text.",
+        },
+      ],
+      inferenceConfig: { maxTokens: 1536, temperature: 0.2 },
+    });
+    const verifiedSummary = verifyResponse.output?.message?.content?.[0]?.text
+      || summaryText;
+    const condensed = buildCondensedHistory(verifiedSummary);
+    const originalEstimate = estimateBedrockRequestTokens({
+      messages: history,
+      maxOutputTokens: 1,
+    }).estimatedInputTokens;
+    const condensedEstimate = estimateBedrockRequestTokens({
+      messages: condensed,
+      maxOutputTokens: 1,
+    }).estimatedInputTokens;
+
+    if (condensedEstimate >= originalEstimate) {
+      summarizeFailureStreak += 1;
+      return history;
+    }
+
+    summarizeFailureStreak = 0;
+    console.log(" Conversation condensed to verified summary.");
+    return condensed;
   } catch (err) {
+    summarizeFailureStreak += 1;
     console.error("Failed to summarize history, using original:", err);
     return history;
   }
+}
+
+export function __resetSummarizeFailureStateForTests(): void {
+  summarizeFailureStreak = 0;
 }
 
 // ─── Build Dynamic Context ────────────────────────────────────────────────────

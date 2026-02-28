@@ -25,6 +25,7 @@ import { optimizeContextHistory } from './contextManager';
 import { waitForSlot, withRetryOn429 } from './rateLimiter';
 import { getSessionEstimatedCost, recordUsage } from './tokenTracker';
 import { estimateTurnCost, evaluateBudgetPolicy, trimHistoryToLimit } from './costPolicy';
+import { evaluateTokenGuard } from './bedrockTokenEstimator';
 import {
   buildCacheKey,
   getCached,
@@ -55,6 +56,8 @@ const MAX_DYNAMIC_CONTEXT_CHARS = 5000;
 const PLANNING_MAX_TOKENS = 1024;
 const MIN_PLAN_QUALITY_SCORE = 0.55;
 const PLAN_CACHE_TTL_MS = 90 * 1000;
+const TOKEN_GUARD_SOFT_LIMIT = 160_000;
+const TOKEN_GUARD_HARD_LIMIT = 220_000;
 const RECOVERABLE_COMPILATION_CATEGORIES = new Set<CompilationError['category']>([
   'invalid_alias',
   'invalid_bounds',
@@ -338,6 +341,34 @@ If the goal is complete, return no new tool calls.`;
       role: 'user',
       content: [{ text: messageContent }],
     });
+
+    let tokenGuard = evaluateTokenGuard({
+      messages,
+      systemTexts: [STATIC_PLANNING_INSTRUCTION],
+      toolCount: toolNames.length,
+      maxOutputTokens: PLANNING_MAX_TOKENS,
+      softLimitTokens: TOKEN_GUARD_SOFT_LIMIT,
+      hardLimitTokens: TOKEN_GUARD_HARD_LIMIT,
+    });
+    if (tokenGuard.status !== 'ok') {
+      // Keep planner stable under token pressure by trimming to latest context.
+      const compacted = trimHistoryToLimit(messages, 8);
+      messages.length = 0;
+      messages.push(...compacted);
+      tokenGuard = evaluateTokenGuard({
+        messages,
+        systemTexts: [STATIC_PLANNING_INSTRUCTION],
+        toolCount: toolNames.length,
+        maxOutputTokens: PLANNING_MAX_TOKENS,
+        softLimitTokens: TOKEN_GUARD_SOFT_LIMIT,
+        hardLimitTokens: TOKEN_GUARD_HARD_LIMIT,
+      });
+    }
+    if (tokenGuard.status === 'block') {
+      throw new Error(
+        `Planning request exceeds token safety cap (${tokenGuard.estimatedInputTokens} > ${TOKEN_GUARD_HARD_LIMIT}). Reduce request scope.`,
+      );
+    }
 
     // Wait for rate-limit slot before each planning round API call
     await waitForSlot();

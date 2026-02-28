@@ -26,6 +26,13 @@ import { waitForSlot, withRetryOn429 } from './rateLimiter';
 import { recordUsage } from './tokenTracker';
 import { estimateTurnCost, trimHistoryToLimit } from './costPolicy';
 import {
+  buildCacheKey,
+  getCached,
+  hashString,
+  normalizeMessage,
+  setCached,
+} from './requestCache';
+import {
   buildAliasedSnapshotForPlanning,
   buildAIProjectSnapshot,
   formatSnapshotForPrompt,
@@ -47,6 +54,7 @@ const MAX_OPERATIONS_PER_PLAN = 20;
 const MAX_DYNAMIC_CONTEXT_CHARS = 5000;
 const PLANNING_MAX_TOKENS = 1024;
 const MIN_PLAN_QUALITY_SCORE = 0.55;
+const PLAN_CACHE_TTL_MS = 90 * 1000;
 
 export interface PlanStep {
   order: number;
@@ -256,6 +264,20 @@ State-changing operations must remain executable with valid IDs and bounds.
     : MAX_DYNAMIC_CONTEXT_CHARS;
   if (dynamicContext.length > dynamicCap) {
     dynamicContext = `${dynamicContext.slice(0, dynamicCap)}\n[Planning context truncated for token efficiency]`;
+  }
+
+  const planCacheKey = buildCacheKey([
+    'plan',
+    MODEL_ID,
+    normalizeMessage(message),
+    hashPlanningHistory(optimizedStart),
+    hashSnapshot(realSnapshot),
+    toolNames.join(','),
+    allowedRounds,
+  ]);
+  const cachedPlan = getCached<ExecutionPlan>(planCacheKey);
+  if (cachedPlan) {
+    return JSON.parse(JSON.stringify(cachedPlan)) as ExecutionPlan;
   }
 
   const planningIssues: PlanValidationIssue[] = [];
@@ -549,7 +571,7 @@ If the goal is complete, return no new tool calls.`;
     return fallback;
   }
 
-  return {
+  const planResult: ExecutionPlan = {
     understanding,
     operations: normalizedOperations,
     steps,
@@ -565,6 +587,8 @@ If the goal is complete, return no new tool calls.`;
     changeSummary,
     rollbackNote: 'Undo is available immediately after execution if the result is not what you expected.',
   };
+  setCached<ExecutionPlan>(planCacheKey, planResult, PLAN_CACHE_TTL_MS);
+  return planResult;
 }
 
 /**
@@ -754,6 +778,19 @@ function hashSnapshot(snapshot: AIProjectSnapshot): string {
     hash = Math.imul(hash, 16777619);
   }
   return `fnv32-${(hash >>> 0).toString(16)}`;
+}
+
+function hashPlanningHistory(history: AIChatMessage[]): string {
+  const raw = history
+    .map((message) => {
+      const text = (message.content || [])
+        .map((block) => (typeof block?.text === 'string' ? block.text : ''))
+        .join(' ')
+        .slice(0, 240);
+      return `${message.role}:${text}`;
+    })
+    .join('|');
+  return hashString(raw);
 }
 
 function trimPlanningMessages(messages: AIChatMessage[]): void {

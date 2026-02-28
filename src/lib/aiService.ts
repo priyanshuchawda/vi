@@ -29,6 +29,13 @@ import {
 import { waitForSlot } from "./rateLimiter";
 import { recordUsage, getSessionPromptTokens } from "./tokenTracker";
 import { estimateTurnCost, trimHistoryToLimit } from "./costPolicy";
+import {
+  buildCacheKey,
+  getCached,
+  hashString,
+  normalizeMessage,
+  setCached,
+} from "./requestCache";
 import { recordAssistantResponse } from "./aiTelemetry";
 import {
   buildAIProjectSnapshot,
@@ -42,6 +49,7 @@ const CHAT_MAX_TOKENS = 1024;
 const TOOL_CHAT_MAX_TOKENS = 1536;
 const HISTORY_TOOL_RESULT_MAX_TOKENS = 1024;
 const MAX_DYNAMIC_CONTEXT_CHARS = 5000;
+const CHAT_CACHE_TTL_MS = 2 * 60 * 1000;
 
 // ─── Message Types (Bedrock Converse API format) ──────────────────────────────
 
@@ -495,6 +503,20 @@ export async function sendMessageWithHistory(
     }
 
     const fullMessage = `${dynamicContext}\n\nUser Query: ${message}`;
+    const cacheKey = buildCacheKey([
+      "chat",
+      MODEL_ID,
+      normalizeMessage(message),
+      historyFingerprint(optimizedHistory),
+      hashString(dynamicContext),
+      "non_stream",
+    ]);
+    if (!attachments || attachments.length === 0) {
+      const cached = getCached<CachedChatResponse>(cacheKey);
+      if (cached) {
+        return cached.text;
+      }
+    }
 
     // Build messages array (no chat session — flat array per Bedrock pattern)
     const messages: AIChatMessage[] = [
@@ -533,7 +555,16 @@ export async function sendMessageWithHistory(
       });
     }
 
-    return response.output?.message?.content?.[0]?.text || "";
+    const responseText = response.output?.message?.content?.[0]?.text || "";
+    if ((!attachments || attachments.length === 0) && responseText) {
+      setCached<CachedChatResponse>(
+        cacheKey,
+        { text: responseText },
+        CHAT_CACHE_TTL_MS,
+      );
+    }
+
+    return responseText;
   } catch (error) {
     console.error("Bedrock API error:", error);
     if (error instanceof Error) {
@@ -558,6 +589,23 @@ export interface StreamOptions {
 
 interface DynamicContextBuildOptions {
   maxChars?: number;
+}
+
+interface CachedChatResponse {
+  text: string;
+}
+
+function historyFingerprint(history: AIChatMessage[]): string {
+  const compact = history
+    .map((msg) => {
+      const text = (msg.content || [])
+        .map((block) => (typeof block?.text === "string" ? block.text : ""))
+        .join(" ")
+        .slice(0, 240);
+      return `${msg.role}:${text}`;
+    })
+    .join("|");
+  return hashString(compact);
 }
 
 /**
@@ -627,6 +675,25 @@ export async function* sendMessageWithHistoryStream(
       attachments && attachments.length > 0
         ? await buildMediaParts(attachments)
         : [];
+    const cacheableChat = !includeTools && mediaParts.length === 0;
+    const streamCacheKey = cacheableChat
+      ? buildCacheKey([
+          "chat",
+          MODEL_ID,
+          normalizeMessage(message),
+          historyFingerprint(optimizedHistory),
+          hashString(dynamicContext),
+          "stream",
+        ])
+      : "";
+    if (cacheableChat) {
+      const cached = getCached<CachedChatResponse>(streamCacheKey);
+      if (cached) {
+        recordAssistantResponse(cached.text);
+        yield { type: "text", text: cached.text };
+        return;
+      }
+    }
 
     // Build messages array
     const messages: AIChatMessage[] = [
@@ -688,6 +755,13 @@ export async function* sendMessageWithHistoryStream(
     );
     if (textContent?.text) {
       recordAssistantResponse(textContent.text);
+      if (cacheableChat) {
+        setCached<CachedChatResponse>(
+          streamCacheKey,
+          { text: textContent.text },
+          CHAT_CACHE_TTL_MS,
+        );
+      }
       yield { type: "text", text: textContent.text };
     }
 

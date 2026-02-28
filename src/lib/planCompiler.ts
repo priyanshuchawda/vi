@@ -28,6 +28,16 @@ export interface CompilationError {
   suggestion?: string;
 }
 
+export interface PlannerOutputContract {
+  understanding: {
+    goal: string;
+    constraints: string[];
+  };
+  operations: PlannedOperation[];
+  riskNotes: string[];
+  planReady: boolean;
+}
+
 /**
  * Compile LLM operations (with aliases) into executable operations (with UUIDs)
  */
@@ -343,4 +353,34 @@ Please generate a corrected plan that:
 4. Returns at least one valid operation
 
 If you cannot generate valid operations, call get_timeline_info first to inspect the current state.`;
+}
+
+export function validatePlannerOutputContract(
+  contract: PlannerOutputContract,
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  if (!contract || typeof contract !== 'object') {
+    return { valid: false, errors: ['Planner contract payload is missing'] };
+  }
+
+  if (!contract.understanding || typeof contract.understanding.goal !== 'string' || contract.understanding.goal.trim().length === 0) {
+    errors.push('Missing understanding.goal');
+  }
+  if (!Array.isArray(contract.understanding?.constraints)) {
+    errors.push('Missing understanding.constraints array');
+  }
+  if (!Array.isArray(contract.operations)) {
+    errors.push('Missing operations array');
+  }
+  if (!Array.isArray(contract.riskNotes)) {
+    errors.push('Missing riskNotes array');
+  }
+  if (typeof contract.planReady !== 'boolean') {
+    errors.push('Missing boolean planReady field');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
 }

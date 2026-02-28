@@ -36,7 +36,7 @@ import {
   isReadOnlyTool,
   type ToolErrorCategory,
 } from './toolCapabilityMatrix';
-import { compilePlan, generateCorrectionPrompt } from './planCompiler';
+import { compilePlan, generateCorrectionPrompt, validatePlannerOutputContract } from './planCompiler';
 import { buildFallbackExecutionPlan, shouldUseFallback } from './fallbackPlanGenerator';
 import { recordPlanningAttempt, recordExecutionAttempt } from './aiTelemetry';
 
@@ -101,6 +101,7 @@ export interface ExecutionPlan {
   requiresApproval: boolean;
   planReady: boolean;
   planReadyReason: string;
+  riskNotes: string[];
   confidenceScore?: number;
   changeSummary?: string[];
   rollbackNote?: string;
@@ -506,6 +507,23 @@ If the goal is complete, return no new tool calls.`;
     compileFailed,
     fallbackUsed: false,
   });
+  const riskNotes = planQuality.notes.length > 0
+    ? planQuality.notes
+    : ['No major planning risks detected'];
+  const contractValidation = validatePlannerOutputContract({
+    understanding,
+    operations: normalizedOperations,
+    riskNotes,
+    planReady: readiness.planReady,
+  });
+  if (!contractValidation.valid) {
+    const fallback = buildFallbackExecutionPlan(realSnapshot, aliasMap, message);
+    fallback.validation.corrections = [
+      ...fallback.validation.corrections,
+      `Planner contract failed: ${contractValidation.errors.join('; ')}`,
+    ];
+    return fallback;
+  }
 
   return {
     understanding,
@@ -518,6 +536,7 @@ If the goal is complete, return no new tool calls.`;
     requiresApproval,
     planReady: readiness.planReady,
     planReadyReason: readiness.planReadyReason,
+    riskNotes,
     confidenceScore: planQuality.score,
     changeSummary,
     rollbackNote: 'Undo is available immediately after execution if the result is not what you expected.',

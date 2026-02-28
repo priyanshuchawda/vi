@@ -80,6 +80,7 @@ export function buildFallbackExecutionPlan(
     requiresApproval: operations.some(op => !op.isReadOnly),
     planReady: false,
     planReadyReason: 'Fallback inspection plan only. Rebuild or refine before execution.',
+    riskNotes: ['Fallback mode active due to malformed or low-confidence planner output'],
   };
 }
 

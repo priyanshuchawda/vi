@@ -18,10 +18,19 @@ import type { AliasMap } from './clipAliasMapper';
  * - If timeline empty: no operations
  */
 export function generateFallbackPlan(
-  _snapshot: AIProjectSnapshot,
-  _aliasMap: AliasMap,
-  _userMessage: string,
+  snapshot: AIProjectSnapshot,
+  aliasMap: AliasMap,
+  userMessage: string,
 ): PlannedOperation[] {
+  const clipCount = snapshot.timeline.clipCount;
+  const aliasCount = aliasMap.byAlias.size;
+  const trimmedMessage = userMessage.trim();
+  const summaryParts = [
+    `Timeline clips: ${clipCount}`,
+    `Resolvable aliases: ${aliasCount}`,
+    trimmedMessage ? `User intent: "${trimmedMessage.slice(0, 120)}"` : null,
+  ].filter(Boolean);
+
   return [
     {
       round: 1,
@@ -29,7 +38,7 @@ export function generateFallbackPlan(
         name: 'get_timeline_info',
         args: {},
       },
-      description: 'Inspect timeline to rebuild a valid execution plan',
+      description: `Inspect timeline to rebuild a valid execution plan. ${summaryParts.join(' | ')}`,
       isReadOnly: true,
     },
   ];

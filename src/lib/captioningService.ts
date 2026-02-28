@@ -16,6 +16,7 @@ import {
 import { z } from "zod";
 import { waitForSlot } from "./rateLimiter";
 import { recordUsage } from "./tokenTracker";
+import { srtTimeToSeconds } from "./timecode";
 
 // Access Electron API for local transcription
 const electron = (window as any).electron;
@@ -289,21 +290,7 @@ export function toPlainText(
     .join("\n");
 }
 
-/**
- * Parse SRT time format to seconds
- */
-export function srtTimeToSeconds(srtTime: string): number {
-  const match = srtTime.match(/(\d{2}):(\d{2}):(\d{2}),(\d{3})/);
-  if (!match) return 0;
-
-  const [, hours, minutes, seconds, milliseconds] = match;
-  return (
-    parseInt(hours) * 3600 +
-    parseInt(minutes) * 60 +
-    parseInt(seconds) +
-    parseInt(milliseconds) / 1000
-  );
-}
+export { srtTimeToSeconds } from "./timecode";
 
 /**
  * Convert seconds to SRT time format

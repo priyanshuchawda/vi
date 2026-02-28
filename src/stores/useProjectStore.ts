@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { useAiMemoryStore } from './useAiMemoryStore';
+import { useChatStore } from './useChatStore';
 import {
   splitClipAtTime,
   validateSplitPosition,
@@ -8,7 +9,7 @@ import {
 import type { ClipSegment } from '../lib/clipOperations';
 import type { SubtitleEntry } from '../lib/srtParser';
 import type { TranscriptionResult } from '../types/electron';
-import { srtTimeToSeconds } from '../lib/captioningService';
+import { srtTimeToSeconds } from '../lib/timecode';
 
 export interface TextProperties {
   text: string;
@@ -310,10 +311,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
       // Sync memory with updated project state
       const clipIds = newState.clips.map(c => c.id);
-      // Import lazily to avoid circular dependencies
-      import('./useAiMemoryStore').then(({ useAiMemoryStore }) => {
-        useAiMemoryStore.getState().syncWithProject(clipIds);
-      });
+      useAiMemoryStore.getState().syncWithProject(clipIds);
 
       return { ...newState, ...saveToHistory({ ...state, ...newState }) };
     });
@@ -544,7 +542,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const memoryEntries = memoryStore.exportMemory();
 
       // Get chat from chat store
-      const chatStore = (await import('./useChatStore')).useChatStore.getState();
+      const chatStore = useChatStore.getState();
       const chatData = chatStore.exportChatForProject();
 
       const projectData = {
@@ -623,7 +621,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         memoryStore.importMemory(projectData.memory || []);
 
         // Load chat from project file
-        const { useChatStore } = await import('./useChatStore');
         const chatState = useChatStore.getState();
         
         if (projectData.chat && projectData.chat.messages) {
@@ -675,9 +672,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     memoryStore.clearMemory();
 
     // Clear chat for new project
-    import('./useChatStore').then(({ useChatStore }) => {
-      useChatStore.getState().clearChatForNewProject();
-    });
+    useChatStore.getState().clearChatForNewProject();
   },
   undo: () => set((state) => {
     if (state.historyIndex > 0) {

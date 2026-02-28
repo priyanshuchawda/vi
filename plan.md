@@ -96,7 +96,7 @@ Acceptance criteria:
 
 ### Phase 3: Two-Pass Compression (P0)
 Goal: improve compression reliability and reduce summary information loss.
-Status: `in_progress`
+Status: `completed` (PR #27 merged)
 
 Deliverables:
 - Extend `summarizeHistory` pipeline to:
@@ -114,6 +114,7 @@ Acceptance criteria:
 
 ### Phase 4: Adaptive Bedrock Model Routing + Escalation (P1)
 Goal: pay for stronger models only when needed.
+Status: `in_progress`
 
 Deliverables:
 - New `src/lib/modelRoutingPolicy.ts`:

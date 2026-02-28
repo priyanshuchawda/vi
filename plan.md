@@ -151,7 +151,7 @@ Acceptance criteria:
 
 ### Phase 6: Unified Cost Governance + UI/Telemetry (P3)
 Goal: make budget behavior explicit, measurable, and safe.
-Status: `in_progress`
+Status: `completed` (PR #30 merged)
 
 Deliverables:
 - Per-workflow budgets (chat/planning/caption/memory) in `costPolicy`.

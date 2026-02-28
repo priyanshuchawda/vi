@@ -55,6 +55,7 @@ const ChatPanel = () => {
     fallback_rate: number;
     execution_validation_fail_rate: number;
     repeat_response_rate: number;
+    turn_retry_rate: number;
   } | null>(null);
   const [sessionLogs, setSessionLogs] = useState<SessionLogEntry[]>([]);
   const hasInitializedLogsRef = useRef(false);
@@ -182,6 +183,45 @@ const ChatPanel = () => {
     });
   };
 
+  const runWithTransientRetry = async <T,>(
+    run: () => Promise<T>,
+    options: {
+      turnId: string | null;
+      onRetryStatus: (attempt: number, nextAt: number, reason: string) => void;
+      maxRetries?: number;
+    },
+  ): Promise<T> => {
+    const maxRetries = options.maxRetries ?? 2;
+    let attempt = 0;
+
+    while (true) {
+      try {
+        return await run();
+      } catch (error) {
+        attempt += 1;
+        const { classifyTransientError, getRetryDelayMs } = await import('../../lib/retryClassifier');
+        const classification = classifyTransientError(error);
+        if (!classification.retryable || attempt > maxRetries) {
+          throw error;
+        }
+
+        const delayMs = getRetryDelayMs(attempt);
+        const nextAt = Date.now() + delayMs;
+        const { recordTurnRetry } = await import('../../lib/aiTelemetry');
+        recordTurnRetry();
+        options.onRetryStatus(attempt, nextAt, classification.reason);
+        if (options.turnId) {
+          setTurnStatus(options.turnId, 'retry', {
+            attempt,
+            message: classification.reason,
+            nextAt,
+          });
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  };
+
   const handleSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
     // Add user message with attachments
     const userMessageId = addMessage('user', content, undefined, attachments);
@@ -274,8 +314,22 @@ const ChatPanel = () => {
         const { generateCompletePlan } = await import('../../lib/aiPlanningService');
 
         assistantMessage('Analyzing your request and generating execution plan...');
-        
-        const plan = await generateCompletePlan(content, aiHistory, 3);
+
+        const plan = await runWithTransientRetry(
+          () => generateCompletePlan(content, aiHistory, 3),
+          {
+            turnId,
+            onRetryStatus: (attempt, nextAt, reason) => {
+              assistantMessage(
+                `Transient planner error (${reason}). Retrying attempt ${attempt} at ${new Date(nextAt).toLocaleTimeString()}.`
+              );
+            },
+            maxRetries: 2,
+          },
+        );
+        if (turnId) {
+          setTurnStatus(turnId, 'planning');
+        }
 
         setIsGeneratingPlan(false);
 
@@ -771,18 +825,34 @@ const ChatPanel = () => {
     setIsGeneratingPlan(true);
     setIsTyping(true);
     setLastPlanExecutionError(null);
+    const rebuildingTurnId = activeTurnId;
 
     try {
       const { generateCompletePlan } = await import('../../lib/aiPlanningService');
-      const rebuilt = await generateCompletePlan(
-        executionPlan.originalMessage,
-        executionPlan.history,
-        3,
+      const rebuilt = await runWithTransientRetry(
+        () => generateCompletePlan(
+          executionPlan.originalMessage,
+          executionPlan.history,
+          3,
+        ),
+        {
+          turnId: rebuildingTurnId,
+          onRetryStatus: (attempt, nextAt, reason) => {
+            addMessage(
+              'assistant',
+              `Transient rebuild error (${reason}). Retrying attempt ${attempt} at ${new Date(nextAt).toLocaleTimeString()}.`,
+            );
+          },
+          maxRetries: 2,
+        }
       );
       setExecutionPlan({
         ...executionPlan,
         plan: rebuilt,
       });
+      if (rebuildingTurnId) {
+        setTurnStatus(rebuildingTurnId, 'awaiting_approval');
+      }
       addMessage('assistant', 'Rebuilt plan from current timeline state. Please review and execute.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to rebuild plan';
@@ -1197,6 +1267,9 @@ const ChatPanel = () => {
               execution_validation_fail_rate: <span className="text-cyan-200">{formatRate(telemetryRates?.execution_validation_fail_rate)}</span>
             </div>
             <div className="text-text-secondary">
+              turn_retry_rate: <span className="text-cyan-200">{formatRate(telemetryRates?.turn_retry_rate)}</span>
+            </div>
+            <div className="text-text-secondary">
               repeat_response_rate: <span className="text-cyan-200">{formatRate(telemetryRates?.repeat_response_rate)}</span>
             </div>
           </div>
@@ -1244,6 +1317,11 @@ const ChatPanel = () => {
                     {turn.parts.length} part{turn.parts.length !== 1 ? 's' : ''}
                   </span>
                 </div>
+                {turn.status === 'retry' && turn.retryInfo && (
+                  <div className="mt-1 text-[10px] text-amber-300">
+                    Retry #{turn.retryInfo.attempt} in {formatRetryCountdown(turn.retryInfo.nextAt)} · {turn.retryInfo.message}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1710,4 +1788,10 @@ function getTurnLatestSummary(turn: ChatTurn): string {
     default:
       return 'Updated';
   }
+}
+
+function formatRetryCountdown(nextAt: number): string {
+  const remainingMs = Math.max(0, nextAt - Date.now());
+  const seconds = Math.ceil(remainingMs / 1000);
+  return `${seconds}s`;
 }

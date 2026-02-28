@@ -4,6 +4,7 @@ import {
   recordAssistantResponse,
   recordExecutionAttempt,
   recordPlanningAttempt,
+  recordTurnRetry,
   resetTelemetry,
 } from '../../src/lib/aiTelemetry';
 
@@ -23,6 +24,16 @@ describe('aiTelemetry', () => {
     expect(rates.plan_compile_fail_rate).toBeCloseTo(0.5, 5);
     expect(rates.fallback_rate).toBeCloseTo(0.5, 5);
     expect(rates.execution_validation_fail_rate).toBeCloseTo(0.5, 5);
+    expect(rates.turn_retry_rate).toBe(0);
+  });
+
+  it('tracks retry rate for execution turns', () => {
+    recordExecutionAttempt({ validationFailed: false });
+    recordExecutionAttempt({ validationFailed: false });
+    recordTurnRetry();
+
+    const rates = getTelemetryRates();
+    expect(rates.turn_retry_rate).toBeCloseTo(0.5, 5);
   });
 
   it('tracks repeated assistant responses', () => {

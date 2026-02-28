@@ -6,6 +6,7 @@ type TelemetryState = {
   fallbackCount: number;
   executionAttempts: number;
   executionValidationFailures: number;
+  retryAttempts: number;
   assistantResponses: number;
   repeatedResponses: number;
   lastAssistantResponse: string;
@@ -18,6 +19,7 @@ const DEFAULT_STATE: TelemetryState = {
   fallbackCount: 0,
   executionAttempts: 0,
   executionValidationFailures: 0,
+  retryAttempts: 0,
   assistantResponses: 0,
   repeatedResponses: 0,
   lastAssistantResponse: '',
@@ -75,6 +77,12 @@ export function recordExecutionAttempt(metrics: {
   });
 }
 
+export function recordTurnRetry(): void {
+  update((state) => {
+    state.retryAttempts += 1;
+  });
+}
+
 export function recordAssistantResponse(text: string): void {
   const normalized = (text || '').trim().replace(/\s+/g, ' ').toLowerCase();
   if (!normalized) return;
@@ -93,6 +101,7 @@ export function getTelemetryRates(): {
   fallback_rate: number;
   execution_validation_fail_rate: number;
   repeat_response_rate: number;
+  turn_retry_rate: number;
 } {
   const state = loadState();
 
@@ -108,6 +117,10 @@ export function getTelemetryRates(): {
     execution_validation_fail_rate:
       state.executionAttempts > 0
         ? state.executionValidationFailures / state.executionAttempts
+        : 0,
+    turn_retry_rate:
+      state.executionAttempts > 0
+        ? state.retryAttempts / state.executionAttempts
         : 0,
     repeat_response_rate:
       state.assistantResponses > 0

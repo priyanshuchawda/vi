@@ -474,6 +474,7 @@ const ChatPanel = () => {
               },
               undefined,
               {
+                mode: 'ask',
                 onLifecycle: (event) => {
                   recordToolLifecycleForTurn(turnId, event);
                 },
@@ -823,6 +824,7 @@ const ChatPanel = () => {
           });
         },
         {
+          mode: 'edit',
           onLifecycle: (event) => {
             recordToolLifecycleForTurn(activeTurnId, event);
           },

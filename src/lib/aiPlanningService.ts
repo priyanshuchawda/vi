@@ -595,6 +595,7 @@ export async function executePlan(
         }
       },
       {
+        mode: 'edit',
         onLifecycle: onToolLifecycle,
       },
     );

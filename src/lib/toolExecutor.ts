@@ -1,7 +1,7 @@
 import { useProjectStore } from "../stores/useProjectStore";
 import { useAiMemoryStore } from "../stores/useAiMemoryStore";
 import type { FunctionCall, ToolResult } from "./videoEditingTools";
-import { isReadOnlyTool } from "./toolCapabilityMatrix";
+import { isReadOnlyTool, isToolAllowedInMode, type RuntimeToolMode } from "./toolCapabilityMatrix";
 
 type ToolErrorCategory =
   | "plan_error"
@@ -54,6 +54,7 @@ interface ToolExecutionHookEvent {
 }
 
 interface ExecutionLifecycleContext {
+  mode?: RuntimeToolMode;
   onLifecycle?: (event: ToolExecutionLifecycleEvent) => void;
   onHook?: (event: ToolExecutionHookEvent) => void;
 }
@@ -1511,6 +1512,25 @@ export class ToolExecutor {
     return normalized;
   }
 
+  private static buildModeDeniedResult(
+    call: FunctionCall,
+    mode: RuntimeToolMode,
+  ): ToolResult {
+    return {
+      name: call.name,
+      result: {
+        success: false,
+        message: "Mode policy blocked tool execution",
+        errorType: "constraint_violation",
+        error: `Tool "${call.name}" is not allowed in "${mode}" mode.`,
+        recoveryHint:
+          mode === "ask" || mode === "plan"
+            ? "Switch to edit mode (or request execution) before mutating timeline state."
+            : "Retry with a tool allowed by current mode policy.",
+      },
+    };
+  }
+
   static async executeToolCallWithLifecycle(
     call: FunctionCall,
     index: number,
@@ -1524,6 +1544,29 @@ export class ToolExecutor {
       total,
       event: "tool.execute.before",
     });
+
+    const mode = context?.mode;
+    if (mode && !isToolAllowedInMode(call.name, mode)) {
+      const denied = this.normalizeToolResult(
+        call,
+        this.buildModeDeniedResult(call, mode),
+      );
+      context?.onLifecycle?.({
+        call,
+        index,
+        total,
+        state: "error",
+        result: denied,
+      });
+      context?.onHook?.({
+        call,
+        index,
+        total,
+        event: "tool.execute.after",
+        result: denied,
+      });
+      return denied;
+    }
 
     const validation = this.validateFunctionCall(call);
     if (!validation.valid) {

@@ -10,6 +10,7 @@ export type ToolErrorCategory =
   | 'constraint_violation';
 
 export type ToolSafety = 'read_only' | 'state_mutation';
+export type RuntimeToolMode = 'ask' | 'plan' | 'edit';
 
 export interface ToolCapability {
   name: string;
@@ -139,6 +140,25 @@ function inferFailureCategories(name: string): ToolErrorCategory[] {
 
 export function isReadOnlyTool(name: string): boolean {
   return READ_ONLY_TOOLS.has(name);
+}
+
+export function getAllowedToolsForMode(mode: RuntimeToolMode): Set<string> {
+  const allTools = new Set(getSupportedToolNames());
+  if (mode === 'edit') {
+    return allTools;
+  }
+
+  const allowlist = new Set<string>();
+  for (const toolName of allTools) {
+    if (isReadOnlyTool(toolName)) {
+      allowlist.add(toolName);
+    }
+  }
+  return allowlist;
+}
+
+export function isToolAllowedInMode(name: string, mode: RuntimeToolMode): boolean {
+  return getAllowedToolsForMode(mode).has(name);
 }
 
 export function getSupportedToolNames(): string[] {

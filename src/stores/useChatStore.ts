@@ -325,6 +325,7 @@ export const useChatStore = create<ChatStore>()(
             const nextRetryInfo = status === 'retry' ? retryInfo : undefined;
             return {
               ...turn,
+              mode: turn.mode === 'plan' && status === 'executing' ? 'edit' : turn.mode,
               status,
               retryInfo: nextRetryInfo,
               parts: turn.status === status

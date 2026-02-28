@@ -9,6 +9,18 @@ import TypingIndicator from './TypingIndicator';
 import { TokenCounter } from './TokenCounter';
 import type { ChatTurn, MediaAttachment } from '../../types/chat';
 import { getBudgetPolicy, updateBudgetPolicy, type BudgetPolicy } from '../../lib/costPolicy';
+import {
+  convertToAIHistory,
+  sendMessageWithHistoryStream,
+  sendToolResultsToAI,
+} from '../../lib/aiService';
+import {
+  getTelemetryRates,
+  recordTurnRetry,
+  resetTelemetry,
+} from '../../lib/aiTelemetry';
+import { classifyTransientError, getRetryDelayMs } from '../../lib/retryClassifier';
+import { buildAIProjectSnapshot } from '../../lib/aiProjectSnapshot';
 
 interface SessionLogEntry {
   id: string;
@@ -138,13 +150,11 @@ const ChatPanel = () => {
 
   useEffect(() => {
     if (!showTelemetry) return;
-    import('../../lib/aiTelemetry')
-      .then(({ getTelemetryRates }) => {
-        setTelemetryRates(getTelemetryRates());
-      })
-      .catch(() => {
-        setTelemetryRates(null);
-      });
+    try {
+      setTelemetryRates(getTelemetryRates());
+    } catch {
+      setTelemetryRates(null);
+    }
   }, [showTelemetry, messages.length]);
 
   // Update context when clips or time changes
@@ -212,7 +222,6 @@ const ChatPanel = () => {
         return await run();
       } catch (error) {
         attempt += 1;
-        const { classifyTransientError, getRetryDelayMs } = await import('../../lib/retryClassifier');
         const classification = classifyTransientError(error);
         if (!classification.retryable || attempt > maxRetries) {
           throw error;
@@ -220,7 +229,6 @@ const ChatPanel = () => {
 
         const delayMs = getRetryDelayMs(attempt);
         const nextAt = Date.now() + delayMs;
-        const { recordTurnRetry } = await import('../../lib/aiTelemetry');
         recordTurnRetry();
         options.onRetryStatus(attempt, nextAt, classification.reason);
         if (options.turnId) {
@@ -382,9 +390,6 @@ const ChatPanel = () => {
       const contextFlags = detectContextNeeds(content, intent);
 
       console.log(`Intent: ${intent} | Context: T=${contextFlags.includeTimeline} M=${contextFlags.includeMemory} C=${contextFlags.includeChannel}`);
-
-      // Import services
-      const { convertToAIHistory } = await import('../../lib/aiService');
 
       // Convert chat history to Bedrock format (exclude system messages)
       const aiHistory = convertToAIHistory(
@@ -601,8 +606,6 @@ const ChatPanel = () => {
       }
 
       // ── CHAT INTENT: Direct text response (no planning, no tools) ──
-      const { sendMessageWithHistoryStream } = await import('../../lib/aiService');
-      
       let fullResponse = '';
       let isFirstChunk = true;
       let currentMessageId = '';
@@ -630,10 +633,7 @@ const ChatPanel = () => {
 
           // Auto-execute read-only tools without approval prompt.
           if (functionCalls.length > 0 && functionCalls.every(isReadOnlyToolCall)) {
-            const [{ ToolExecutor }, { sendToolResultsToAI }] = await Promise.all([
-              import('../../lib/toolExecutor'),
-              import('../../lib/aiService'),
-            ]);
+            const { ToolExecutor } = await import('../../lib/toolExecutor');
 
             const results = await ToolExecutor.executeWithPolicy(
               functionCalls,
@@ -828,7 +828,6 @@ const ChatPanel = () => {
   };
 
   const handleResetTelemetry = async () => {
-    const { resetTelemetry, getTelemetryRates } = await import('../../lib/aiTelemetry');
     resetTelemetry();
     setTelemetryRates(getTelemetryRates());
   };
@@ -1057,7 +1056,6 @@ const ChatPanel = () => {
     }
 
     try {
-      const { sendToolResultsToAI } = await import('../../lib/aiService');
       const toolResults = [
         {
           name: 'ask_clarification',
@@ -1157,7 +1155,6 @@ const ChatPanel = () => {
     if (!pendingToolCalls) return;
     setPendingClarification(null);
     
-    const { buildAIProjectSnapshot } = await import('../../lib/aiProjectSnapshot');
     const beforeSnapshot = buildAIProjectSnapshot();
     if (activeTurnId) {
       setTurnStatus(activeTurnId, 'executing');
@@ -1197,8 +1194,6 @@ const ChatPanel = () => {
       setToolExecutionProgress(null);
       
       // Send results back to AI for final response
-      const { sendToolResultsToAI } = await import('../../lib/aiService');
-      
       let fullResponse = '';
       let isFirstChunk = true;
       let currentMessageId = '';

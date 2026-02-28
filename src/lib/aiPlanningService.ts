@@ -19,7 +19,7 @@ import {
   summarizeHistory,
 } from './aiService';
 import { allVideoEditingTools } from './videoEditingTools';
-import type { FunctionCall } from './videoEditingTools';
+import type { FunctionCall, ToolResult } from './videoEditingTools';
 import { useProjectStore } from '../stores/useProjectStore';
 import { optimizeContextHistory } from './contextManager';
 import { waitForSlot, withRetryOn429 } from './rateLimiter';
@@ -511,7 +511,14 @@ export async function executePlan(
   plan: ExecutionPlan,
   originalHistory: AIChatMessage[],
   originalMessage: string,
-  onProgress?: (current: number, total: number, operation: PlannedOperation) => void
+  onProgress?: (current: number, total: number, operation: PlannedOperation) => void,
+  onToolLifecycle?: (event: {
+    call: FunctionCall;
+    state: 'pending' | 'running' | 'completed' | 'error';
+    index: number;
+    total: number;
+    result?: ToolResult;
+  }) => void,
 ): Promise<string> {
   const { ToolExecutor } = await import('./toolExecutor');
   const messages: AIChatMessage[] = [...originalHistory];
@@ -575,7 +582,10 @@ export async function executePlan(
           completedOperations++;
           onProgress?.(completedOperations, plan.operations.length, currentOperation);
         }
-      }
+      },
+      {
+        onLifecycle: onToolLifecycle,
+      },
     );
 
     // Check for any failed operations

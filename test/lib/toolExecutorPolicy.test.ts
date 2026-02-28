@@ -112,4 +112,31 @@ describe('ToolExecutor planning guard + policy execution', () => {
     expect(results[0].result.data?.deleted_count).toBe(1);
     expect(results[0].result.data?.missing_ids).toContain('missing-clip');
   });
+
+  it('emits lifecycle states and before/after hooks for each tool call', async () => {
+    const lifecycleStates: string[] = [];
+    const hooks: string[] = [];
+
+    await ToolExecutor.executeWithPolicy(
+      [
+        { name: 'get_timeline_info', args: {} },
+      ],
+      {
+        mode: 'strict_sequential',
+        stopOnFailure: true,
+      },
+      undefined,
+      {
+        onLifecycle: (event) => {
+          lifecycleStates.push(event.state);
+        },
+        onHook: (event) => {
+          hooks.push(event.event);
+        },
+      },
+    );
+
+    expect(lifecycleStates).toEqual(['pending', 'running', 'completed']);
+    expect(hooks).toEqual(['tool.execute.before', 'tool.execute.after']);
+  });
 });

@@ -33,6 +33,31 @@ interface ExecutionPolicy {
   stopOnFailure?: boolean;
 }
 
+type ToolLifecycleState = "pending" | "running" | "completed" | "error";
+
+interface ToolExecutionLifecycleEvent {
+  call: FunctionCall;
+  index: number;
+  total: number;
+  state: ToolLifecycleState;
+  result?: ToolResult;
+}
+
+type ToolExecutionHookName = "tool.execute.before" | "tool.execute.after";
+
+interface ToolExecutionHookEvent {
+  call: FunctionCall;
+  index: number;
+  total: number;
+  event: ToolExecutionHookName;
+  result?: ToolResult;
+}
+
+interface ExecutionLifecycleContext {
+  onLifecycle?: (event: ToolExecutionLifecycleEvent) => void;
+  onHook?: (event: ToolExecutionHookEvent) => void;
+}
+
 /**
  * Tool Executor - Maps AI function calls to actual video editing operations
  *
@@ -1464,6 +1489,85 @@ export class ToolExecutor {
     };
   }
 
+  private static normalizeToolResult(call: FunctionCall, result: ToolResult): ToolResult {
+    const normalized: ToolResult = {
+      ...result,
+      name: result.name || call.name,
+      result: {
+        ...result.result,
+        success: Boolean(result.result.success),
+        message: result.result.message || (result.result.success ? "Completed" : "Execution failed"),
+      },
+    };
+
+    if (!normalized.result.success) {
+      normalized.result.errorType = normalized.result.errorType || "execution_error";
+      normalized.result.recoveryHint =
+        normalized.result.recoveryHint ||
+        "Inspect tool arguments and current timeline state, then retry.";
+      normalized.result.error = normalized.result.error || "Unknown error";
+    }
+
+    return normalized;
+  }
+
+  static async executeToolCallWithLifecycle(
+    call: FunctionCall,
+    index: number,
+    total: number,
+    context?: ExecutionLifecycleContext,
+  ): Promise<ToolResult> {
+    context?.onLifecycle?.({ call, index, total, state: "pending" });
+    context?.onHook?.({
+      call,
+      index,
+      total,
+      event: "tool.execute.before",
+    });
+
+    const validation = this.validateFunctionCall(call);
+    if (!validation.valid) {
+      const failed = this.normalizeToolResult(
+        call,
+        this.buildValidationFailureResult(call, validation),
+      );
+      context?.onLifecycle?.({
+        call,
+        index,
+        total,
+        state: "error",
+        result: failed,
+      });
+      context?.onHook?.({
+        call,
+        index,
+        total,
+        event: "tool.execute.after",
+        result: failed,
+      });
+      return failed;
+    }
+
+    context?.onLifecycle?.({ call, index, total, state: "running" });
+
+    const result = this.normalizeToolResult(call, this.executeSingle(call));
+    context?.onLifecycle?.({
+      call,
+      index,
+      total,
+      state: result.result.success ? "completed" : "error",
+      result,
+    });
+    context?.onHook?.({
+      call,
+      index,
+      total,
+      event: "tool.execute.after",
+      result,
+    });
+    return result;
+  }
+
   static preflightPlan(calls: FunctionCall[]): {
     valid: boolean;
     normalizedCalls: FunctionCall[];
@@ -1513,6 +1617,7 @@ export class ToolExecutor {
     calls: FunctionCall[],
     policy: ExecutionPolicy = {},
     onProgress?: (index: number, total: number, result: ToolResult) => void,
+    lifecycle?: ExecutionLifecycleContext,
   ): Promise<ToolResult[]> {
     const mode = policy.mode || "strict_sequential";
     const maxReadOnlyBatchSize = Math.max(
@@ -1522,7 +1627,7 @@ export class ToolExecutor {
     const stopOnFailure = policy.stopOnFailure ?? true;
 
     if (mode !== "hybrid") {
-      return this.executeAll(calls, onProgress);
+      return this.executeAll(calls, onProgress, lifecycle);
     }
 
     const results: ToolResult[] = [];
@@ -1533,18 +1638,12 @@ export class ToolExecutor {
       const current = calls[i];
 
       if (!isReadOnlyTool(current.name)) {
-        const validation = this.validateFunctionCall(current);
-        if (!validation.valid) {
-          const failed = this.buildValidationFailureResult(current, validation);
-          results.push(failed);
-          completed++;
-          onProgress?.(completed, calls.length, failed);
-          if (stopOnFailure) break;
-          i++;
-          continue;
-        }
-
-        const result = this.executeSingle(current);
+        const result = await this.executeToolCallWithLifecycle(
+          current,
+          i + 1,
+          calls.length,
+          lifecycle,
+        );
         results.push(result);
         completed++;
         onProgress?.(completed, calls.length, result);
@@ -1555,6 +1654,7 @@ export class ToolExecutor {
       }
 
       const batch: FunctionCall[] = [current];
+      const batchIndices: number[] = [i + 1];
       let cursor = i + 1;
       while (
         cursor < calls.length &&
@@ -1562,31 +1662,19 @@ export class ToolExecutor {
         batch.length < maxReadOnlyBatchSize
       ) {
         batch.push(calls[cursor]);
+        batchIndices.push(cursor + 1);
         cursor++;
       }
 
-      const validationFailures: ToolResult[] = [];
-      for (const call of batch) {
-        const validation = this.validateFunctionCall(call);
-        if (!validation.valid) {
-          validationFailures.push(
-            this.buildValidationFailureResult(call, validation),
-          );
-        }
-      }
-      if (validationFailures.length > 0) {
-        for (const failed of validationFailures) {
-          results.push(failed);
-          completed++;
-          onProgress?.(completed, calls.length, failed);
-        }
-        if (stopOnFailure) break;
-        i = cursor;
-        continue;
-      }
-
       const batchResults = await Promise.all(
-        batch.map(async (call) => this.executeSingle(call)),
+        batch.map(async (call, batchIndex) =>
+          this.executeToolCallWithLifecycle(
+            call,
+            batchIndices[batchIndex],
+            calls.length,
+            lifecycle,
+          ),
+        ),
       );
 
       for (const result of batchResults) {
@@ -1611,23 +1699,18 @@ export class ToolExecutor {
   static async executeAll(
     calls: FunctionCall[],
     onProgress?: (index: number, total: number, result: ToolResult) => void,
+    lifecycle?: ExecutionLifecycleContext,
   ): Promise<ToolResult[]> {
     const results: ToolResult[] = [];
 
     for (let i = 0; i < calls.length; i++) {
       const call = calls[i];
-
-      // Validate first
-      const validation = this.validateFunctionCall(call);
-      if (!validation.valid) {
-        const result = this.buildValidationFailureResult(call, validation);
-        results.push(result);
-        onProgress?.(i + 1, calls.length, result);
-        break;
-      }
-
-      // Execute
-      const result = this.executeSingle(call);
+      const result = await this.executeToolCallWithLifecycle(
+        call,
+        i + 1,
+        calls.length,
+        lifecycle,
+      );
       results.push(result);
 
       // Progress callback

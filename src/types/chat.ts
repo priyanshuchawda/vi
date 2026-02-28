@@ -16,6 +16,7 @@ export type TurnPart =
   | { type: 'tool_result'; name: string; success: boolean; message?: string; error?: string; timestamp: number }
   | { type: 'step_start'; label: string; timestamp: number }
   | { type: 'step_finish'; label: string; success: boolean; timestamp: number }
+  | { type: 'status'; from: ChatTurnStatus; to: ChatTurnStatus; timestamp: number }
   | { type: 'error'; message: string; timestamp: number };
 
 export interface ChatTurn {

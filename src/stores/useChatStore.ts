@@ -59,6 +59,27 @@ interface ChatStore {
 
 const MIN_PANEL_WIDTH = 280;
 const MAX_PANEL_WIDTH = 520;
+const TERMINAL_TURN_STATUSES: ChatTurnStatus[] = ['completed', 'error', 'interrupted'];
+
+const TURN_STATUS_TRANSITIONS: Record<ChatTurnStatus, ChatTurnStatus[]> = {
+  idle: ['planning', 'awaiting_approval', 'executing', 'completed', 'error', 'interrupted'],
+  planning: ['awaiting_approval', 'executing', 'retry', 'completed', 'error', 'interrupted'],
+  awaiting_approval: ['planning', 'executing', 'completed', 'error', 'interrupted'],
+  executing: ['retry', 'completed', 'error', 'interrupted'],
+  retry: ['planning', 'executing', 'error', 'interrupted'],
+  completed: [],
+  error: [],
+  interrupted: [],
+};
+
+function isTerminalTurnStatus(status: ChatTurnStatus): boolean {
+  return TERMINAL_TURN_STATUSES.includes(status);
+}
+
+function canTransitionTurnStatus(from: ChatTurnStatus, to: ChatTurnStatus): boolean {
+  if (from === to) return true;
+  return TURN_STATUS_TRANSITIONS[from].includes(to);
+}
 
 function clampPanelWidth(width: number): number {
   if (!Number.isFinite(width)) return 320;
@@ -254,7 +275,25 @@ export const useChatStore = create<ChatStore>()(
         const now = Date.now();
         set((state) => ({
           turns: [
-            ...state.turns,
+            ...state.turns.map((turn) => {
+              if (turn.id !== state.activeTurnId || turn.endedAt) return turn;
+              const interruptedStatus: ChatTurnStatus = 'interrupted';
+              return {
+                ...turn,
+                status: interruptedStatus,
+                closeReason: 'interrupted' as const,
+                endedAt: now,
+                parts: [
+                  ...turn.parts,
+                  {
+                    type: 'status' as const,
+                    from: turn.status,
+                    to: interruptedStatus,
+                    timestamp: now,
+                  },
+                ],
+              };
+            }),
             {
               id,
               userMessageId,
@@ -271,26 +310,65 @@ export const useChatStore = create<ChatStore>()(
       appendTurnPart: (turnId, part) => set((state) => ({
         turns: state.turns.map((turn) =>
           turn.id === turnId
-            ? { ...turn, parts: [...turn.parts, part] }
+            ? turn.endedAt
+              ? turn
+              : { ...turn, parts: [...turn.parts, part] }
             : turn
         ),
       })),
-      setTurnStatus: (turnId, status, retryInfo) => set((state) => ({
-        turns: state.turns.map((turn) =>
-          turn.id === turnId
-            ? { ...turn, status, retryInfo }
-            : turn
-        ),
-      })),
+      setTurnStatus: (turnId, status, retryInfo) => set((state) => {
+        const now = Date.now();
+        return {
+          turns: state.turns.map((turn) => {
+            if (turn.id !== turnId || turn.endedAt) return turn;
+            if (!canTransitionTurnStatus(turn.status, status)) return turn;
+            const nextRetryInfo = status === 'retry' ? retryInfo : undefined;
+            return {
+              ...turn,
+              status,
+              retryInfo: nextRetryInfo,
+              parts: turn.status === status
+                ? turn.parts
+                : [
+                    ...turn.parts,
+                    {
+                      type: 'status' as const,
+                      from: turn.status,
+                      to: status,
+                      timestamp: now,
+                    },
+                  ],
+            };
+          }),
+        };
+      }),
       closeTurn: (turnId, reason) => set((state) => ({
         turns: state.turns.map((turn) =>
           turn.id === turnId
-            ? {
-                ...turn,
-                status: reason === 'error' ? 'error' : reason === 'interrupted' ? 'interrupted' : 'completed',
-                closeReason: reason,
-                endedAt: Date.now(),
-              }
+            ? (() => {
+                if (turn.endedAt) return turn;
+                const now = Date.now();
+                const nextStatus =
+                  reason === 'error' ? 'error' : reason === 'interrupted' ? 'interrupted' : 'completed';
+                return {
+                  ...turn,
+                  status: nextStatus,
+                  closeReason: reason,
+                  endedAt: now,
+                  retryInfo: isTerminalTurnStatus(nextStatus) ? undefined : turn.retryInfo,
+                  parts: turn.status === nextStatus
+                    ? turn.parts
+                    : [
+                        ...turn.parts,
+                        {
+                          type: 'status' as const,
+                          from: turn.status,
+                          to: nextStatus,
+                          timestamp: now,
+                        },
+                      ],
+                };
+              })()
             : turn
         ),
         activeTurnId: state.activeTurnId === turnId ? null : state.activeTurnId,

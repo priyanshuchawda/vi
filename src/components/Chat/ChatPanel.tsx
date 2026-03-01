@@ -13,6 +13,7 @@ import {
   convertToAIHistory,
   sendMessageWithHistoryStream,
   sendToolResultsToAI,
+  type StreamOptions,
 } from '../../lib/aiService';
 import {
   getTelemetryRates,
@@ -404,7 +405,8 @@ const ChatPanel = () => {
 
       // Convert chat history to Bedrock format (exclude system messages)
       const aiHistory = convertToAIHistory(
-        messages.filter(m => m.role !== 'system')
+        messages.filter(m => m.role !== 'system'),
+        { mediaMode: intent === 'edit' ? 'descriptor_only' : 'inline_bytes' },
       );
 
       // ── EDIT INTENT: Use planning pipeline ──────────────────────────
@@ -656,9 +658,13 @@ const ChatPanel = () => {
       let currentMessageId = '';
 
       // For chat intent: skip tools + selective context = huge token savings
-      const streamOptions = intent === 'chat'
-        ? { includeTools: false, contextFlags }
-        : { includeTools: true, contextFlags };
+      const streamOptions: StreamOptions = intent === 'chat'
+        ? {
+            includeTools: false,
+            contextFlags,
+            mediaMode: shouldInlineMediaBytes(content, attachments) ? 'inline_bytes' : 'descriptor_only',
+          }
+        : { includeTools: true, contextFlags, mediaMode: 'descriptor_only' as const };
 
       for await (const chunk of sendMessageWithHistoryStream(content, aiHistory, attachments, streamOptions)) {
         if (chunk.type === 'upload_progress' && chunk.uploadProgress) {
@@ -2284,6 +2290,12 @@ function isAmbiguousContinuation(input: string): boolean {
     /\b(yes|ok|okay|sure|continue|next|step by step|move next)\b/.test(text) &&
     text.length <= 60
   );
+}
+
+function shouldInlineMediaBytes(input: string, attachments?: MediaAttachment[]): boolean {
+  if (!attachments || attachments.length === 0) return false;
+  return /\b(analyze|describe|what do you see|review this frame|visual analysis|inspect image|inspect video)\b/i
+    .test(input);
 }
 
 function hasRecentEditingContext(

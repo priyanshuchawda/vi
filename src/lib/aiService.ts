@@ -74,6 +74,8 @@ export interface AIChatMessage {
   content: Array<Record<string, any>>;
 }
 
+type MediaEncodingMode = "inline_bytes" | "descriptor_only";
+
 // ─── System Instruction ───────────────────────────────────────────────────────
 
 /**
@@ -306,8 +308,12 @@ function getMediaFormat(mimeType: string): string {
  */
 async function buildMediaParts(
   attachments: MediaAttachment[],
+  mode: MediaEncodingMode = "inline_bytes",
 ): Promise<Array<Record<string, any>>> {
   const parts: Array<Record<string, any>> = [];
+  if (mode === "descriptor_only") {
+    return parts;
+  }
 
   for (const attachment of attachments) {
     const format = getMediaFormat(attachment.mimeType);
@@ -339,6 +345,15 @@ async function buildMediaParts(
   }
 
   return parts;
+}
+
+function buildMediaDescriptorText(attachments: MediaAttachment[]): string {
+  if (!attachments || attachments.length === 0) return "";
+  const lines = attachments.map((attachment, index) => {
+    const sizeMb = (attachment.size / (1024 * 1024)).toFixed(2);
+    return `${index + 1}. ${attachment.type.toUpperCase()} | ${attachment.name} | ${attachment.mimeType} | ${sizeMb}MB`;
+  });
+  return `\n[Attached Media Descriptors]\n${lines.join("\n")}\n`;
 }
 
 // ─── Context Optimization ─────────────────────────────────────────────────────
@@ -717,6 +732,8 @@ export interface StreamOptions {
   includeTools?: boolean;
   /** Which context to inject — selective injection saves tokens */
   contextFlags?: ContextFlags;
+  /** Whether to send raw media bytes or compact descriptors */
+  mediaMode?: MediaEncodingMode;
 }
 
 interface DynamicContextBuildOptions {
@@ -805,7 +822,9 @@ export async function* sendMessageWithHistoryStream(
     }
 
     // Build multimodal parts if attachments exist
-    const fullMessage = `${dynamicContext}\n\nUser Query: ${message}`;
+    const mediaMode = options?.mediaMode ?? "inline_bytes";
+    const mediaDescriptorText = buildMediaDescriptorText(attachments || []);
+    const fullMessage = `${dynamicContext}${mediaDescriptorText}\n\nUser Query: ${message}`;
 
     // Yield upload progress for each file
     if (attachments && attachments.length > 0) {
@@ -822,7 +841,7 @@ export async function* sendMessageWithHistoryStream(
 
     const mediaParts =
       attachments && attachments.length > 0
-        ? await buildMediaParts(attachments)
+        ? await buildMediaParts(attachments, mediaMode)
         : [];
     const cacheableChat = !includeTools && mediaParts.length === 0;
     const selectedModel = routeBedrockModel({
@@ -1001,14 +1020,16 @@ export function convertToAIHistory(
     content: string;
     attachments?: MediaAttachment[];
   }>,
+  options?: { mediaMode?: MediaEncodingMode },
 ): AIChatMessage[] {
+  const mediaMode = options?.mediaMode ?? "inline_bytes";
   return messages
     .filter((msg) => msg.role === "user" || msg.role === "assistant")
     .map((msg) => {
       const content: Array<Record<string, any>> = [];
 
       // Add media parts from attachments (for user messages with media)
-      if (msg.attachments && msg.attachments.length > 0) {
+      if (msg.attachments && msg.attachments.length > 0 && mediaMode === "inline_bytes") {
         for (const attachment of msg.attachments) {
           if (attachment.base64Data) {
             const bytes = base64ToUint8Array(attachment.base64Data);
@@ -1021,6 +1042,12 @@ export function convertToAIHistory(
             }
           }
         }
+      }
+
+      if (msg.attachments && msg.attachments.length > 0 && mediaMode === "descriptor_only") {
+        content.push({
+          text: buildMediaDescriptorText(msg.attachments),
+        });
       }
 
       // Add text part

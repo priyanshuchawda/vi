@@ -1064,25 +1064,36 @@ export async function* sendToolResultsToAI(
       });
     }
 
-    // Add tool results as a single user message with toolResult blocks
-    // Per Bedrock Converse API: toolResult goes inside user message content
+    // Add tool results as a single user message with toolResult blocks.
+    // Per Bedrock Converse API: a message containing toolResult blocks must
+    // contain ONLY toolResult blocks — mixing text blocks causes a
+    // ValidationException. The reply instruction goes in the last toolResult.
     const toolResultContent: Array<Record<string, any>> = toolResults.map(
-      (tr) => ({
+      (tr, idx) => ({
         toolResult: {
-          toolUseId: tr.toolUseId || tr.name, // fallback to name if no ID
-          content: [{ json: tr.result }],
+          toolUseId: tr.toolUseId!, // must be the real toolUseId from the response
+          content: [
+            {
+              json: {
+                ...tr.result,
+                // Attach the reply instruction only to the last tool result so
+                // Bedrock sees it without mixing content block types.
+                ...(idx === toolResults.length - 1
+                  ? {
+                      _instruction:
+                        "Reply: 1) What changed, 2) Any failures, 3) Timeline diff if available, 4) Next best action.",
+                    }
+                  : {}),
+              },
+            },
+          ],
         },
       }),
     );
 
     messages.push({
       role: "user",
-      content: [
-        ...toolResultContent,
-        {
-          text: "Tool execution results are authoritative. Reply in this structure: 1) What changed, 2) Any failures, 3) Timeline diff if available, 4) Next best action.",
-        },
-      ],
+      content: toolResultContent,
     });
 
     const guard = evaluateTokenGuard({

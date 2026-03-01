@@ -20,6 +20,7 @@ import {
 import { allVideoEditingTools } from './videoEditingTools';
 import type { FunctionCall, ToolResult } from './videoEditingTools';
 import { useProjectStore } from '../stores/useProjectStore';
+import { useAiMemoryStore } from '../stores/useAiMemoryStore';
 import { optimizeContextHistory } from './contextManager';
 import { waitForSlot, withRetryOn429 } from './rateLimiter';
 import { getSessionEstimatedCost, recordUsage } from './tokenTracker';
@@ -57,6 +58,10 @@ import { recommendExecutionPolicy, type ExecutionRecommendation } from './execut
 import { compilePlan, generateCorrectionPrompt, validatePlannerOutputContract, type CompilationError } from './planCompiler';
 import { buildFallbackExecutionPlan, shouldUseFallback } from './fallbackPlanGenerator';
 import { recordPlanningAttempt, recordExecutionAttempt } from './aiTelemetry';
+import {
+  formatRetrievedMemoryContext,
+  retrieveRelevantMemory,
+} from './memoryRetrieval';
 
 const DEFAULT_MAX_ROUNDS = 2;
 const ABSOLUTE_MAX_ROUNDS = 3;
@@ -349,6 +354,16 @@ export async function generateCompletePlan(
   const channelContext = truncateBlock(getChannelAnalysisContext(), 800);
   const snapshotContext = formatSnapshotForPrompt(aliasedSnapshot, 'planning', 3400);
   const capabilityContext = formatCapabilityMatrixForPrompt(toolNames, 2400);
+  const retrievedMemoryContext = formatRetrievedMemoryContext(
+    retrieveRelevantMemory({
+      query: message,
+      entries: useAiMemoryStore.getState().getCompletedEntries(),
+      maxEntries: 6,
+      maxScenesPerEntry: 2,
+    }),
+    message,
+    1500,
+  );
   const currentDate = new Date().toISOString().split('T')[0];
   const strategyArtifact = await generateStrategyDraft({
     message,
@@ -374,6 +389,7 @@ ${capabilityContext}
 ${normalizedIntentContext}
 ${strategyContext}
 ${channelContext}
+${retrievedMemoryContext}
 <instruction>
 Use UNDERSTAND -> PLAN -> EXECUTE PLAN DRAFT.
 You may call read-only tools during planning to inspect timeline/media state.

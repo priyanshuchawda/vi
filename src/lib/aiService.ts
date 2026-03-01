@@ -54,6 +54,11 @@ import {
   formatSnapshotForPrompt,
   type SnapshotScope,
 } from "./aiProjectSnapshot";
+import { useAiMemoryStore } from "../stores/useAiMemoryStore";
+import {
+  formatRetrievedMemoryContext,
+  retrieveRelevantMemory,
+} from "./memoryRetrieval";
 import { getSupportedToolNames } from "./toolCapabilityMatrix";
 
 const INLINE_MEDIA_LIMIT_BYTES = 25 * 1024 * 1024;
@@ -472,20 +477,13 @@ export function __resetSummarizeFailureStateForTests(): void {
 
 // ─── Build Dynamic Context ────────────────────────────────────────────────────
 
-/**
- * Build dynamic context — only includes what's relevant.
- * When no flags are passed, includes everything (backward compat).
- */
-function buildDynamicContext(flags?: ContextFlags): string {
-  return buildDynamicContextWithOptions(flags);
-}
-
 function buildDynamicContextWithOptions(
   flags?: ContextFlags,
   options?: DynamicContextBuildOptions,
 ): string {
   const currentDate = new Date().toISOString().split("T")[0];
   const maxChars = options?.maxChars ?? MAX_DYNAMIC_CONTEXT_CHARS;
+  const userMessage = options?.userMessage || "";
 
   // Default: include all (backward compatibility for planning service)
   const includeAll = !flags;
@@ -508,11 +506,26 @@ function buildDynamicContextWithOptions(
       3200,
     );
   }
+  const retrievedMemoryContext = includeMemory && userMessage
+    ? formatRetrievedMemoryContext(
+        retrieveRelevantMemory({
+          query: userMessage,
+          entries: useAiMemoryStore.getState().getCompletedEntries(),
+          maxEntries: 5,
+          maxScenesPerEntry: 2,
+        }),
+        userMessage,
+        Math.min(1400, Math.floor(maxChars * 0.45)),
+      )
+    : "";
 
   let context = `\n[System Note: Current Date is ${currentDate}]`;
   if (channelContext) context += channelContext;
   if (snapshotContext) {
     context += `\n<ai-project-snapshot>\n${snapshotContext}\n</ai-project-snapshot>`;
+  }
+  if (retrievedMemoryContext) {
+    context += `\n${retrievedMemoryContext}`;
   }
 
   // Only add grounding note if we have context
@@ -568,7 +581,9 @@ export async function sendMessageWithHistory(
       optimizedHistory = await summarizeHistory(optimizedHistory);
     }
     optimizedHistory = maskToolOutputsInHistory(optimizedHistory).history;
-    let dynamicContext = buildDynamicContext();
+    let dynamicContext = buildDynamicContextWithOptions(undefined, {
+      userMessage: message,
+    });
     const preflight = estimateTurnCost({
       intent: "chat",
       history: optimizedHistory,
@@ -600,6 +615,7 @@ export async function sendMessageWithHistory(
       );
       dynamicContext = buildDynamicContextWithOptions(undefined, {
         maxChars: maxDynamicContextChars,
+        userMessage: message,
       });
     }
 
@@ -652,6 +668,7 @@ export async function sendMessageWithHistory(
       const reducedHistory = trimHistoryToLimit(optimizedHistory, 6);
       const reducedContext = buildDynamicContextWithOptions(undefined, {
         maxChars: 1600,
+        userMessage: message,
       });
       fullMessage = `${reducedContext}\n\nUser Query: ${message}`;
       messages = [
@@ -740,6 +757,7 @@ export interface StreamOptions {
 
 interface DynamicContextBuildOptions {
   maxChars?: number;
+  userMessage?: string;
 }
 
 interface CachedChatResponse {
@@ -787,7 +805,9 @@ export async function* sendMessageWithHistoryStream(
       optimizedHistory = await summarizeHistory(optimizedHistory);
     }
     optimizedHistory = maskToolOutputsInHistory(optimizedHistory).history;
-    let dynamicContext = buildDynamicContext(options?.contextFlags);
+    let dynamicContext = buildDynamicContextWithOptions(options?.contextFlags, {
+      userMessage: message,
+    });
     const standardTools = includeTools ? pickToolsForMessage(message) : [];
     const preflight = estimateTurnCost({
       intent: includeTools ? "edit_plan" : "chat",
@@ -820,6 +840,7 @@ export async function* sendMessageWithHistoryStream(
       );
       dynamicContext = buildDynamicContextWithOptions(options?.contextFlags, {
         maxChars: maxDynamicContextChars,
+        userMessage: message,
       });
     }
 
@@ -900,6 +921,7 @@ export async function* sendMessageWithHistoryStream(
       optimizedHistory = trimHistoryToLimit(optimizedHistory, 6);
       dynamicContext = buildDynamicContextWithOptions(options?.contextFlags, {
         maxChars: 1600,
+        userMessage: message,
       });
       const reducedFullMessage = `${dynamicContext}\n\nUser Query: ${message}`;
       if (includeTools) {

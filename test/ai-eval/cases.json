@@ -289,5 +289,19 @@
     ],
     "expectJson": false,
     "expectKeywords": ["intent", "plan", "script", "clarification", "30"]
+  },
+  {
+    "id": "final_flow_02_layman_yt_short_10s",
+    "suite": "ladder_final",
+    "mode": "descriptor",
+    "maxTokens": 260,
+    "temperature": 0.1,
+    "prompt": "Layman ask: 'i want a 10 seconds yt short video, what would be best?'. Return concise final flow: intent, plan, best 10s cut strategy, clarification needs, readiness.",
+    "descriptorContext": [
+      "Media includes winners announcement screenshot, award ceremony photo, and workspace candid video",
+      "Goal platform: YouTube Shorts 10 seconds, high engagement first"
+    ],
+    "expectJson": false,
+    "expectKeywords": ["intent", "plan", "10", "clarification", "readiness"]
   }
 ]

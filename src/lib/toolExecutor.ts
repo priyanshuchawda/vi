@@ -2,6 +2,7 @@ import { useProjectStore } from "../stores/useProjectStore";
 import { useAiMemoryStore } from "../stores/useAiMemoryStore";
 import type { FunctionCall, ToolResult } from "./videoEditingTools";
 import { isReadOnlyTool, isToolAllowedInMode, type RuntimeToolMode } from "./toolCapabilityMatrix";
+import { retrieveRelevantMemory } from "./memoryRetrieval";
 
 type ToolErrorCategory =
   | "plan_error"
@@ -1190,23 +1191,12 @@ export class ToolExecutor {
           const { query } = call.args;
           const memoryStore = useAiMemoryStore.getState();
           const completedEntries = memoryStore.getCompletedEntries();
-
-          // Simple content search through analysis data
-          const lowerQuery = query.toLowerCase();
-          const matchingEntries = completedEntries.filter((entry: any) => {
-            const searchText = [
-              entry.summary,
-              entry.analysis,
-              ...(entry.tags || []),
-              entry.visualInfo?.style,
-              ...(entry.visualInfo?.subjects || []),
-              entry.audioInfo?.mood,
-            ]
-              .join(" ")
-              .toLowerCase();
-
-            return searchText.includes(lowerQuery);
-          });
+          const matchingEntries = retrieveRelevantMemory({
+            query: String(query || ""),
+            entries: completedEntries,
+            maxEntries: 10,
+            maxScenesPerEntry: 2,
+          }).map((hit) => hit.entry);
 
           // Map to clips
           const matchingClips = matchingEntries

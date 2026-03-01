@@ -199,6 +199,8 @@ CRITICAL: You must ONLY use clip aliases from the provided snapshot.
 5. Prefer fewer rounds - aim to complete in 2-3 rounds total.
 6. NEVER return empty operations - if uncertain, inspect state first.
 7. Every tool call must have valid, complete arguments.
+8. Treat timeline edits as DELTA operations: modify only the needed clip/segment; avoid rebuilding the whole timeline.
+9. For MODIFY/DELETE requests, prefer minimal reversible changes (trim/split/delete/move) over broad reordering.
 </planning-rules>
 
 <timestamp-rules>
@@ -213,6 +215,7 @@ CRITICAL: You must ONLY use clip aliases from the provided snapshot.
 - Do not assume execution success without tool result confirmation.
 - Keep operations within valid timeline bounds.
 - Never proceed with invented or hallucinated data.
+- If user intent is ambiguous for target/style/timestamps, use ask_clarification before mutating.
 </safety-rules>
 
 <response-requirements>
@@ -220,6 +223,7 @@ CRITICAL: You must ONLY use clip aliases from the provided snapshot.
 - Use only provided clip aliases (clip_1, clip_2, etc.).
 - Ensure at least ONE valid operation unless timeline is empty.
 - If unable to proceed, call get_timeline_info to inspect state.
+- Never expose chain-of-thought; output only actionable tool steps.
 </response-requirements>`;
 
 const STRATEGY_SYSTEM_INSTRUCTION = `You are a strict strategy planner for a video editor.
@@ -374,6 +378,11 @@ ${channelContext}
 Use UNDERSTAND -> PLAN -> EXECUTE PLAN DRAFT.
 You may call read-only tools during planning to inspect timeline/media state.
 State-changing operations must remain executable with valid IDs and bounds.
+Use normalized_intent.mode as routing anchor:
+- create: compose baseline timeline from available clips.
+- modify: apply minimal delta operations to existing timeline.
+- delete: remove target segments only after target is explicit.
+If ambiguities are present, prefer ask_clarification before destructive operations.
 </instruction>
 `;
   const dynamicCap = costPreflight.degraded || budgetDecision.shouldDegrade

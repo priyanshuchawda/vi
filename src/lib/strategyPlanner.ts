@@ -59,7 +59,8 @@ function inferStyleProfile(message: string): StrategyPlan["style_profile"] {
 export function buildFallbackStrategy(input: BuildFallbackInput): StrategyPlan {
   const mode = input.normalizedIntent?.mode;
   const operationHint = input.normalizedIntent?.operationHint;
-  const constraints = input.normalizedIntent?.constraints || {};
+  const constraints = { ...(input.normalizedIntent?.constraints || {}) };
+  const requestedOutputs = input.normalizedIntent?.requestedOutputs || [];
 
   const segmentStrategy: StrategyPlan["segment_strategy"] =
     mode === "delete"
@@ -76,9 +77,17 @@ export function buildFallbackStrategy(input: BuildFallbackInput): StrategyPlan {
     ordering: mode === "create" ? "chronological" : "source_order",
     transition,
     style_profile: inferStyleProfile(input.message),
-    global_constraints: constraints,
+    global_constraints: {
+      ...constraints,
+      script_outline_required: requestedOutputs.includes("short_script_outline"),
+    },
     confidence: 0.62,
-    notes: ["fallback_strategy_generated"],
+    notes: [
+      "fallback_strategy_generated",
+      ...(requestedOutputs.includes("short_script_outline")
+        ? ["script_companion_requested"]
+        : []),
+    ],
   };
 }
 

@@ -48,3 +48,7 @@ resources/ffmpeg-linux/
 # Local sibling/codebase checkouts (not part of this app repo)
 gemini-cli/
 kilocode/
+
+# Local AI eval outputs/media
+test-output/
+video_test/

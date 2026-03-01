@@ -45,6 +45,7 @@ import {
   isReadOnlyTool,
   type ToolErrorCategory,
 } from './toolCapabilityMatrix';
+import type { NormalizedIntent } from './intentNormalizer';
 import { compilePlan, generateCorrectionPrompt, validatePlannerOutputContract, type CompilationError } from './planCompiler';
 import { buildFallbackExecutionPlan, shouldUseFallback } from './fallbackPlanGenerator';
 import { recordPlanningAttempt, recordExecutionAttempt } from './aiTelemetry';
@@ -217,7 +218,8 @@ CRITICAL: You must ONLY use clip aliases from the provided snapshot.
 export async function generateCompletePlan(
   message: string,
   history: AIChatMessage[],
-  maxRounds: number = DEFAULT_MAX_ROUNDS
+  maxRounds: number = DEFAULT_MAX_ROUNDS,
+  options?: { normalizedIntent?: NormalizedIntent },
 ): Promise<ExecutionPlan> {
   if (!isBedrockConfigured()) {
     throw new Error('AWS credentials not configured');
@@ -288,6 +290,10 @@ export async function generateCompletePlan(
   const capabilityContext = formatCapabilityMatrixForPrompt(toolNames, 2400);
   const currentDate = new Date().toISOString().split('T')[0];
 
+  const normalizedIntentContext = options?.normalizedIntent
+    ? `\n<normalized-intent>\n${JSON.stringify(options.normalizedIntent, null, 2)}\n</normalized-intent>\n`
+    : '';
+
   let dynamicContext = `
 [System Note: Planning Context - Date: ${currentDate}]
 <ai-project-snapshot>
@@ -296,6 +302,7 @@ ${snapshotContext}
 <tool-capability-matrix>
 ${capabilityContext}
 </tool-capability-matrix>
+${normalizedIntentContext}
 ${channelContext}
 <instruction>
 Use UNDERSTAND -> PLAN -> EXECUTE PLAN DRAFT.

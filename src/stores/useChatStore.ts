@@ -58,8 +58,8 @@ interface ChatStore {
   closeTurn: (turnId: string, reason: ChatTurn['closeReason']) => void;
 }
 
-const MIN_PANEL_WIDTH = 280;
-const MAX_PANEL_WIDTH = 520;
+const MIN_PANEL_WIDTH = 320;
+const MAX_PANEL_WIDTH = 900;
 const TERMINAL_TURN_STATUSES: ChatTurnStatus[] = ['completed', 'error', 'interrupted'];
 
 const TURN_STATUS_TRANSITIONS: Record<ChatTurnStatus, ChatTurnStatus[]> = {
@@ -111,7 +111,7 @@ export const useChatStore = create<ChatStore>()(
       },
       currentProjectId: null,
       autoExecute: false,
-      panelWidth: 320,
+      panelWidth: 460,
       executionContext: {
         hasPendingPlan: false,
         lastUserMessageForPlan: null,

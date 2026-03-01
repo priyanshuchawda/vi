@@ -1411,14 +1411,15 @@ const ChatPanel = () => {
 
   return (
     <div
+      data-chat-panel="true"
       className="h-full flex flex-col overflow-hidden"
       style={{
         width: '100%',
       }}
     >
       {/* Header */}
-      <div className="border-b border-white/5 p-4 flex items-center justify-between bg-bg-elevated/50 backdrop-blur-sm animate-slide-up">
-        <div className="flex items-center gap-3">
+      <div className="border-b border-white/5 p-4 flex items-start justify-between gap-2 bg-bg-elevated/50 backdrop-blur-sm animate-slide-up">
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 bg-gradient-to-br from-accent/20 to-accent/10 rounded-lg flex items-center justify-center animate-float">
             <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -1428,12 +1429,14 @@ const ChatPanel = () => {
             <h2 className="text-sm font-semibold text-text-primary">AI Copilot</h2>
             <p className="text-[10px] text-text-muted/70">Intelligent Editing Assistant</p>
           </div>
-          <TokenCounter />
+          <div className="hidden 2xl:block">
+            <TokenCounter />
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 max-w-[62%] overflow-x-auto custom-scrollbar pb-1">
           <button
             onClick={() => setShowLogs((v) => !v)}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${showLogs ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
+            className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${showLogs ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
             title="Session logs"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1442,7 +1445,7 @@ const ChatPanel = () => {
           </button>
           <button
             onClick={() => setShowTelemetry((v) => !v)}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${showTelemetry ? 'text-cyan-300 bg-cyan-500/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
+            className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${showTelemetry ? 'text-cyan-300 bg-cyan-500/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
             title="AI reliability telemetry"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1451,7 +1454,7 @@ const ChatPanel = () => {
           </button>
           <button
             onClick={handleCompactContext}
-            className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
+            className="w-8 h-8 shrink-0 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
             title="Compact context"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1460,7 +1463,7 @@ const ChatPanel = () => {
           </button>
           <button
             onClick={handleOpenBudgetControls}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${showBudgetControls ? 'text-amber-300 bg-amber-500/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
+            className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${showBudgetControls ? 'text-amber-300 bg-amber-500/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
             title="Cost budget settings"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1469,7 +1472,7 @@ const ChatPanel = () => {
           </button>
           <button
             onClick={toggleAutoExecute}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${autoExecute ? 'text-green-400 bg-green-500/10 hover:bg-green-500/15' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
+            className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${autoExecute ? 'text-green-400 bg-green-500/10 hover:bg-green-500/15' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
             title={autoExecute ? "Auto-execute ON" : "Auto-execute OFF"}
           >
             {autoExecute ? (
@@ -1484,7 +1487,7 @@ const ChatPanel = () => {
           </button>
           <button
             onClick={handleClearChat}
-            className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
+            className="w-8 h-8 shrink-0 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
             title="Clear chat"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1493,7 +1496,7 @@ const ChatPanel = () => {
           </button>
           <button
             onClick={togglePanel}
-            className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
+            className="w-8 h-8 shrink-0 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
             title="Close (Ctrl+K)"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

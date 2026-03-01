@@ -12,9 +12,10 @@ type PanelTab = 'captions' | 'transcript' | 'audio' | 'effects' | 'export' | 'pu
 interface RightPanelProps {
   isOpen?: boolean;
   onClose?: () => void;
+  width?: number;
 }
 
-const RightPanel = ({ isOpen = true, onClose }: RightPanelProps) => {
+const RightPanel = ({ isOpen = true, onClose, width = 320 }: RightPanelProps) => {
   const [activeTab, setActiveTab] = useState<PanelTab>('captions');
 
   if (!isOpen) return null;
@@ -77,7 +78,10 @@ const RightPanel = ({ isOpen = true, onClose }: RightPanelProps) => {
   ];
 
   return (
-    <div className="w-80 bg-gradient-to-b from-bg-elevated to-bg-secondary border-l border-white/5 flex flex-col h-full shadow-2xl">
+    <div
+      className="bg-gradient-to-b from-bg-elevated to-bg-secondary border-l border-white/5 flex flex-col h-full shadow-2xl"
+      style={{ width: `${Math.max(320, width)}px` }}
+    >
       {/* Header with tabs */}
       <div className="border-b border-white/5 bg-bg-secondary/80 backdrop-blur-xl">
         <div className="flex items-center justify-between p-3 border-b border-white/5">
@@ -138,4 +142,3 @@ const RightPanel = ({ isOpen = true, onClose }: RightPanelProps) => {
 };
 
 export default RightPanel;
-

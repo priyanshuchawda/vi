@@ -303,5 +303,43 @@
     ],
     "expectJson": false,
     "expectKeywords": ["intent", "plan", "10", "clarification", "readiness"]
+  },
+  {
+    "id": "followup_01_trim_10s",
+    "suite": "followup_state",
+    "mode": "text",
+    "maxTokens": 240,
+    "temperature": 0.1,
+    "prompt": "Timeline has clip_1 video 0-25s and clip_2 image 25-30s. User says: 'trim 10 second from clip_1'. Return JSON only for execution readiness.",
+    "expectJson": true,
+    "expectKeywords": ["modify", "trim", "operations", "confidence"],
+    "jsonContract": {
+      "requiredKeys": ["intent_type", "mode", "operations", "assumptions", "ambiguities", "needs_clarification", "confidence", "execution_recommendation"],
+      "allowedModes": ["create", "modify", "delete"],
+      "allowedExecutionRecommendations": ["auto_execute", "preview_required", "clarify_required"],
+      "allowedOperationNames": ["trim", "merge", "transition", "other"],
+      "minOperations": 1,
+      "minConfidence": 0.35,
+      "maxConfidence": 0.98
+    }
+  },
+  {
+    "id": "followup_02_extend_image_5s",
+    "suite": "followup_state",
+    "mode": "text",
+    "maxTokens": 260,
+    "temperature": 0.1,
+    "prompt": "Follow-up on same timeline after prior trim: clip_1 video now ends earlier, clip_2 image currently 5s. User says: 'extend this image for more 5 second'. Return JSON only for execution readiness.",
+    "expectJson": true,
+    "expectKeywords": ["modify", "operations", "needs_clarification", "confidence"],
+    "jsonContract": {
+      "requiredKeys": ["intent_type", "mode", "operations", "assumptions", "ambiguities", "needs_clarification", "confidence", "execution_recommendation"],
+      "allowedModes": ["create", "modify", "delete"],
+      "allowedExecutionRecommendations": ["auto_execute", "preview_required", "clarify_required"],
+      "allowedOperationNames": ["trim", "merge", "transition", "other"],
+      "minOperations": 1,
+      "minConfidence": 0.35,
+      "maxConfidence": 0.98
+    }
   }
 ]

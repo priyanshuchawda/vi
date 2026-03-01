@@ -82,10 +82,11 @@
     "temperature": 0.1,
     "prompt": "make a yt short of 30 sec from my videos",
     "expectJson": true,
-    "expectKeywords": ["modify", "assumption", "confidence"],
+    "expectKeywords": ["create", "assumption", "confidence"],
     "jsonContract": {
       "requiredKeys": ["intent_type", "mode", "operations", "assumptions", "ambiguities", "needs_clarification", "confidence"],
       "allowedModes": ["create", "modify", "delete"],
+      "allowedOperationNames": ["trim", "merge", "transition", "other"],
       "minOperations": 2,
       "minConfidence": 0.35,
       "maxConfidence": 0.95
@@ -200,7 +201,7 @@
     "temperature": 0.1,
     "prompt": "QuickCut editing request: 'edit it like this and make it cool'. Ask exactly one clarification question with 3 style options.",
     "expectJson": false,
-    "expectKeywords": ["clarification", "style", "option"]
+    "expectKeywords": ["clarification", "style", "1.", "2.", "3."]
   },
   {
     "id": "clarify_02_missing_segment_reference",
@@ -210,7 +211,7 @@
     "temperature": 0.1,
     "prompt": "QuickCut editing request: 'remove that part and keep the rest'. Ask one clarification question to identify which clip/segment, with 3 options.",
     "expectJson": false,
-    "expectKeywords": ["which", "segment", "clarification"]
+    "expectKeywords": ["clarification", "which", "segment", "1.", "2.", "3."]
   },
   {
     "id": "script_01_short_hook_generation",
@@ -250,6 +251,7 @@
       "requiredKeys": ["intent_type", "mode", "operations", "needs_clarification", "confidence", "execution_recommendation"],
       "allowedModes": ["create", "modify", "delete"],
       "allowedExecutionRecommendations": ["auto_execute", "preview_required", "clarify_required"],
+      "allowedOperationNames": ["trim", "merge", "transition", "other"],
       "minOperations": 2,
       "minConfidence": 0.35,
       "maxConfidence": 0.95
@@ -268,6 +270,7 @@
       "requiredKeys": ["intent_type", "mode", "operations", "needs_clarification", "confidence", "execution_recommendation"],
       "allowedModes": ["create", "modify", "delete"],
       "allowedExecutionRecommendations": ["auto_execute", "preview_required", "clarify_required"],
+      "allowedOperationNames": ["trim", "merge", "transition", "other"],
       "minOperations": 2,
       "minConfidence": 0.35,
       "maxConfidence": 0.98

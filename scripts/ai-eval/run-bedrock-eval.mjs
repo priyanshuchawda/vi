@@ -132,6 +132,16 @@ function validateJsonContract(payload, contract, rawText = "") {
       }
     }
   }
+  if (Array.isArray(contract.allowedOperationNames)) {
+    const invalidNames = Array.isArray(payload.operations)
+      ? payload.operations
+          .map((op) => String(op?.name || "").toLowerCase())
+          .filter((name) => name && !contract.allowedOperationNames.map((x) => String(x).toLowerCase()).includes(name))
+      : [];
+    if (invalidNames.length > 0) {
+      reasons.push(`invalid_operation_names:${invalidNames.join("|")}`);
+    }
+  }
   if ("confidence" in payload && (typeof payload.confidence !== "number" || payload.confidence < 0 || payload.confidence > 1)) {
     reasons.push("invalid_confidence_type_or_range");
   } else if (typeof payload.confidence === "number") {
@@ -233,6 +243,38 @@ Rules:
   return buildJsonContractPrompt(userPrompt);
 }
 
+function buildCaseSpecificPlainPrompt(selectedCase, userPrompt) {
+  if (selectedCase.id === "clarify_01_missing_style_reference") {
+    return `${userPrompt}
+
+Return exactly:
+Clarification: <one sentence question>
+1. <option>
+2. <option>
+3. <option>
+
+Rules:
+- exactly one clarification question
+- exactly 3 options
+- concise`;
+  }
+  if (selectedCase.id === "clarify_02_missing_segment_reference") {
+    return `${userPrompt}
+
+Return exactly:
+Clarification: <one sentence question>
+1. <option>
+2. <option>
+3. <option>
+
+Rules:
+- identify segment target ambiguity
+- exactly one clarification question
+- exactly 3 options`;
+  }
+  return userPrompt;
+}
+
 function buildRepairPrompt(selectedCase, originalPrompt, previousOutput, failures) {
   const contract = selectedCase?.jsonContract
     ? `Contract:\n${JSON.stringify(selectedCase.jsonContract, null, 2)}`
@@ -296,7 +338,7 @@ async function run() {
 
   const basePrompt = selectedCase.expectJson
     ? buildCaseSpecificJsonPrompt(selectedCase, selectedCase.prompt)
-    : selectedCase.prompt;
+    : buildCaseSpecificPlainPrompt(selectedCase, selectedCase.prompt);
 
   if (selectedCase.mode === "descriptor") {
     userBlocks.push({ text: `${descriptorText}${descriptorExtraContext}\n${basePrompt}` });

@@ -55,5 +55,23 @@
     "temperature": 0.1,
     "prompt": "Analyze this short video. Return exactly with compact bullets only: 1) key actions observed (max 4 bullets), 2) low-value moments to trim with rough timestamps (max 4 bullets), 3) exactly 3 practical QuickCut edits.",
     "expectKeywords": ["action", "trim", "quickcut"]
+  },
+  {
+    "id": "exec_01_modify_plan_readiness",
+    "suite": "execution_gate",
+    "mode": "text",
+    "maxTokens": 260,
+    "temperature": 0.1,
+    "prompt": "Timeline snapshot: clip_1 intro (0-12s), clip_2 talking head with pauses (12-55s), clip_3 b-roll (55-78s). User says: \"remove awkward pauses and make flow smoother.\" Return JSON only for execution readiness.",
+    "expectJson": true,
+    "expectKeywords": ["modify", "operations", "needs_clarification", "confidence"],
+    "jsonContract": {
+      "requiredKeys": ["intent_type", "mode", "operations", "assumptions", "ambiguities", "needs_clarification", "confidence", "execution_recommendation"],
+      "allowedModes": ["create", "modify", "delete"],
+      "allowedExecutionRecommendations": ["auto_execute", "preview_required", "clarify_required"],
+      "minOperations": 2,
+      "minConfidence": 0.35,
+      "maxConfidence": 0.95
+    }
   }
 ]

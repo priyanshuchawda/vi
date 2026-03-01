@@ -108,6 +108,11 @@ function validateJsonContract(payload, contract) {
   if (Array.isArray(contract.allowedModes) && payload.mode && !contract.allowedModes.includes(payload.mode)) {
     reasons.push(`invalid_mode:${payload.mode}`);
   }
+  if (Array.isArray(contract.allowedExecutionRecommendations) && payload.execution_recommendation) {
+    if (!contract.allowedExecutionRecommendations.includes(payload.execution_recommendation)) {
+      reasons.push(`invalid_execution_recommendation:${payload.execution_recommendation}`);
+    }
+  }
   if (typeof contract.minOperations === "number") {
     const count = Array.isArray(payload.operations) ? payload.operations.length : 0;
     if (count < contract.minOperations) reasons.push(`operations_too_few:${count}`);
@@ -178,12 +183,47 @@ Rules:
 - Prefer narrative relevance, not file size.
 - Keep concise and execution-oriented.`;
   }
+  if (selectedCase.id === "exec_01_modify_plan_readiness") {
+    return `${userPrompt}
+
+Return JSON only with this shape:
+{
+  "intent_type": "multi_video_edit",
+  "mode": "modify",
+  "operations": [
+    { "order": 1, "name": "trim|transition|merge|other", "target": "clip_alias", "detail": "..." }
+  ],
+  "assumptions": ["..."],
+  "ambiguities": ["..."],
+  "needs_clarification": true,
+  "confidence": 0.0,
+  "execution_recommendation": "auto_execute|preview_required|clarify_required"
+}
+
+Rules:
+- Use clip aliases (clip_1, clip_2, clip_3) when targets are known.
+- Keep operations executable and ordered.
+- If ambiguity remains, set needs_clarification true.`;
+  }
   return buildJsonContractPrompt(userPrompt);
 }
 
-function buildRepairPrompt(originalPrompt, previousOutput, failures) {
+function buildRepairPrompt(selectedCase, originalPrompt, previousOutput, failures) {
+  const contract = selectedCase?.jsonContract
+    ? `Contract:\n${JSON.stringify(selectedCase.jsonContract, null, 2)}`
+    : "";
+  const caseSpecific =
+    selectedCase?.id === "exec_01_modify_plan_readiness"
+      ? `Extra requirements:
+- execution_recommendation must be one of: auto_execute, preview_required, clarify_required
+- include at least 2 ordered operations
+- for this prompt, mode should stay "modify"
+- if timestamps are not explicit, needs_clarification should usually be true`
+      : "";
   return `Your previous output failed validation: ${failures.join(", ")}.
 Original task: ${originalPrompt}
+${contract}
+${caseSpecific}
 Previous output:
 ${previousOutput}
 
@@ -290,7 +330,7 @@ async function run() {
             role: "user",
             content: [
               {
-                text: buildRepairPrompt(selectedCase.prompt, text, contractValidation.reasons),
+                text: buildRepairPrompt(selectedCase, selectedCase.prompt, text, contractValidation.reasons),
               },
             ],
           },

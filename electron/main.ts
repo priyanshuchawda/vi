@@ -109,7 +109,15 @@ function createWindow() {
     app.dock.setIcon(iconPath);
   }
 
-  mainWindow.webContents.openDevTools();
+  // Only open DevTools in dev mode when explicitly needed
+  // mainWindow.webContents.openDevTools();
+
+  // Force close on Windows — prevents app hanging when X is clicked
+  mainWindow.on("close", () => {
+    if (mainWindow) {
+      mainWindow.destroy();
+    }
+  });
 }
 
 ipcMain.handle("dialog:openFile", async () => {
@@ -732,6 +740,11 @@ ipcMain.handle("youtube:uploadVideo", async (event, { filePath, metadata }) => {
 
 app.whenReady().then(() => {
   createWindow();
+
+  // Handle window:close IPC from renderer (custom close button)
+  ipcMain.handle("window:close", () => {
+    if (mainWindow) mainWindow.close();
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

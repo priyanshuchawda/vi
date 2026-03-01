@@ -1130,7 +1130,7 @@ export class ToolExecutor {
               message: "Saving project...",
               data: {
                 projectPath: store.projectPath,
-                hasUnsavedChanges: false,
+                hasUnsavedChanges: store.hasUnsavedChanges,
               },
             },
           };

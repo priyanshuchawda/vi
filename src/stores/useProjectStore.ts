@@ -322,13 +322,30 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   removeClip: (id) => {
     let removed = false;
     set((state) => {
-      const exists = state.clips.some((c) => c.id === id);
-      if (!exists) {
+      const clipToRemove = state.clips.find((c) => c.id === id);
+      if (!clipToRemove) {
         return state;
       }
       removed = true;
+
+      // Shift subsequent clips on the same track to close the gap
+      const removedTrack = clipToRemove.trackIndex ?? 0;
+      const removedStart = clipToRemove.startTime;
+      const removedDuration = clipToRemove.duration;
+
+      const newClips = state.clips
+        .filter((c) => c.id !== id)
+        .map((c) => {
+          const cTrack = c.trackIndex ?? 0;
+          // Shift any clip on the same track that starts at or after the removed clip
+          if (cTrack === removedTrack && c.startTime >= removedStart) {
+            return { ...c, startTime: Math.max(0, c.startTime - removedDuration) };
+          }
+          return c;
+        });
+
       const newState = {
-        clips: state.clips.filter((c) => c.id !== id),
+        clips: newClips,
         activeClipId: state.activeClipId === id ? null : state.activeClipId,
       };
 
@@ -367,19 +384,41 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     return { ...newState, ...saveToHistory({ ...state, ...newState }) };
   }),
   updateClip: (id, updates) => set((state) => {
-    const newState = {
-      clips: state.clips.map((clip) => {
-        if (clip.id === id) {
-          const newClip = { ...clip, ...updates };
-          // Recalculate duration if bounds changed
-          if (updates.start !== undefined || updates.end !== undefined) {
-            newClip.duration = newClip.end - newClip.start;
-          }
-          return newClip;
+    const originalClip = state.clips.find((c) => c.id === id);
+
+    // First pass: update the target clip
+    const updatedClips = state.clips.map((clip) => {
+      if (clip.id === id) {
+        const newClip = { ...clip, ...updates };
+        // Recalculate duration if bounds changed
+        if (updates.start !== undefined || updates.end !== undefined) {
+          newClip.duration = newClip.end - newClip.start;
         }
-        return clip;
-      }),
-    };
+        return newClip;
+      }
+      return clip;
+    });
+
+    // Second pass: if the clip's duration changed, ripple-shift subsequent clips on the same track
+    let finalClips = updatedClips;
+    if (originalClip && (updates.start !== undefined || updates.end !== undefined)) {
+      const updatedClip = updatedClips.find((c) => c.id === id);
+      if (updatedClip) {
+        const durationDelta = updatedClip.duration - originalClip.duration;
+        if (durationDelta !== 0) {
+          const clipTrack = originalClip.trackIndex ?? 0;
+          const clipEndTime = originalClip.startTime + originalClip.duration;
+          finalClips = updatedClips.map((c) => {
+            if (c.id !== id && (c.trackIndex ?? 0) === clipTrack && c.startTime >= clipEndTime) {
+              return { ...c, startTime: Math.max(0, c.startTime + durationDelta) };
+            }
+            return c;
+          });
+        }
+      }
+    }
+
+    const newState = { clips: finalClips };
     return { ...newState, ...saveToHistory({ ...state, ...newState }) };
   }),
   splitClip: (id, time) => set((state) => {

@@ -73,5 +73,218 @@
       "minConfidence": 0.35,
       "maxConfidence": 0.95
     }
+  },
+  {
+    "id": "intent_01_short_goal_parse",
+    "suite": "ladder_intent",
+    "mode": "text",
+    "maxTokens": 220,
+    "temperature": 0.1,
+    "prompt": "make a yt short of 30 sec from my videos",
+    "expectJson": true,
+    "expectKeywords": ["modify", "assumption", "confidence"],
+    "jsonContract": {
+      "requiredKeys": ["intent_type", "mode", "operations", "assumptions", "ambiguities", "needs_clarification", "confidence"],
+      "allowedModes": ["create", "modify", "delete"],
+      "minOperations": 2,
+      "minConfidence": 0.35,
+      "maxConfidence": 0.95
+    }
+  },
+  {
+    "id": "intent_02_script_plus_edit_parse",
+    "suite": "ladder_intent",
+    "mode": "descriptor",
+    "maxTokens": 180,
+    "temperature": 0.1,
+    "prompt": "prepare edit and script for me for youtube short from these clips",
+    "descriptorContext": [
+      "Announcement screenshot about hackathon winners",
+      "Award ceremony close-up of Team AllKnighters",
+      "Workspace candid video of same team"
+    ],
+    "expectJson": true,
+    "expectKeywords": ["edit", "script", "short", "goals"],
+    "jsonContract": {
+      "requiredKeys": ["intent_type", "mode", "goals", "deliverables", "assumptions", "ambiguities", "needs_clarification", "confidence"],
+      "allowedModes": ["create", "modify", "delete"],
+      "minConfidence": 0.35,
+      "maxConfidence": 0.95
+    }
+  },
+  {
+    "id": "constraint_01_duration_hard_cap",
+    "suite": "ladder_constraints",
+    "mode": "text",
+    "maxTokens": 220,
+    "temperature": 0.1,
+    "prompt": "QuickCut context. We have clips totalling ~90s. Target duration is strict 30 seconds. Give operation steps to fit within 30s by trimming and sequencing.",
+    "expectJson": false,
+    "expectKeywords": ["30", "trim", "duration", "clip", "sequence"]
+  },
+  {
+    "id": "constraint_02_platform_short_rules",
+    "suite": "ladder_constraints",
+    "mode": "text",
+    "maxTokens": 240,
+    "temperature": 0.1,
+    "prompt": "Plan for YouTube Shorts format. Mention pacing, opening hook, and CTA placement briefly.",
+    "expectJson": false,
+    "expectKeywords": ["hook", "pacing", "cta", "shorts"]
+  },
+  {
+    "id": "descriptor_02_segment_scoring",
+    "suite": "ladder_descriptor",
+    "mode": "descriptor",
+    "maxTokens": 260,
+    "temperature": 0.1,
+    "prompt": "Rank likely high-engagement segments first and low-value segments last. Avoid file-size based ranking. Also provide explicit cut_first recommendations.",
+    "descriptorContext": [
+      "Video A: award context, event branding, clear faces.",
+      "Video B: candid workspace actions with pauses.",
+      "Image C: announcement post screenshot with winners text."
+    ],
+    "expectJson": false,
+    "expectKeywords": ["engagement", "rank", "segment", "cut_first"]
+  },
+  {
+    "id": "descriptor_03_ordering_logic",
+    "suite": "ladder_descriptor",
+    "mode": "descriptor",
+    "maxTokens": 260,
+    "temperature": 0.1,
+    "prompt": "Propose best ordering logic: chronology vs narrative highlight-first. Pick one and justify briefly.",
+    "descriptorContext": [
+      "Image: winners announcement.",
+      "Image: award ceremony close-up.",
+      "Video: post-event workspace candid."
+    ],
+    "expectJson": false,
+    "expectKeywords": ["order", "chronology", "narrative", "highlight"]
+  },
+  {
+    "id": "plan_01_trim_to_target_duration",
+    "suite": "ladder_plan",
+    "mode": "text",
+    "maxTokens": 260,
+    "temperature": 0.1,
+    "prompt": "Given total raw material around 90s, produce concise trim plan to reach 30s.",
+    "expectJson": false,
+    "expectKeywords": ["30", "trim", "seconds", "plan"]
+  },
+  {
+    "id": "plan_02_transition_policy",
+    "suite": "ladder_plan",
+    "mode": "text",
+    "maxTokens": 220,
+    "temperature": 0.1,
+    "prompt": "For a 30s short in QuickCut, define transition policy that keeps pace fast but smooth. Keep transitions in 0.1s-0.4s range and prefer hard cuts/jump cuts.",
+    "expectJson": false,
+    "expectKeywords": ["transition", "fast", "smooth", "cut", "0."]
+  },
+  {
+    "id": "plan_03_confidence_calibration",
+    "suite": "ladder_plan",
+    "mode": "text",
+    "maxTokens": 220,
+    "temperature": 0.1,
+    "prompt": "Output only: confidence score and why uncertainty exists for 'make it cool' request.",
+    "expectJson": false,
+    "expectKeywords": ["confidence", "uncertainty", "cool"]
+  },
+  {
+    "id": "clarify_01_missing_style_reference",
+    "suite": "ladder_clarify",
+    "mode": "text",
+    "maxTokens": 220,
+    "temperature": 0.1,
+    "prompt": "QuickCut editing request: 'edit it like this and make it cool'. Ask exactly one clarification question with 3 style options.",
+    "expectJson": false,
+    "expectKeywords": ["clarification", "style", "option"]
+  },
+  {
+    "id": "clarify_02_missing_segment_reference",
+    "suite": "ladder_clarify",
+    "mode": "text",
+    "maxTokens": 220,
+    "temperature": 0.1,
+    "prompt": "QuickCut editing request: 'remove that part and keep the rest'. Ask one clarification question to identify which clip/segment, with 3 options.",
+    "expectJson": false,
+    "expectKeywords": ["which", "segment", "clarification"]
+  },
+  {
+    "id": "script_01_short_hook_generation",
+    "suite": "ladder_script",
+    "mode": "text",
+    "maxTokens": 260,
+    "temperature": 0.2,
+    "prompt": "Generate a 30-second YouTube Shorts script for this story: hackathon win + team candid moment. Structure: hook, body, CTA.",
+    "expectJson": false,
+    "expectKeywords": ["hook", "body", "cta", "30"]
+  },
+  {
+    "id": "script_02_script_matches_available_footage",
+    "suite": "ladder_script",
+    "mode": "descriptor",
+    "maxTokens": 280,
+    "temperature": 0.2,
+    "prompt": "Create script lines grounded only in provided media notes. Avoid adding unseen scenes.",
+    "descriptorContext": [
+      "Announcement screenshot with winners text",
+      "Award ceremony close-up",
+      "Workspace candid with laptop"
+    ],
+    "expectJson": false,
+    "expectKeywords": ["announcement", "award", "workspace", "script"]
+  },
+  {
+    "id": "exec_02_recommendation_gate_modify",
+    "suite": "ladder_exec",
+    "mode": "text",
+    "maxTokens": 260,
+    "temperature": 0.1,
+    "prompt": "Timeline context: clip_2 has transcript-marked awkward pauses at known timestamps. User says: 'remove awkward pauses and make flow smoother'. Return readiness JSON with execution recommendation.",
+    "expectJson": true,
+    "expectKeywords": ["modify", "preview", "confidence"],
+    "jsonContract": {
+      "requiredKeys": ["intent_type", "mode", "operations", "needs_clarification", "confidence", "execution_recommendation"],
+      "allowedModes": ["create", "modify", "delete"],
+      "allowedExecutionRecommendations": ["auto_execute", "preview_required", "clarify_required"],
+      "minOperations": 2,
+      "minConfidence": 0.35,
+      "maxConfidence": 0.95
+    }
+  },
+  {
+    "id": "exec_03_recommendation_gate_clear_case",
+    "suite": "ladder_exec",
+    "mode": "text",
+    "maxTokens": 260,
+    "temperature": 0.1,
+    "prompt": "Clear instruction: trim clip_2 from 14s-22s and add 0.3s crossfade to clip_3. Return readiness JSON.",
+    "expectJson": true,
+    "expectKeywords": ["modify", "operations", "execution_recommendation", "confidence"],
+    "jsonContract": {
+      "requiredKeys": ["intent_type", "mode", "operations", "needs_clarification", "confidence", "execution_recommendation"],
+      "allowedModes": ["create", "modify", "delete"],
+      "allowedExecutionRecommendations": ["auto_execute", "preview_required", "clarify_required"],
+      "minOperations": 2,
+      "minConfidence": 0.35,
+      "maxConfidence": 0.98
+    }
+  },
+  {
+    "id": "final_flow_01_layman_yt_short_30s",
+    "suite": "ladder_final",
+    "mode": "descriptor",
+    "maxTokens": 320,
+    "temperature": 0.1,
+    "prompt": "Layman ask: 'i want to make a yt short video of 30 second, prepare a edit and script for me'. Return concise final flow: intent, plan, script outline, clarification needs, readiness.",
+    "descriptorContext": [
+      "Media includes winners announcement screenshot, award ceremony photo, and workspace candid video",
+      "Goal platform: YouTube Shorts 30 seconds"
+    ],
+    "expectJson": false,
+    "expectKeywords": ["intent", "plan", "script", "clarification", "30"]
   }
 ]

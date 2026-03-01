@@ -205,6 +205,28 @@ Rules:
 - Keep operations executable and ordered.
 - If ambiguity remains, set needs_clarification true.`;
   }
+  if (selectedCase.id === "intent_02_script_plus_edit_parse") {
+    return `${userPrompt}
+
+Return JSON only with this shape:
+{
+  "intent_type": "multi_video_edit",
+  "mode": "create|modify|delete",
+  "goals": ["editing_goal", "script_goal"],
+  "deliverables": ["edit_plan", "short_script_outline"],
+  "assumptions": ["..."],
+  "ambiguities": ["..."],
+  "needs_clarification": true,
+  "confidence": 0.0
+}
+
+Rules:
+- Intent extraction only (no detailed timeline, no long script).
+- Max 2 entries in goals, max 2 entries in deliverables.
+- Keep each array item under 6 words.
+- Ground only in provided descriptor notes.
+- Do not invent unrelated topics or scenes.`;
+  }
   return buildJsonContractPrompt(userPrompt);
 }
 
@@ -257,7 +279,8 @@ async function run() {
   const videoBytes = await readSmallVideoBytes(mediaFiles);
 
   const systemText =
-    "You are QuickCut AI assistant. Stay in-product, concise, and execution-oriented. Do not reference external software workflows.";
+    "You are QuickCut AI assistant. Stay in-product, concise, and execution-oriented. Do not reference external software workflows. " +
+    "Execution policy: for mutating edits, use preview_required when confidence < 0.85; use auto_execute only when confidence >= 0.85 and ambiguity is low; use clarify_required when ambiguity remains.";
   const userBlocks = [];
 
   const descriptorExtraContext = Array.isArray(selectedCase.descriptorContext) && selectedCase.descriptorContext.length > 0

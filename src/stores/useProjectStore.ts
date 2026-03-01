@@ -86,11 +86,29 @@ export interface TurnAuditRecord {
   createdAt: number;
 }
 
+export interface TimelineStateArtifact {
+  timeline_version: number;
+  clip_count: number;
+  total_duration: number;
+  clips: Array<{
+    id: string;
+    name: string;
+    start: number;
+    end: number;
+    startTime: number;
+    duration: number;
+    trackIndex: number;
+    mediaType: Clip['mediaType'];
+  }>;
+  style_profile: string;
+}
+
 interface HistoryState {
   clips: Clip[];
   activeClipId: string | null;
   selectedClipIds: string[];
   currentTime: number;
+  timelineVersion: number;
 }
 
 interface ProjectState {
@@ -104,6 +122,7 @@ interface ProjectState {
   projectPath: string | null;
   projectId: string | null; // Unique ID for project-specific memory storage
   turnAudits: TurnAuditRecord[];
+  timelineVersion: number;
   history: HistoryState[];
   historyIndex: number;
   exportFormat: ExportFormat;
@@ -192,6 +211,7 @@ interface ProjectState {
   setExportedVideoPath: (path: string | null) => void;
   addTurnAudit: (audit: Omit<TurnAuditRecord, 'id' | 'createdAt'>) => void;
   getTurnAudit: (turnId: string) => TurnAuditRecord | undefined;
+  getTimelineStateArtifact: () => TimelineStateArtifact;
 }
 
 const saveToHistory = (state: ProjectState) => {
@@ -200,6 +220,7 @@ const saveToHistory = (state: ProjectState) => {
     activeClipId: state.activeClipId,
     selectedClipIds: [...state.selectedClipIds],
     currentTime: state.currentTime,
+    timelineVersion: state.timelineVersion + 1,
   };
 
   // Keep only states up to current index
@@ -214,6 +235,7 @@ const saveToHistory = (state: ProjectState) => {
   return {
     history: newHistory,
     historyIndex: newHistory.length - 1,
+    timelineVersion: historyState.timelineVersion,
     hasUnsavedChanges: true, // Mark unsaved whenever history changes
   };
 };
@@ -229,6 +251,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   projectPath: null,
   projectId: null,
   turnAudits: [],
+  timelineVersion: 0,
   history: [],
   historyIndex: -1,
   exportFormat: 'mp4',
@@ -548,6 +571,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const projectData = {
         version: '1.0',
         projectId,
+        timelineVersion: state.timelineVersion,
         clips: state.clips,
         activeClipId: state.activeClipId,
         selectedClipIds: state.selectedClipIds,
@@ -601,6 +625,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           selectedClipIds: projectData.selectedClipIds || [],
           currentTime: projectData.currentTime || 0,
           turnAudits: projectData.turnAudits || [],
+          timelineVersion: Number.isFinite(projectData.timelineVersion)
+            ? Number(projectData.timelineVersion)
+            : 0,
           subtitles: projectData.subtitles || [],
           subtitleStyle: projectData.subtitleStyle || {
             fontSize: 24,
@@ -662,6 +689,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       transcription: null,
       history: [],
       historyIndex: -1,
+      timelineVersion: 0,
       hasUnsavedChanges: false,
       lastSaved: null,
       notification: { type: 'success', message: 'New project created' }
@@ -681,6 +709,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ...previousState,
         history: state.history,
         historyIndex: state.historyIndex - 1,
+        timelineVersion: previousState.timelineVersion,
         notification: { type: 'success', message: 'Undo' },
       };
     }
@@ -693,6 +722,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ...nextState,
         history: state.history,
         historyIndex: state.historyIndex + 1,
+        timelineVersion: nextState.timelineVersion,
         notification: { type: 'success', message: 'Redo' },
       };
     }
@@ -795,6 +825,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const projectData = {
         version: '1.0',
+        projectId: state.projectId,
+        timelineVersion: state.timelineVersion,
         clips: state.clips,
         activeClipId: state.activeClipId,
         selectedClipIds: state.selectedClipIds,
@@ -1259,5 +1291,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       .slice()
       .reverse()
       .find((audit) => audit.turnId === turnId);
+  },
+  getTimelineStateArtifact: () => {
+    const state = get();
+    const clips = [...state.clips]
+      .sort((a, b) => a.startTime - b.startTime)
+      .map((clip) => ({
+        id: clip.id,
+        name: clip.name,
+        start: clip.start,
+        end: clip.end,
+        startTime: clip.startTime,
+        duration: clip.duration,
+        trackIndex: clip.trackIndex ?? 0,
+        mediaType: clip.mediaType,
+      }));
+
+    return {
+      timeline_version: state.timelineVersion,
+      clip_count: clips.length,
+      total_duration: state.getTotalDuration(),
+      clips,
+      style_profile: 'clean_modern',
+    };
   },
 }));

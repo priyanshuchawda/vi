@@ -44,7 +44,7 @@
     "mode": "inline_image",
     "maxTokens": 180,
     "temperature": 0.1,
-    "prompt": "What do you see in this image? Give 5 concise observations and 3 edit suggestions.",
+    "prompt": "What do you see in this image? Give 5 concise observations and 3 practical QuickCut edit suggestions (crop/color/text emphasis/timing). Do not suggest removing logos/watermarks or unverifiable claims.",
     "expectKeywords": ["observation", "suggestion"]
   }
 ]

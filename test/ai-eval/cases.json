@@ -1,0 +1,38 @@
+[
+  {
+    "id": "text_01_layman_multi_edit",
+    "suite": "smoke_text",
+    "mode": "text",
+    "maxTokens": 260,
+    "temperature": 0.1,
+    "prompt": "I have three videos. Edit them nicely, remove boring parts, and combine properly.",
+    "expectJson": true,
+    "expectKeywords": ["trim", "merge", "transition", "assumption", "confidence"],
+    "jsonContract": {
+      "requiredKeys": ["intent_type", "mode", "operations", "assumptions", "ambiguities", "needs_clarification", "confidence"],
+      "allowedModes": ["create", "modify", "delete"],
+      "minOperations": 3,
+      "requiredOperationNames": ["trim", "merge", "transition"],
+      "minConfidence": 0.35,
+      "maxConfidence": 0.95
+    }
+  },
+  {
+    "id": "descriptor_01_workspace",
+    "suite": "descriptor_multimodal",
+    "mode": "descriptor",
+    "maxTokens": 200,
+    "temperature": 0.1,
+    "prompt": "Using the attached media descriptors, suggest edit order and what to cut first. Keep it practical.",
+    "expectKeywords": ["order", "cut", "timeline"]
+  },
+  {
+    "id": "inline_01_image_analysis",
+    "suite": "inline_sanity",
+    "mode": "inline_image",
+    "maxTokens": 180,
+    "temperature": 0.1,
+    "prompt": "What do you see in this image? Give 5 concise observations and 3 edit suggestions.",
+    "expectKeywords": ["observation", "suggestion"]
+  }
+]

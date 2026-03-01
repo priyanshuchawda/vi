@@ -23,6 +23,7 @@ import {
 import { classifyTransientError, getRetryDelayMs } from '../../lib/retryClassifier';
 import { buildAIProjectSnapshot } from '../../lib/aiProjectSnapshot';
 import { normalizeUserIntent, type NormalizedIntent } from '../../lib/intentNormalizer';
+import { buildClarificationQuestion, formatClarificationForChat } from '../../lib/clarificationBuilder';
 
 interface SessionLogEntry {
   id: string;
@@ -489,9 +490,18 @@ const ChatPanel = () => {
           const clarifyRequired = plan.executionRecommendation === 'clarify_required';
 
           if (clarifyRequired) {
-            assistantMessage(
-              `I need one clarification before running this safely. ${plan.executionRecommendationReason || plan.planReadyReason || ''}`.trim()
-            );
+            const clarificationQuestion = buildClarificationQuestion({
+              ambiguities: normalizedIntent.ambiguities,
+              mode: normalizedIntent.mode,
+              constraints: normalizedIntent.constraints,
+            });
+            if (clarificationQuestion) {
+              assistantMessage(formatClarificationForChat(clarificationQuestion));
+            } else {
+              assistantMessage(
+                `I need one clarification before running this safely. ${plan.executionRecommendationReason || plan.planReadyReason || ''}`.trim()
+              );
+            }
             setExecutionPlan({
               plan,
               originalMessage: content,

@@ -21,6 +21,7 @@
     "test:coverage": "vitest run --coverage",
     "test:memory": "vitest run test/integration/ai-memory.test.ts",
     "eval:ai:one": "node scripts/ai-eval/run-bedrock-eval.mjs",
+    "eval:ai:batch": "node scripts/ai-eval/run-bedrock-batch.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

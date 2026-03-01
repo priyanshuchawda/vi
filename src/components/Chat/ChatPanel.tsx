@@ -481,8 +481,34 @@ const ChatPanel = () => {
             return;
           }
 
+          const confidenceScore = Number(plan.confidenceScore || 0);
+          const mutatingPlan = Boolean(plan.requiresApproval);
+          const meetsMutationAutoThreshold = !mutatingPlan || confidenceScore >= 0.85;
+          const clarifyRequired = plan.executionRecommendation === 'clarify_required';
+
+          if (clarifyRequired) {
+            assistantMessage(
+              `I need one clarification before running this safely. ${plan.executionRecommendationReason || plan.planReadyReason || ''}`.trim()
+            );
+            setExecutionPlan({
+              plan,
+              originalMessage: content,
+              history: aiHistory,
+              normalizedIntent,
+            });
+            if (turnId) {
+              setTurnStatus(turnId, 'awaiting_approval');
+            }
+            setExecutionContext({
+              hasPendingPlan: false,
+              lastUserMessageForPlan: content,
+            });
+            setIsTyping(false);
+            return;
+          }
+
           // Auto-execute if enabled OR no approval is required (read-only plans)
-          if (plan.planReady && (autoExecute || !plan.requiresApproval)) {
+          if (plan.planReady && (autoExecute || !plan.requiresApproval) && meetsMutationAutoThreshold) {
             if (turnId) {
               setTurnStatus(turnId, 'executing');
               appendTurnPart(turnId, {
@@ -568,6 +594,12 @@ const ChatPanel = () => {
               clearExecutionContext();
             }
             return;
+          }
+
+          if (plan.planReady && (autoExecute || !plan.requiresApproval) && !meetsMutationAutoThreshold) {
+            assistantMessage(
+              `Auto-execute skipped because confidence is ${(confidenceScore * 100).toFixed(0)}% (<85% for mutating edits). Please review and approve.`
+            );
           }
 
           // Show for approval if auto-execute is disabled

@@ -57,6 +57,19 @@ async function readSmallImageBytes(files) {
   };
 }
 
+async function readSmallVideoBytes(files) {
+  const video = files
+    .filter((f) => f.kind === "VIDEO")
+    .sort((a, b) => a.size - b.size)[0];
+  if (!video) return null;
+  const bytes = await fs.readFile(video.path);
+  return {
+    bytes: new Uint8Array(bytes),
+    name: video.name,
+    format: "mp4",
+  };
+}
+
 function keywordScore(text, expectKeywords = []) {
   const lower = text.toLowerCase();
   const hits = expectKeywords.filter((k) => lower.includes(k.toLowerCase()));
@@ -201,6 +214,7 @@ async function run() {
   const mediaFiles = await statMediaFiles();
   const descriptorText = buildDescriptorBlock(mediaFiles);
   const imageBytes = await readSmallImageBytes(mediaFiles);
+  const videoBytes = await readSmallVideoBytes(mediaFiles);
 
   const systemText =
     "You are QuickCut AI assistant. Stay in-product, concise, and execution-oriented. Do not reference external software workflows.";
@@ -221,6 +235,14 @@ async function run() {
       image: {
         format: imageBytes.format,
         source: { bytes: imageBytes.bytes },
+      },
+    });
+    userBlocks.push({ text: basePrompt });
+  } else if (selectedCase.mode === "inline_video" && videoBytes) {
+    userBlocks.push({
+      video: {
+        format: videoBytes.format,
+        source: { bytes: videoBytes.bytes },
       },
     });
     userBlocks.push({ text: basePrompt });

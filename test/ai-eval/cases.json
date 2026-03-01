@@ -46,5 +46,14 @@
     "temperature": 0.1,
     "prompt": "What do you see in this image? Give 5 concise observations and 3 practical QuickCut edit suggestions (crop/color/text emphasis/timing). Do not suggest removing logos/watermarks or unverifiable claims.",
     "expectKeywords": ["observation", "suggestion"]
+  },
+  {
+    "id": "inline_02_video_analysis",
+    "suite": "inline_sanity",
+    "mode": "inline_video",
+    "maxTokens": 260,
+    "temperature": 0.1,
+    "prompt": "Analyze this short video. Return exactly with compact bullets only: 1) key actions observed (max 4 bullets), 2) low-value moments to trim with rough timestamps (max 4 bullets), 3) exactly 3 practical QuickCut edits.",
+    "expectKeywords": ["action", "trim", "quickcut"]
   }
 ]

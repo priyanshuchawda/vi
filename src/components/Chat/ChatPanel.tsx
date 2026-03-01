@@ -21,6 +21,7 @@ import {
 } from '../../lib/aiTelemetry';
 import { classifyTransientError, getRetryDelayMs } from '../../lib/retryClassifier';
 import { buildAIProjectSnapshot } from '../../lib/aiProjectSnapshot';
+import { normalizeUserIntent, type NormalizedIntent } from '../../lib/intentNormalizer';
 
 interface SessionLogEntry {
   id: string;
@@ -104,6 +105,7 @@ const ChatPanel = () => {
     plan: any;
     originalMessage: string;
     history: any[];
+    normalizedIntent?: NormalizedIntent;
   } | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [lastPlanExecutionError, setLastPlanExecutionError] = useState<string | null>(null);
@@ -374,10 +376,19 @@ const ChatPanel = () => {
         hasPendingPlan: hasReadyPendingPlan,
         hasRecentEditingContext: recentEditingContext,
       });
+      const normalizedIntent = normalizeUserIntent(content, {
+        hasTimeline: clips.length > 0,
+        baseIntent: intent,
+        hasPendingPlan: hasReadyPendingPlan,
+        hasRecentEditingContext: recentEditingContext,
+      });
       if (
         (isExecutionConfirmation(content) && looksLikeEditPlan(lastAssistantMessage)) ||
         (isAmbiguousContinuation(content) && recentEditingContext)
       ) {
+        intent = 'edit';
+      }
+      if (intent === 'chat' && normalizedIntent.requiresPlanning) {
         intent = 'edit';
       }
       turnId = startTurn(userMessageId, intent === 'edit' ? 'plan' : 'ask');
@@ -412,7 +423,7 @@ const ChatPanel = () => {
         assistantMessage('Analyzing your request and generating execution plan...');
 
         const plan = await runWithTransientRetry(
-          () => generateCompletePlan(content, aiHistory, 3),
+          () => generateCompletePlan(content, aiHistory, 3, { normalizedIntent }),
           {
             turnId,
             onRetryStatus: (attempt, nextAt, reason) => {
@@ -459,6 +470,7 @@ const ChatPanel = () => {
               plan,
               originalMessage: content,
               history: aiHistory,
+              normalizedIntent,
             });
             setLastPlanExecutionError(null);
             setExecutionContext({
@@ -563,6 +575,7 @@ const ChatPanel = () => {
             plan,
             originalMessage: content,
             history: aiHistory,
+            normalizedIntent,
           });
           if (turnId) {
             setTurnStatus(turnId, 'awaiting_approval');
@@ -1001,6 +1014,7 @@ const ChatPanel = () => {
           executionPlan.originalMessage,
           executionPlan.history,
           3,
+          { normalizedIntent: executionPlan.normalizedIntent },
         ),
         {
           turnId: rebuildingTurnId,

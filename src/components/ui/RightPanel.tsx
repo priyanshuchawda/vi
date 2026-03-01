@@ -80,7 +80,7 @@ const RightPanel = ({ isOpen = true, onClose, width = 320 }: RightPanelProps) =>
   return (
     <div
       className="bg-gradient-to-b from-bg-elevated to-bg-secondary border-l border-white/5 flex flex-col h-full shadow-2xl"
-      style={{ width: `${Math.max(320, width)}px` }}
+      style={{ width: `${Math.max(240, width)}px` }}
     >
       {/* Header with tabs */}
       <div className="border-b border-white/5 bg-bg-secondary/80 backdrop-blur-xl">

@@ -22,7 +22,7 @@ function App() {
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
   const timelineHeight = isDesktop ? 180 : 160;
-  const effectiveSidePanelWidth = isDesktop ? Math.max(panelWidth, 460) : window.innerWidth;
+  const effectiveSidePanelWidth = isDesktop ? Math.max(panelWidth, 260) : window.innerWidth;
   const isSidePanelVisible = isChatOpen || isRightPanelOpen;
 
   // Keyboard shortcut for chat (Ctrl+K / Cmd+K)

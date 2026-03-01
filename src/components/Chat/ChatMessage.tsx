@@ -103,7 +103,7 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
   if (isSystem) {
     return (
       <div className="flex justify-center my-4">
-        <div className="px-4 py-2 bg-bg-surface/50 border border-border-primary rounded-lg text-xs text-text-muted max-w-[80%] text-center">
+        <div className="px-3 py-1.5 bg-bg-surface/50 border border-border-primary rounded-lg text-[12px] text-text-muted max-w-[80%] text-center">
           {message.content}
         </div>
       </div>
@@ -111,7 +111,7 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
   }
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 group`}>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3 group`}>
       <div className={`flex flex-col max-w-[85%] ${isUser ? 'items-end' : 'items-start'}`}>
         {/* Media attachments */}
         {message.attachments && message.attachments.length > 0 && (
@@ -124,14 +124,14 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
 
         {/* Message bubble */}
         <div
-          className={`px-4 py-2.5 rounded-2xl ${isUser
+          className={`px-3.5 py-2 rounded-xl ${isUser
             ? 'bg-accent text-white rounded-tr-sm'
             : isError
               ? 'bg-red-500/10 border border-red-500/30 text-red-400 rounded-tl-sm'
               : 'bg-bg-surface border border-border-primary text-text-primary rounded-tl-sm'
             }`}
         >
-          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+          <p className="text-[13px] leading-6 whitespace-pre-wrap break-words">
             {message.content}
           </p>
         </div>
@@ -140,19 +140,19 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
         <div className="flex items-center gap-2 mt-1 px-2">
           <button
             onClick={copyMessage}
-            className="text-[10px] text-text-muted opacity-0 group-hover:opacity-100 hover:text-text-primary transition-opacity"
+            className="text-[11px] text-text-muted opacity-0 group-hover:opacity-100 hover:text-text-primary transition-opacity"
             title="Copy message"
           >
             {copied ? 'Copied' : 'Copy'}
           </button>
 
-          <span className="text-[10px] text-text-muted opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-[11px] text-text-muted opacity-0 group-hover:opacity-100 transition-opacity">
             {formatTime(message.timestamp)}
           </span>
 
           {/* Attachment count badge */}
           {message.attachments && message.attachments.length > 0 && (
-            <span className="text-[10px] text-text-muted bg-bg-surface/50 px-1.5 py-0.5 rounded">
+            <span className="text-[11px] text-text-muted bg-bg-surface/50 px-1.5 py-0.5 rounded">
               Files: {message.attachments.length}
             </span>
           )}

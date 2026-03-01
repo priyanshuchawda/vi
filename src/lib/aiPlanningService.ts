@@ -46,12 +46,14 @@ import {
   type ToolErrorCategory,
 } from './toolCapabilityMatrix';
 import type { NormalizedIntent } from './intentNormalizer';
+import type { EditMode } from './intentNormalizer';
 import {
   buildFallbackStrategy,
   buildStrategyPrompt,
   parseStrategyResponse,
   type StrategyPlan,
 } from './strategyPlanner';
+import { recommendExecutionPolicy, type ExecutionRecommendation } from './executionConfidencePolicy';
 import { compilePlan, generateCorrectionPrompt, validatePlannerOutputContract, type CompilationError } from './planCompiler';
 import { buildFallbackExecutionPlan, shouldUseFallback } from './fallbackPlanGenerator';
 import { recordPlanningAttempt, recordExecutionAttempt } from './aiTelemetry';
@@ -130,6 +132,8 @@ export interface ExecutionPlan {
   changeSummary?: string[];
   rollbackNote?: string;
   strategyArtifact?: StrategyPlan;
+  executionRecommendation?: ExecutionRecommendation;
+  executionRecommendationReason?: string;
 }
 
 export interface TurnAuditPayload {
@@ -698,13 +702,31 @@ If the goal is complete, return no new tool calls.`;
 
   // Determine if approval is needed (any state-changing operations)
   const requiresApproval = normalizedOperations.some((op) => !op.isReadOnly);
+  const confidenceScore = blendConfidenceScore({
+    planQualityScore: planQuality.score,
+    strategyConfidence: strategyArtifact.confidence,
+    validationIssueCount: validationIssues.length,
+    normalizedIntent: options?.normalizedIntent,
+  });
+  const confidenceDecision = recommendExecutionPolicy({
+    confidenceScore,
+    mode: (options?.normalizedIntent?.mode as EditMode | undefined) || "modify",
+    hasAmbiguities: (options?.normalizedIntent?.ambiguities?.length || 0) > 0,
+    mutating: requiresApproval,
+  });
   const readiness = evaluatePlanReadiness({
     compileSucceeded: compilationResult.errors.length === 0,
     selfCheckIssueCount: selfCheckIssues.length,
-    confidenceScore: planQuality.score,
+    confidenceScore,
     preflightValid: preflight.valid,
     operationCount: normalizedOperations.length,
   });
+  const finalReadiness = confidenceDecision.recommendation === "clarify_required"
+    ? {
+        planReady: false,
+        planReadyReason: confidenceDecision.reason,
+      }
+    : readiness;
   recordPlanningAttempt({
     compileFailed,
     fallbackUsed: false,
@@ -716,7 +738,7 @@ If the goal is complete, return no new tool calls.`;
     understanding,
     operations: normalizedOperations,
     riskNotes,
-    planReady: readiness.planReady,
+    planReady: finalReadiness.planReady,
   });
   if (!contractValidation.valid) {
     const fallback = buildFallbackExecutionPlan(realSnapshot, aliasMap, message);
@@ -736,13 +758,15 @@ If the goal is complete, return no new tool calls.`;
     totalRounds: currentRound,
     estimatedDuration: normalizedOperations.length * 0.5, // Rough estimate
     requiresApproval,
-    planReady: readiness.planReady,
-    planReadyReason: readiness.planReadyReason,
+    planReady: finalReadiness.planReady,
+    planReadyReason: finalReadiness.planReadyReason,
     riskNotes,
-    confidenceScore: planQuality.score,
+    confidenceScore,
     changeSummary,
     rollbackNote: 'Undo is available immediately after execution if the result is not what you expected.',
     strategyArtifact,
+    executionRecommendation: confidenceDecision.recommendation,
+    executionRecommendationReason: confidenceDecision.reason,
   };
   setCached<ExecutionPlan>(planCacheKey, planResult, PLAN_CACHE_TTL_MS);
   return planResult;
@@ -1311,6 +1335,23 @@ function assessPlanQuality(
     score: Math.max(0, Math.min(1, score)),
     notes,
   };
+}
+
+function blendConfidenceScore(input: {
+  planQualityScore: number;
+  strategyConfidence?: number;
+  validationIssueCount: number;
+  normalizedIntent?: NormalizedIntent;
+}): number {
+  const planScore = Math.max(0, Math.min(1, input.planQualityScore));
+  const strategyScore = Math.max(
+    0,
+    Math.min(1, input.strategyConfidence ?? planScore),
+  );
+  const ambiguityPenalty = (input.normalizedIntent?.ambiguities?.length || 0) * 0.08;
+  const validationPenalty = Math.min(0.25, input.validationIssueCount * 0.03);
+  const blended = planScore * 0.65 + strategyScore * 0.35 - ambiguityPenalty - validationPenalty;
+  return Math.max(0.05, Math.min(0.98, blended));
 }
 
 function evaluatePlanReadiness(input: {

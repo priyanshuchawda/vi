@@ -46,6 +46,12 @@ import {
   type ToolErrorCategory,
 } from './toolCapabilityMatrix';
 import type { NormalizedIntent } from './intentNormalizer';
+import {
+  buildFallbackStrategy,
+  buildStrategyPrompt,
+  parseStrategyResponse,
+  type StrategyPlan,
+} from './strategyPlanner';
 import { compilePlan, generateCorrectionPrompt, validatePlannerOutputContract, type CompilationError } from './planCompiler';
 import { buildFallbackExecutionPlan, shouldUseFallback } from './fallbackPlanGenerator';
 import { recordPlanningAttempt, recordExecutionAttempt } from './aiTelemetry';
@@ -123,6 +129,7 @@ export interface ExecutionPlan {
   confidenceScore?: number;
   changeSummary?: string[];
   rollbackNote?: string;
+  strategyArtifact?: StrategyPlan;
 }
 
 export interface TurnAuditPayload {
@@ -211,6 +218,52 @@ CRITICAL: You must ONLY use clip aliases from the provided snapshot.
 - If unable to proceed, call get_timeline_info to inspect state.
 </response-requirements>`;
 
+const STRATEGY_SYSTEM_INSTRUCTION = `You are a strict strategy planner for a video editor.
+Return JSON only. No prose. No markdown.`;
+
+async function generateStrategyDraft(input: {
+  message: string;
+  normalizedIntent?: NormalizedIntent;
+  clipCount: number;
+  totalDuration: number;
+  modelId: string;
+}): Promise<StrategyPlan> {
+  const prompt = buildStrategyPrompt({
+    message: input.message,
+    normalizedIntent: input.normalizedIntent,
+    clipCount: input.clipCount,
+    timelineDurationSeconds: input.totalDuration,
+  });
+
+  await waitForSlot();
+  const response = await withRetryOn429(() =>
+    converseBedrock({
+      modelId: input.modelId,
+      messages: [{ role: 'user', content: [{ text: prompt }] }],
+      system: [{ text: STRATEGY_SYSTEM_INSTRUCTION }],
+      inferenceConfig: { maxTokens: 512, temperature: 0.1 },
+    }),
+  );
+  if (response.usage) {
+    recordUsage({
+      promptTokenCount: response.usage.inputTokens,
+      candidatesTokenCount: response.usage.outputTokens,
+      totalTokenCount: response.usage.totalTokens,
+    });
+  }
+
+  const rawText = (response.output?.message?.content || [])
+    .map((block: any) => block?.text || '')
+    .join('\n')
+    .trim();
+  const parsed = parseStrategyResponse(rawText);
+  if (parsed.ok) return parsed.strategy;
+  return buildFallbackStrategy({
+    message: input.message,
+    normalizedIntent: input.normalizedIntent,
+  });
+}
+
 /**
  * Generate a complete execution plan by letting the AI explore all needed operations.
  * Runs multiple rounds of tool calling to build a complete plan before execution.
@@ -289,10 +342,18 @@ export async function generateCompletePlan(
   const snapshotContext = formatSnapshotForPrompt(aliasedSnapshot, 'planning', 3400);
   const capabilityContext = formatCapabilityMatrixForPrompt(toolNames, 2400);
   const currentDate = new Date().toISOString().split('T')[0];
+  const strategyArtifact = await generateStrategyDraft({
+    message,
+    normalizedIntent: options?.normalizedIntent,
+    clipCount: realSnapshot.timeline.clipCount,
+    totalDuration: realSnapshot.timeline.totalDuration,
+    modelId: routingDecision.modelId,
+  });
 
   const normalizedIntentContext = options?.normalizedIntent
     ? `\n<normalized-intent>\n${JSON.stringify(options.normalizedIntent, null, 2)}\n</normalized-intent>\n`
     : '';
+  const strategyContext = `\n<strategy-artifact>\n${JSON.stringify(strategyArtifact, null, 2)}\n</strategy-artifact>\n`;
 
   let dynamicContext = `
 [System Note: Planning Context - Date: ${currentDate}]
@@ -303,6 +364,7 @@ ${snapshotContext}
 ${capabilityContext}
 </tool-capability-matrix>
 ${normalizedIntentContext}
+${strategyContext}
 ${channelContext}
 <instruction>
 Use UNDERSTAND -> PLAN -> EXECUTE PLAN DRAFT.
@@ -680,6 +742,7 @@ If the goal is complete, return no new tool calls.`;
     confidenceScore: planQuality.score,
     changeSummary,
     rollbackNote: 'Undo is available immediately after execution if the result is not what you expected.',
+    strategyArtifact,
   };
   setCached<ExecutionPlan>(planCacheKey, planResult, PLAN_CACHE_TTL_MS);
   return planResult;

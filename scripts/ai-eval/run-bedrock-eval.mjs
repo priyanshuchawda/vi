@@ -147,6 +147,27 @@ Rules:
 - confidence must be 0..1 and realistically calibrated (not 0 unless impossible).`;
 }
 
+function buildCaseSpecificJsonPrompt(selectedCase, userPrompt) {
+  if (selectedCase.id === "descriptor_01_workspace") {
+    return `${userPrompt}
+
+Return JSON only with this shape:
+{
+  "story_goal": "...",
+  "edit_order": ["asset_or_segment_1", "asset_or_segment_2", "asset_or_segment_3"],
+  "cut_first": ["specific thing 1", "specific thing 2"],
+  "timeline_notes": ["note 1", "note 2"],
+  "assumptions": ["..."],
+  "confidence": 0.0
+}
+
+Rules:
+- Prefer narrative relevance, not file size.
+- Keep concise and execution-oriented.`;
+  }
+  return buildJsonContractPrompt(userPrompt);
+}
+
 function buildRepairPrompt(originalPrompt, previousOutput, failures) {
   return `Your previous output failed validation: ${failures.join(", ")}.
 Original task: ${originalPrompt}
@@ -185,12 +206,16 @@ async function run() {
     "You are QuickCut AI assistant. Stay in-product, concise, and execution-oriented. Do not reference external software workflows.";
   const userBlocks = [];
 
+  const descriptorExtraContext = Array.isArray(selectedCase.descriptorContext) && selectedCase.descriptorContext.length > 0
+    ? `\n[Descriptor Notes]\n${selectedCase.descriptorContext.map((line, i) => `${i + 1}. ${line}`).join("\n")}\n`
+    : "";
+
   const basePrompt = selectedCase.expectJson
-    ? buildJsonContractPrompt(selectedCase.prompt)
+    ? buildCaseSpecificJsonPrompt(selectedCase, selectedCase.prompt)
     : selectedCase.prompt;
 
   if (selectedCase.mode === "descriptor") {
-    userBlocks.push({ text: `${descriptorText}\n\n${basePrompt}` });
+    userBlocks.push({ text: `${descriptorText}${descriptorExtraContext}\n${basePrompt}` });
   } else if (selectedCase.mode === "inline_image" && imageBytes) {
     userBlocks.push({
       image: {

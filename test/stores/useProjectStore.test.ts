@@ -13,7 +13,11 @@ describe('useProjectStore', () => {
       notification: null,
       copiedClips: [],
       projectPath: null,
+      projectId: null,
       turnAudits: [],
+      timelineVersion: 0,
+      history: [],
+      historyIndex: -1,
     });
   });
 
@@ -285,6 +289,39 @@ describe('useProjectStore', () => {
       expect(audit).toBeDefined();
       expect(audit?.preSnapshotHash).toBe('pre-hash');
       expect(audit?.toolInputs[0].name).toBe('split_clip');
+    });
+  });
+
+  describe('timeline state artifact', () => {
+    it('increments timelineVersion on mutating edits', () => {
+      const { addClip, updateClip } = useProjectStore.getState();
+
+      addClip({
+        path: '/test/video.mp4',
+        name: 'v1',
+        duration: 10,
+        sourceDuration: 10,
+      });
+      const clipId = useProjectStore.getState().clips[0].id;
+      updateClip(clipId, { start: 1, end: 8 });
+
+      expect(useProjectStore.getState().timelineVersion).toBeGreaterThanOrEqual(2);
+    });
+
+    it('returns structured timeline artifact', () => {
+      const { addClip, getTimelineStateArtifact } = useProjectStore.getState();
+      addClip({
+        path: '/test/video.mp4',
+        name: 'artifact clip',
+        duration: 6,
+        sourceDuration: 6,
+      });
+
+      const artifact = getTimelineStateArtifact();
+      expect(artifact.clip_count).toBe(1);
+      expect(artifact.timeline_version).toBeGreaterThanOrEqual(1);
+      expect(artifact.clips[0].name).toBe('artifact clip');
+      expect(artifact.style_profile).toBe('clean_modern');
     });
   });
 });

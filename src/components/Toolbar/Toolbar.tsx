@@ -48,8 +48,11 @@ const Toolbar = ({
     // Keyboard shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
       // Skip all shortcuts when focus is inside an input/textarea/contenteditable
-      const tag = (e.target as HTMLElement).tagName;
-      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName || '';
+      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || Boolean(target?.isContentEditable);
+      const isInChatPanel = Boolean(target?.closest('[data-chat-panel="true"]'));
+      const hasTextSelection = Boolean(window.getSelection()?.toString().trim());
 
       // Space bar for play/pause - prevent if typing in input
       if (e.code === 'Space' && e.target === document.body) {
@@ -78,11 +81,11 @@ const Toolbar = ({
         e.preventDefault();
         mergeSelectedClips();
       }
-      if (e.ctrlKey && e.key === 'c' && selectedClipIds.length > 0 && !isTyping) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && selectedClipIds.length > 0 && !isTyping && !isInChatPanel && !hasTextSelection) {
         e.preventDefault();
         copyClips();
       }
-      if (e.ctrlKey && e.key === 'v' && !isTyping) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v' && !isTyping && !isInChatPanel) {
         e.preventDefault();
         pasteClips();
       }

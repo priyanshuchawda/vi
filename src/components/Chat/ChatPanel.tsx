@@ -23,6 +23,7 @@ import {
 import { classifyTransientError, getRetryDelayMs } from '../../lib/retryClassifier';
 import { buildAIProjectSnapshot } from '../../lib/aiProjectSnapshot';
 import { normalizeUserIntent, type NormalizedIntent } from '../../lib/intentNormalizer';
+import { buildClarificationQuestion, formatClarificationForChat } from '../../lib/clarificationBuilder';
 
 interface SessionLogEntry {
   id: string;
@@ -489,9 +490,18 @@ const ChatPanel = () => {
           const clarifyRequired = plan.executionRecommendation === 'clarify_required';
 
           if (clarifyRequired) {
-            assistantMessage(
-              `I need one clarification before running this safely. ${plan.executionRecommendationReason || plan.planReadyReason || ''}`.trim()
-            );
+            const clarificationQuestion = buildClarificationQuestion({
+              ambiguities: normalizedIntent.ambiguities,
+              mode: normalizedIntent.mode,
+              constraints: normalizedIntent.constraints,
+            });
+            if (clarificationQuestion) {
+              assistantMessage(formatClarificationForChat(clarificationQuestion));
+            } else {
+              assistantMessage(
+                `I need one clarification before running this safely. ${plan.executionRecommendationReason || plan.planReadyReason || ''}`.trim()
+              );
+            }
             setExecutionPlan({
               plan,
               originalMessage: content,
@@ -1401,92 +1411,95 @@ const ChatPanel = () => {
 
   return (
     <div
+      data-chat-panel="true"
       className="h-full flex flex-col overflow-hidden"
       style={{
         width: '100%',
       }}
     >
       {/* Header */}
-      <div className="border-b border-white/5 p-4 flex items-center justify-between bg-bg-elevated/50 backdrop-blur-sm animate-slide-up">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-accent/20 to-accent/10 rounded-lg flex items-center justify-center animate-float">
-            <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="border-b border-white/5 px-3 py-2.5 flex items-start justify-between gap-2 bg-bg-elevated/50 backdrop-blur-sm animate-slide-up">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-7 h-7 bg-gradient-to-br from-accent/20 to-accent/10 rounded-md flex items-center justify-center animate-float">
+            <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-text-primary">AI Copilot</h2>
-            <p className="text-[10px] text-text-muted/70">Intelligent Editing Assistant</p>
+            <h2 className="text-[15px] leading-5 font-semibold text-text-primary">AI Copilot</h2>
+            <p className="text-[11px] leading-4 text-text-muted/70">Intelligent Editing Assistant</p>
           </div>
-          <TokenCounter />
+          <div className="hidden 2xl:block">
+            <TokenCounter />
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 max-w-[62%] overflow-x-auto custom-scrollbar pb-1">
           <button
             onClick={() => setShowLogs((v) => !v)}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${showLogs ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
+            className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-md transition-all duration-200 hover:scale-110 active:scale-95 ${showLogs ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
             title="Session logs"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17h6M9 13h6M9 9h6M5 5h14v14H5z" />
             </svg>
           </button>
           <button
             onClick={() => setShowTelemetry((v) => !v)}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${showTelemetry ? 'text-cyan-300 bg-cyan-500/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
+            className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-md transition-all duration-200 hover:scale-110 active:scale-95 ${showTelemetry ? 'text-cyan-300 bg-cyan-500/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
             title="AI reliability telemetry"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 12l3-3 2 2 5-5M5 19h14" />
             </svg>
           </button>
           <button
             onClick={handleCompactContext}
-            className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
+            className="w-7 h-7 shrink-0 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-md transition-all duration-200 hover:scale-110 active:scale-95"
             title="Compact context"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8h16M4 12h12M4 16h8" />
             </svg>
           </button>
           <button
             onClick={handleOpenBudgetControls}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${showBudgetControls ? 'text-amber-300 bg-amber-500/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
+            className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-md transition-all duration-200 hover:scale-110 active:scale-95 ${showBudgetControls ? 'text-amber-300 bg-amber-500/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
             title="Cost budget settings"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-10V6m0 12v-2M5 12a7 7 0 1014 0 7 7 0 10-14 0z" />
             </svg>
           </button>
           <button
             onClick={toggleAutoExecute}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${autoExecute ? 'text-green-400 bg-green-500/10 hover:bg-green-500/15' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
+            className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-md transition-all duration-200 hover:scale-110 active:scale-95 ${autoExecute ? 'text-green-400 bg-green-500/10 hover:bg-green-500/15' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
             title={autoExecute ? "Auto-execute ON" : "Auto-execute OFF"}
           >
             {autoExecute ? (
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
               </svg>
             ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             )}
           </button>
           <button
             onClick={handleClearChat}
-            className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
+            className="w-7 h-7 shrink-0 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-md transition-all duration-200 hover:scale-110 active:scale-95"
             title="Clear chat"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>
           <button
             onClick={togglePanel}
-            className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
+            className="w-7 h-7 shrink-0 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-md transition-all duration-200 hover:scale-110 active:scale-95"
             title="Close (Ctrl+K)"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>

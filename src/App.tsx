@@ -14,12 +14,16 @@ import { useProfileStore } from './stores/useProfileStore';
 import type { ChannelAnalysisData } from './types/electron';
 
 function App() {
-  const { togglePanel, isOpen: isChatOpen } = useChatStore();
+  const { togglePanel, isOpen: isChatOpen, panelWidth, setPanelWidth } = useChatStore();
   const { hasCompletedOnboarding, completeOnboarding, skipOnboarding } = useOnboardingStore();
   const { profile, createProfile, setYouTubeChannel } = useProfileStore();
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
   const [isFilePanelOpen, setIsFilePanelOpen] = useState(true);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
+  const timelineHeight = isDesktop ? 180 : 160;
+  const effectiveSidePanelWidth = isDesktop ? Math.max(panelWidth, 260) : window.innerWidth;
+  const isSidePanelVisible = isChatOpen || isRightPanelOpen;
 
   // Keyboard shortcut for chat (Ctrl+K / Cmd+K)
   useEffect(() => {
@@ -39,6 +43,32 @@ function App() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    if (!isResizingSidePanel || !isDesktop) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const nextWidth = window.innerWidth - e.clientX;
+      setPanelWidth(nextWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingSidePanel(false);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isResizingSidePanel, isDesktop, setPanelWidth]);
 
   const handleOnboardingComplete = (analysisData?: ChannelAnalysisData) => {
     const userId = crypto.randomUUID();
@@ -93,49 +123,65 @@ function App() {
         />
       </div>
 
-      {/* CENTER: Main content area */}
-      <div className="flex-1 flex flex-col h-screen">
-        {/* Top section: Panels + Preview + AI Chat */}
-        <div className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 240px)' }}>
-          
-          {/* LEFT: File Panel with smooth transition */}
-          {isFilePanelOpen && (
-            <div className="animate-slide-in">
-              <FilePanel isOpen={isFilePanelOpen} onClose={() => setIsFilePanelOpen(false)} />
-            </div>
-          )}
+      {/* CENTER + RIGHT: Main content and full-height side panel */}
+      <div className="flex-1 flex h-screen min-w-0">
+        {/* CENTER: Editor column */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Top section: File panel + Preview */}
+          <div className="flex-1 flex overflow-hidden" style={{ height: `calc(100vh - ${timelineHeight}px)` }}>
+            {/* LEFT: File Panel with smooth transition */}
+            {isFilePanelOpen && (
+              <div className="animate-slide-in">
+                <FilePanel isOpen={isFilePanelOpen} onClose={() => setIsFilePanelOpen(false)} />
+              </div>
+            )}
 
-          {/* CENTER: HERO PREVIEW - Dominant area with subtle gradient */}
-          <div className="flex-1 bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-primary flex flex-col p-6 relative">
-            <div className="absolute inset-0 bg-gradient-to-tr from-accent/[0.02] to-transparent pointer-events-none"></div>
-            <Preview />
+            {/* CENTER: HERO PREVIEW - Dominant area with subtle gradient */}
+            <div className="flex-1 bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-primary flex flex-col p-6 relative min-w-0">
+              <div className="absolute inset-0 bg-gradient-to-tr from-accent/[0.02] to-transparent pointer-events-none"></div>
+              <Preview />
+            </div>
           </div>
 
-          {/* RIGHT: AI Chat Panel - Native integration with smooth transition */}
-          {isChatOpen && (
-            <div 
-              className="bg-gradient-to-b from-bg-secondary to-bg-elevated flex flex-col h-full shadow-2xl border-l border-white/5 animate-slide-in-right"
-              style={{ width: isDesktop ? '420px' : '100%' }}
-            >
-              <ChatPanel />
-            </div>
-          )}
-
-          {/* RIGHT: Tools Panel with smooth transition */}
-          {isRightPanelOpen && !isChatOpen && (
-            <div className="animate-slide-in-right">
-              <RightPanel isOpen={isRightPanelOpen} onClose={() => setIsRightPanelOpen(false)} />
-            </div>
-          )}
+          {/* BOTTOM: Timeline only in center column */}
+          <div
+            className="bg-gradient-to-b from-bg-secondary to-bg-elevated flex flex-col border-t border-white/5 shadow-2xl"
+            style={{ height: `${timelineHeight}px` }}
+          >
+            <Timeline />
+          </div>
         </div>
 
-        {/* BOTTOM: Timeline - Fixed height, full width with premium styling */}
-        <div 
-          className="bg-gradient-to-b from-bg-secondary to-bg-elevated flex flex-col border-t border-white/5 shadow-2xl"
-          style={{ height: '240px' }}
-        >
-          <Timeline />
-        </div>
+        {/* RIGHT: Full-height side panel (Chat or Tools) */}
+        {isSidePanelVisible && (
+          <div
+            className={`relative h-full animate-slide-in-right ${isDesktop ? 'border-l border-white/5' : ''}`}
+            style={{ width: isDesktop ? `${effectiveSidePanelWidth}px` : '100%' }}
+          >
+            {isDesktop && (
+              <button
+                type="button"
+                aria-label="Resize side panel"
+                onMouseDown={() => setIsResizingSidePanel(true)}
+                className="absolute left-0 top-0 h-full w-1.5 -translate-x-1/2 cursor-col-resize z-30 group"
+                title="Drag to resize"
+              >
+                <span className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-white/10 group-hover:bg-accent/70 transition-colors" />
+              </button>
+            )}
+            {isChatOpen ? (
+              <div className="bg-gradient-to-b from-bg-secondary to-bg-elevated flex flex-col h-full shadow-2xl">
+                <ChatPanel />
+              </div>
+            ) : (
+              <RightPanel
+                isOpen={isRightPanelOpen}
+                onClose={() => setIsRightPanelOpen(false)}
+                width={effectiveSidePanelWidth}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

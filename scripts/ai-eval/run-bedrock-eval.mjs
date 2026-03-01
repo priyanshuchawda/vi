@@ -97,11 +97,14 @@ function extractJsonObject(text) {
   }
 }
 
-function validateJsonContract(payload, contract) {
+function validateJsonContract(payload, contract, rawText = "") {
   if (!payload || typeof payload !== "object") {
     return { valid: false, reasons: ["not_an_object"] };
   }
   const reasons = [];
+  const normalizedRaw = String(rawText || "").trim();
+  const hasFence = /```/.test(normalizedRaw);
+  if (hasFence) reasons.push("markdown_fence_present");
   for (const key of contract.requiredKeys || []) {
     if (!(key in payload)) reasons.push(`missing:${key}`);
   }
@@ -127,6 +130,16 @@ function validateJsonContract(payload, contract) {
       if (!names.has(String(required).toLowerCase())) {
         reasons.push(`missing_operation:${required}`);
       }
+    }
+  }
+  if (Array.isArray(contract.allowedOperationNames)) {
+    const invalidNames = Array.isArray(payload.operations)
+      ? payload.operations
+          .map((op) => String(op?.name || "").toLowerCase())
+          .filter((name) => name && !contract.allowedOperationNames.map((x) => String(x).toLowerCase()).includes(name))
+      : [];
+    if (invalidNames.length > 0) {
+      reasons.push(`invalid_operation_names:${invalidNames.join("|")}`);
     }
   }
   if ("confidence" in payload && (typeof payload.confidence !== "number" || payload.confidence < 0 || payload.confidence > 1)) {
@@ -230,6 +243,38 @@ Rules:
   return buildJsonContractPrompt(userPrompt);
 }
 
+function buildCaseSpecificPlainPrompt(selectedCase, userPrompt) {
+  if (selectedCase.id === "clarify_01_missing_style_reference") {
+    return `${userPrompt}
+
+Return exactly:
+Clarification: <one sentence question>
+1. <option>
+2. <option>
+3. <option>
+
+Rules:
+- exactly one clarification question
+- exactly 3 options
+- concise`;
+  }
+  if (selectedCase.id === "clarify_02_missing_segment_reference") {
+    return `${userPrompt}
+
+Return exactly:
+Clarification: <one sentence question>
+1. <option>
+2. <option>
+3. <option>
+
+Rules:
+- identify segment target ambiguity
+- exactly one clarification question
+- exactly 3 options`;
+  }
+  return userPrompt;
+}
+
 function buildRepairPrompt(selectedCase, originalPrompt, previousOutput, failures) {
   const contract = selectedCase?.jsonContract
     ? `Contract:\n${JSON.stringify(selectedCase.jsonContract, null, 2)}`
@@ -249,7 +294,11 @@ ${caseSpecific}
 Previous output:
 ${previousOutput}
 
-Repair it now and return valid JSON only following the required shape.`;
+Repair it now and return valid JSON only following the required shape.
+Hard format rules:
+- Output MUST start with '{' and end with '}'.
+- Do NOT use markdown.
+- Do NOT use code fences like \`\`\`json.`;
 }
 
 async function run() {
@@ -289,7 +338,7 @@ async function run() {
 
   const basePrompt = selectedCase.expectJson
     ? buildCaseSpecificJsonPrompt(selectedCase, selectedCase.prompt)
-    : selectedCase.prompt;
+    : buildCaseSpecificPlainPrompt(selectedCase, selectedCase.prompt);
 
   if (selectedCase.mode === "descriptor") {
     userBlocks.push({ text: `${descriptorText}${descriptorExtraContext}\n${basePrompt}` });
@@ -338,9 +387,10 @@ async function run() {
     .join("\n")
     .trim();
   let finalUsage = response.usage || null;
+  let formatNormalized = false;
   let jsonPayload = selectedCase.expectJson ? extractJsonObject(text) : null;
   let contractValidation = selectedCase.expectJson
-    ? validateJsonContract(jsonPayload, selectedCase.jsonContract || {})
+    ? validateJsonContract(jsonPayload, selectedCase.jsonContract || {}, text)
     : { valid: true, reasons: [] };
 
   if (selectedCase.expectJson && !contractValidation.valid) {
@@ -376,7 +426,18 @@ async function run() {
     };
     finalUsage = mergedUsage;
     jsonPayload = extractJsonObject(text);
-    contractValidation = validateJsonContract(jsonPayload, selectedCase.jsonContract || {});
+    contractValidation = validateJsonContract(jsonPayload, selectedCase.jsonContract || {}, text);
+  }
+
+  if (
+    selectedCase.expectJson &&
+    !contractValidation.valid &&
+    contractValidation.reasons?.every((reason) => reason === "markdown_fence_present") &&
+    jsonPayload
+  ) {
+    text = JSON.stringify(jsonPayload, null, 2);
+    formatNormalized = true;
+    contractValidation = validateJsonContract(jsonPayload, selectedCase.jsonContract || {}, text);
   }
 
   const score = keywordScore(text, selectedCase.expectKeywords || []);
@@ -388,6 +449,7 @@ async function run() {
     output: text,
     jsonPayload,
     contractValidation,
+    formatNormalized,
     keywordEvaluation: score,
   };
 

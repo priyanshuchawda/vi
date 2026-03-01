@@ -245,16 +245,16 @@ const ChatInput = ({ onSendMessage, disabled }: ChatInputProps) => {
         </div>
       )}
 
-      <div className="p-4 pt-2">
+      <div className="p-3 pt-2">
         <div className="flex items-end gap-2">
           {/* Attach button */}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
-            className="p-2.5 text-text-muted hover:text-accent hover:bg-accent/10 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all flex-shrink-0"
+            className="p-2 text-text-muted hover:text-accent hover:bg-accent/10 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-all flex-shrink-0"
             title="Attach media (images, videos, audio, PDFs)"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
             </svg>
           </button>
@@ -278,7 +278,7 @@ const ChatInput = ({ onSendMessage, disabled }: ChatInputProps) => {
               placeholder={attachments.length > 0 ? 'Add a message about the file...' : 'Ask me anything...'}
               disabled={disabled}
               rows={1}
-              className="w-full px-4 py-3 bg-bg-surface border border-border-primary rounded-xl text-sm text-text-primary placeholder-text-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed custom-scrollbar"
+              className="w-full px-3.5 py-2.5 bg-bg-surface border border-border-primary rounded-lg text-[13px] leading-6 text-text-primary placeholder-text-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed custom-scrollbar"
               style={{ maxHeight: '120px' }}
             />
             <div className="absolute bottom-2 right-2 text-[10px] text-text-muted opacity-50">
@@ -288,10 +288,10 @@ const ChatInput = ({ onSendMessage, disabled }: ChatInputProps) => {
           <button
             onClick={handleSubmit}
             disabled={(!message.trim() && attachments.length === 0) || disabled}
-            className="p-3 bg-accent hover:bg-accent-hover disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-xl transition-all flex items-center justify-center shadow-lg shadow-accent/20 disabled:shadow-none"
+            className="p-2.5 bg-accent hover:bg-accent-hover disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-all flex items-center justify-center shadow-lg shadow-accent/20 disabled:shadow-none"
             title="Send message (Enter)"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
           </button>

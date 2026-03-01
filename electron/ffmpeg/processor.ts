@@ -192,9 +192,11 @@ export const exportVideo = async (
   subtitleStyle?: any // Subtitle styling
 ) => {
   return new Promise<boolean>(async (resolve, reject) => {
-    // Separate text clips from media clips
+    // Separate text clips from media clips, and sort media clips by their timeline startTime
     const textClips = clips.filter((clip: any) => clip.mediaType === 'text');
-    const mediaClips = clips.filter((clip: any) => clip.mediaType !== 'text');
+    const mediaClips = clips
+      .filter((clip: any) => clip.mediaType !== 'text')
+      .sort((a: any, b: any) => (a.startTime ?? 0) - (b.startTime ?? 0));
 
     // Helper: Check if file is an image
     const isImage = (filePath: string) => {

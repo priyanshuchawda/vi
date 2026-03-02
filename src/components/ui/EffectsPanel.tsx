@@ -1,6 +1,35 @@
 import { useState } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
 
+type SliderProps = {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  onChange: (v: number) => void
+  displayValue?: string
+}
+
+const Slider = ({
+  label, value, min, max, step, onChange, displayValue,
+}: SliderProps) => (
+  <div className="mb-3">
+    <div className="flex justify-between text-xs text-text-muted mb-1">
+      <span>{label}</span>
+      <span className="font-mono text-text-primary">{displayValue ?? value.toFixed(2)}</span>
+    </div>
+    <input
+      type="range" min={min} max={max} step={step} value={value}
+      onChange={e => onChange(parseFloat(e.target.value))}
+      className="w-full h-1.5 accent-accent cursor-pointer"
+    />
+    <div className="flex justify-between text-[10px] text-text-muted mt-0.5">
+      <span>{min}</span><span>{max}</span>
+    </div>
+  </div>
+);
+
 const EffectsPanel = () => {
   const { clips, activeClipId, setClipEffects, setClipSpeed } = useProjectStore();
   const activeClip = clips.find(c => c.id === activeClipId);
@@ -38,28 +67,6 @@ const EffectsPanel = () => {
       setClipSpeed(activeClipId, 1);
     }
   };
-
-  const Slider = ({
-    label, value, min, max, step, onChange, displayValue,
-  }: {
-    label: string; value: number; min: number; max: number; step: number;
-    onChange: (v: number) => void; displayValue?: string;
-  }) => (
-    <div className="mb-3">
-      <div className="flex justify-between text-xs text-text-muted mb-1">
-        <span>{label}</span>
-        <span className="font-mono text-text-primary">{displayValue ?? value.toFixed(2)}</span>
-      </div>
-      <input
-        type="range" min={min} max={max} step={step} value={value}
-        onChange={e => onChange(parseFloat(e.target.value))}
-        className="w-full h-1.5 accent-accent cursor-pointer"
-      />
-      <div className="flex justify-between text-[10px] text-text-muted mt-0.5">
-        <span>{min}</span><span>{max}</span>
-      </div>
-    </div>
-  );
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -141,4 +148,3 @@ const EffectsPanel = () => {
 };
 
 export default EffectsPanel;
-

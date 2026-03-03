@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * YouTube Upload Service
  * Handles video uploads to YouTube with metadata and progress tracking
@@ -24,6 +23,10 @@ export interface UploadProgress {
   status: 'uploading' | 'processing' | 'completed' | 'failed';
   videoId?: string;
   error?: string;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Upload failed';
 }
 
 /**
@@ -116,7 +119,7 @@ export async function uploadVideo(
     }
 
     return videoId;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error uploading video:', error);
 
     if (onProgress) {
@@ -125,7 +128,7 @@ export async function uploadVideo(
         totalBytes: 0,
         percentage: 0,
         status: 'failed',
-        error: error.message || 'Upload failed',
+        error: getErrorMessage(error),
       });
     }
 
@@ -136,7 +139,9 @@ export async function uploadVideo(
 /**
  * Get video categories for a specific region
  */
-export async function getVideoCategories(regionCode: string = 'US'): Promise<any[]> {
+export async function getVideoCategories(
+  regionCode: string = 'US',
+): Promise<youtube_v3.Schema$VideoCategory[]> {
   try {
     await refreshTokenIfNeeded();
 

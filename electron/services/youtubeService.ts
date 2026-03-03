@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * YouTube Data API v3 Client
  * Fetches channel and video data for analysis
@@ -28,6 +27,39 @@ interface VideoData {
   duration: string;
   tags: string[];
   thumbnail_url: string;
+}
+
+interface PlaylistItemsResponse {
+  items?: Array<{
+    contentDetails?: {
+      videoId?: string;
+    };
+  }>;
+}
+
+interface VideosResponse {
+  items?: Array<{
+    id?: string;
+    snippet?: {
+      title?: string;
+      description?: string;
+      publishedAt?: string;
+      tags?: string[];
+      thumbnails?: {
+        high?: {
+          url?: string;
+        };
+      };
+    };
+    statistics?: {
+      viewCount?: string;
+      likeCount?: string;
+      commentCount?: string;
+    };
+    contentDetails?: {
+      duration?: string;
+    };
+  }>;
 }
 
 export class YouTubeService {
@@ -177,13 +209,15 @@ export class YouTubeService {
       const response = await fetch(
         `${this.baseUrl}/playlistItems?part=contentDetails&playlistId=${playlistId}&maxResults=${maxResults}&key=${this.apiKey}`,
       );
-      const data = await response.json();
+      const data: PlaylistItemsResponse = await response.json();
 
       if (!data.items) {
         return [];
       }
 
-      return data.items.map((item: any) => item.contentDetails.videoId);
+      return data.items
+        .map((item) => item.contentDetails?.videoId)
+        .filter((videoId): videoId is string => typeof videoId === 'string');
     } catch (error) {
       console.error('Error fetching video IDs:', error);
       return [];
@@ -207,11 +241,11 @@ export class YouTubeService {
         const response = await fetch(
           `${this.baseUrl}/videos?part=snippet,statistics,contentDetails&id=${chunk.join(',')}&key=${this.apiKey}`,
         );
-        const data = await response.json();
+        const data: VideosResponse = await response.json();
 
         if (data.items) {
-          const videos = data.items.map((video: any) => ({
-            video_id: video.id,
+          const videos = data.items.map((video) => ({
+            video_id: video.id || '',
             title: video.snippet?.title || '',
             description: video.snippet?.description || '',
             view_count: parseInt(video.statistics?.viewCount || '0'),

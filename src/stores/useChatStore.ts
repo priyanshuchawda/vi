@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
@@ -425,7 +424,7 @@ export const useChatStore = create<ChatStore>()(
           // Don't persist File objects or previewUrls (not serializable)
           attachments: msg.attachments?.map((a) => ({
             ...a,
-            file: undefined as any, // Can't serialize File objects
+            file: undefined as unknown as File, // Can't serialize File objects
             previewUrl: undefined, // Object URLs are not persistent
             base64Data: undefined, // Don't persist large base64 in localStorage
           })),

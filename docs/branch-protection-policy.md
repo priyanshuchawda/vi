@@ -29,6 +29,7 @@ The following checks must be required on `main`:
 - `Package Smoke (ubuntu-latest)`
 - `Package Smoke (macos-latest)`
 - `Package Smoke (windows-latest)`
+- `Verify ThirdPartyNotices is in sync`
 
 All workflow `uses:` references must be pinned to immutable commit SHAs.
 

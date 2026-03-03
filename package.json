@@ -4,6 +4,7 @@
   "version": "1.1.0",
   "description": "A fast, lightweight desktop video editor for quick cuts, trims, and exports.",
   "author": "QuickCut Team",
+  "license": "MIT",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -20,6 +21,10 @@
     "test": "vitest run",
     "test:e2e:smoke": "playwright test test/e2e/smoke.spec.ts",
     "architecture:check": "depcruise --config .dependency-cruiser.cjs \"src/**/*.{ts,tsx}\" \"electron/**/*.ts\"",
+    "lint:guard:no-explicit-any-file-disable": "node scripts/hygiene/check-no-explicit-any-file-disable.mjs",
+    "hygiene": "npm run lint:guard:no-explicit-any-file-disable && npm run architecture:check",
+    "thirdparty:generate": "node scripts/compliance/generate-third-party-notices.mjs",
+    "thirdparty:check": "npm run thirdparty:generate && git diff --exit-code ThirdPartyNotices.json",
     "typecheck": "tsc -b --pretty false && tsc -p tsconfig.electron.json --pretty false --noEmit",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

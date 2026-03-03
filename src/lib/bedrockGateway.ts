@@ -1,4 +1,18 @@
-export const MODEL_ID = import.meta.env.VITE_BEDROCK_MODEL_ID || 'amazon.nova-lite-v1:0';
+function inferNovaProfilePrefix(region: string): 'us' | 'eu' | 'apac' {
+  const normalized = region.toLowerCase();
+  if (normalized.startsWith('eu-')) return 'eu';
+  if (normalized.startsWith('ap-')) return 'apac';
+  return 'us';
+}
+
+const defaultNovaInferenceProfile = `${inferNovaProfilePrefix(
+  import.meta.env.VITE_AWS_REGION || 'us-east-1',
+)}.amazon.nova-lite-v1:0`;
+
+export const MODEL_ID =
+  import.meta.env.VITE_BEDROCK_INFERENCE_PROFILE_ID ||
+  import.meta.env.VITE_BEDROCK_MODEL_ID ||
+  defaultNovaInferenceProfile;
 
 export interface BedrockConverseResponse {
   output?: {

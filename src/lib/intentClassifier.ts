@@ -93,6 +93,10 @@ const EXECUTION_CONFIRM_PATTERNS = [
   /^(yes|yep|yeah|ok|okay|sure)\b/i,
 ];
 
+const SCRIPT_REQUEST_PATTERN = /\b(script|voiceover|narration|hook|intro)\b/i;
+const HARD_EDIT_OPERATION_PATTERN =
+  /\b(trim|split|cut|crop|delete|remove|move|merge|combine|join|duplicate|copy|paste|reorder|timeline|clip|track|transition|effect|filter|fade|speed|mute|unmute|volume|subtitle|caption|transcribe|playhead|export|render)\b/i;
+
 /**
  * Classify a user message as editing intent or chat intent.
  *
@@ -108,6 +112,13 @@ export function classifyIntent(message: string): MessageIntent {
 export function classifyIntentWithContext(message: string, context: IntentContext): MessageIntent {
   const lower = message.toLowerCase().trim();
   const hasExecutionContext = Boolean(context.hasPendingPlan || context.hasRecentEditingContext);
+  const isScriptRequest = SCRIPT_REQUEST_PATTERN.test(lower);
+  const hasHardEditOperation = HARD_EDIT_OPERATION_PATTERN.test(lower);
+
+  // Script-writing requests should stay in chat mode unless explicit edit operations are included.
+  if (isScriptRequest && !hasHardEditOperation) {
+    return 'chat';
+  }
 
   // If user explicitly asks to execute/apply, route to edit.
   // Short confirmations only route to edit when there is pending editing context.
@@ -170,6 +181,7 @@ export interface ContextFlags {
 
 export function detectContextNeeds(message: string, intent: MessageIntent): ContextFlags {
   const lower = message.toLowerCase();
+  const scriptRequest = /\b(script|voiceover|narration|hook|intro)\b/i.test(lower);
 
   // For editing intent, always include timeline + memory
   if (intent === 'edit') {
@@ -182,7 +194,8 @@ export function detectContextNeeds(message: string, intent: MessageIntent): Cont
 
   // For chat intent, selectively include
   return {
-    includeTimeline: /\b(timeline|clip|track|duration|playhead|project)\b/i.test(lower),
+    includeTimeline:
+      scriptRequest || /\b(timeline|clip|track|duration|playhead|project)\b/i.test(lower),
     includeMemory: /\b(video|image|photo|media|file|content|scene|analyze|memory)\b/i.test(lower),
     includeChannel: /\b(channel|youtube|subscriber|upload|growth)\b/i.test(lower),
   };

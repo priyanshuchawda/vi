@@ -54,6 +54,32 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const APP_MEDIA_SCHEME = 'app-media';
 
+function inferNovaProfilePrefix(region: string): 'us' | 'eu' | 'apac' {
+  const normalized = region.toLowerCase();
+  if (normalized.startsWith('eu-')) return 'eu';
+  if (normalized.startsWith('ap-')) return 'apac';
+  return 'us';
+}
+
+function normalizeBedrockModelIdentifier(
+  modelId: string,
+  awsRegion: string,
+  explicitInferenceProfileId?: string,
+): string {
+  const trimmedExplicit = explicitInferenceProfileId?.trim();
+  if (trimmedExplicit) return trimmedExplicit;
+  if (!modelId) return modelId;
+  if (modelId.startsWith('arn:aws:bedrock:') || /^(us|eu|apac)\./.test(modelId)) {
+    return modelId;
+  }
+  const novaMatch = modelId.match(/^amazon\.(nova-(micro|lite|pro)-v1:0)$/);
+  if (novaMatch) {
+    const profilePrefix = inferNovaProfilePrefix(awsRegion);
+    return `${profilePrefix}.amazon.${novaMatch[1]}`;
+  }
+  return modelId;
+}
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: APP_MEDIA_SCHEME,
@@ -76,7 +102,12 @@ const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || '';
 const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || '';
-const BEDROCK_MODEL_ID = process.env.BEDROCK_MODEL_ID || 'amazon.nova-lite-v1:0';
+const BEDROCK_INFERENCE_PROFILE_ID = process.env.BEDROCK_INFERENCE_PROFILE_ID || '';
+const BEDROCK_MODEL_ID = normalizeBedrockModelIdentifier(
+  process.env.BEDROCK_MODEL_ID || 'amazon.nova-lite-v1:0',
+  AWS_REGION,
+  BEDROCK_INFERENCE_PROFILE_ID,
+);
 
 log('info', 'API keys loaded', {
   youtubeApiKey: YOUTUBE_API_KEY ? 'Set' : 'Missing',
@@ -180,6 +211,9 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  // Start in fullscreen by default for focused editing workflow.
+  mainWindow.setFullScreen(true);
 
   // Set dock icon on macOS
   if (process.platform === 'darwin' && app.dock) {
@@ -583,6 +617,18 @@ ipcMain.handle(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
   };
 
   const commandInput = reviveBytes(input);
+  if (
+    commandInput &&
+    typeof commandInput === 'object' &&
+    'modelId' in commandInput &&
+    typeof (commandInput as { modelId?: unknown }).modelId === 'string'
+  ) {
+    (commandInput as { modelId: string }).modelId = normalizeBedrockModelIdentifier(
+      (commandInput as { modelId: string }).modelId,
+      AWS_REGION,
+      BEDROCK_INFERENCE_PROFILE_ID,
+    );
+  }
   const response = await bedrockGatewayClient.send(
     new ConverseCommand(commandInput as ConstructorParameters<typeof ConverseCommand>[0]),
   );

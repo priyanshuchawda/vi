@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 
 const allowlistPath = 'config/no-explicit-any-file-disable-allowlist.txt';
 
@@ -10,23 +10,36 @@ const allowlist = new Set(
     .filter((line) => line.length > 0 && !line.startsWith('#')),
 );
 
-let matches = [];
-try {
-  const output = execSync(
-    'rg -n "^/\\*\\s*eslint-disable\\s+@typescript-eslint/no-explicit-any\\s*\\*/" src electron test vite.config.ts eslint.config.js --no-heading',
-    { encoding: 'utf8' },
-  );
-  matches = output
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => line.split(':')[0].trim());
-} catch (error) {
-  if (error.status === 1) {
-    matches = [];
-  } else {
-    throw error;
+const roots = ['src', 'electron', 'test', 'vite.config.ts', 'eslint.config.js'];
+const fileLevelDisablePattern =
+  /^\/\*\s*eslint-disable\s+@typescript-eslint\/no-explicit-any\s*\*\//m;
+
+/** @type {string[]} */
+const filesToCheck = [];
+
+function collectFiles(path) {
+  const stats = statSync(path);
+  if (stats.isDirectory()) {
+    for (const entry of readdirSync(path)) {
+      collectFiles(join(path, entry));
+    }
+    return;
   }
+
+  if (!/\.(ts|tsx|js|jsx)$/.test(path)) {
+    return;
+  }
+
+  filesToCheck.push(path);
 }
+
+for (const root of roots) {
+  collectFiles(root);
+}
+
+const matches = filesToCheck
+  .filter((file) => fileLevelDisablePattern.test(readFileSync(file, 'utf8')))
+  .map((file) => relative(process.cwd(), file).replaceAll('\\', '/'));
 
 const current = new Set(matches);
 const unexpected = [...current].filter((file) => !allowlist.has(file)).sort();

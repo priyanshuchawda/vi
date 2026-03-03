@@ -43,7 +43,7 @@ npm run typecheck
 npm run build
 npm run test
 npm run lint
-npm run architecture:check
+npm run hygiene
 ```
 
 GitHub branch protection-compatible checks are:
@@ -60,6 +60,7 @@ GitHub branch protection-compatible checks are:
 - `Package Smoke (ubuntu-latest)`
 - `Package Smoke (macos-latest)`
 - `Package Smoke (windows-latest)`
+- `Verify ThirdPartyNotices is in sync`
 
 See `docs/branch-protection-policy.md` for the canonical required-check policy.
 

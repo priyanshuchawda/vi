@@ -139,8 +139,11 @@ GitHub Actions workflows:
 - `CI` runs on PRs and pushes to `main` with separate required checks:
   - `Typecheck`
   - `Lint`
+  - `Hygiene` (architecture boundaries + lint debt guard)
   - `Test`
   - `Build`
+- `License Compliance` verifies `ThirdPartyNotices.json` stays in sync with
+  `package-lock.json`.
 - `Release Desktop` runs on version tags (`v*`) and produces Linux desktop
   artifacts.
 
@@ -210,4 +213,4 @@ Community and support documents:
 
 ## License
 
-See project license file and repository policy.
+MIT. See [LICENSE](./LICENSE).

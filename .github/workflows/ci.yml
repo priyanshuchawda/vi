@@ -34,8 +34,8 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
-      - name: Architecture check
-        run: npm run architecture:check
+      - name: Hygiene
+        run: npm run hygiene
       - name: Test
         run: npm run test
       - name: Run build

@@ -95,7 +95,7 @@ export function packagedCspPolicy(): string {
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
-    "img-src 'self' data: blob:",
+    "img-src 'self' data: blob: app-media:",
     "media-src 'self' data: blob: app-media:",
     "font-src 'self' data:",
     "script-src 'self'",

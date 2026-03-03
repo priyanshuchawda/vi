@@ -552,12 +552,14 @@ export async function sendMessageWithHistory(
     throw new Error('Bedrock gateway not available. Ensure Electron preload API is active.');
   }
 
+  let boundedAttachments: MediaAttachment[] | undefined;
   try {
     const chatProfile = getContextBudgetProfile('chat');
-    const { selected: boundedAttachments, dropped: droppedAttachments } = capAttachments(
+    const { selected, dropped: droppedAttachments } = capAttachments(
       attachments,
       chatProfile.maxAttachments,
     );
+    boundedAttachments = selected;
     if (droppedAttachments > 0) {
       recordContextLimitApplied({ droppedItems: droppedAttachments });
     }
@@ -798,11 +800,13 @@ export async function* sendMessageWithHistoryStream(
   const streamIntent = includeTools ? 'edit' : 'chat';
   const streamProfile = getContextBudgetProfile(streamIntent);
 
+  let boundedAttachments: MediaAttachment[] | undefined;
   try {
-    const { selected: boundedAttachments, dropped: droppedAttachments } = capAttachments(
+    const { selected, dropped: droppedAttachments } = capAttachments(
       attachments,
       streamProfile.maxAttachments,
     );
+    boundedAttachments = selected;
     if (droppedAttachments > 0) {
       recordContextLimitApplied({ droppedItems: droppedAttachments });
     }

@@ -18,6 +18,9 @@ const OnboardingWizard = lazy(() =>
 );
 
 const panelFallback = <div className="h-full w-full animate-pulse bg-bg-secondary/50" />;
+const DESKTOP_TIMELINE_DEFAULT_HEIGHT = 180;
+const MOBILE_TIMELINE_HEIGHT = 160;
+const TIMELINE_MIN_HEIGHT = 140;
 
 function App() {
   const {
@@ -51,7 +54,14 @@ function App() {
   const [isFilePanelOpen, setIsFilePanelOpen] = useState(true);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
-  const timelineHeight = isDesktop ? 180 : 160;
+  const [isResizingTimeline, setIsResizingTimeline] = useState(false);
+  const [desktopTimelineHeight, setDesktopTimelineHeight] = useState(
+    DESKTOP_TIMELINE_DEFAULT_HEIGHT,
+  );
+  const timelineMaxHeight = Math.floor(window.innerHeight * (isDesktop ? 0.6 : 0.5));
+  const timelineHeight = isDesktop
+    ? Math.min(Math.max(desktopTimelineHeight, TIMELINE_MIN_HEIGHT), timelineMaxHeight)
+    : MOBILE_TIMELINE_HEIGHT;
   const effectiveSidePanelWidth = isDesktop ? Math.max(panelWidth, 260) : window.innerWidth;
   const isSidePanelVisible = isChatOpen || isRightPanelOpen;
 
@@ -113,6 +123,33 @@ function App() {
       document.body.style.cursor = '';
     };
   }, [isResizingSidePanel, isDesktop, setPanelWidth]);
+
+  useEffect(() => {
+    if (!isResizingTimeline || !isDesktop) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const nextHeight = window.innerHeight - e.clientY;
+      const clampedHeight = Math.min(Math.max(nextHeight, TIMELINE_MIN_HEIGHT), timelineMaxHeight);
+      setDesktopTimelineHeight(clampedHeight);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingTimeline(false);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'row-resize';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isResizingTimeline, isDesktop, timelineMaxHeight]);
 
   const handleOnboardingComplete = (analysisData?: ChannelAnalysisData) => {
     const userId = crypto.randomUUID();
@@ -192,6 +229,17 @@ function App() {
           </div>
 
           {/* BOTTOM: Timeline only in center column */}
+          {isDesktop && (
+            <button
+              type="button"
+              aria-label="Resize timeline height"
+              onMouseDown={() => setIsResizingTimeline(true)}
+              className="relative h-2 -my-1 z-20 cursor-row-resize group"
+              title="Drag to resize timeline"
+            >
+              <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] bg-white/10 group-hover:bg-accent/70 transition-colors" />
+            </button>
+          )}
           <div
             className="bg-gradient-to-b from-bg-secondary to-bg-elevated flex flex-col border-t border-white/5 shadow-2xl"
             style={{ height: `${timelineHeight}px` }}

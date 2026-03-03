@@ -1,0 +1,64 @@
+name: Reusable Node Quality
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: Runner OS
+        required: false
+        default: ubuntu-latest
+        type: string
+      run_build:
+        description: Run production build
+        required: false
+        default: false
+        type: boolean
+      upload_artifacts:
+        description: Upload dist artifacts (Ubuntu only)
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  quality:
+    runs-on: ${{ inputs.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Setup Node
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Hygiene
+        run: npm run hygiene
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        if: inputs.run_build
+        run: npm run build
+
+      - name: Upload build artifacts
+        if: inputs.upload_artifacts && inputs.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: web-and-electron-build
+          path: |
+            dist
+            dist-electron

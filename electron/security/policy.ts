@@ -36,7 +36,10 @@ export function shouldBlockNavigation(currentUrl: string, targetUrl: string): bo
   }
 }
 
-export function shouldAllowPermissionRequest(webContents: WebContents, permission: string): boolean {
+export function shouldAllowPermissionRequest(
+  webContents: WebContents,
+  permission: string,
+): boolean {
   // Desktop editor does not require runtime browser permissions.
   // Deny by default and explicitly opt-in if a feature requires it.
   void webContents;

@@ -28,7 +28,11 @@ export function classifyTransientError(error: unknown): RetryClassification {
     };
   }
 
-  if (message.includes('429') || message.includes('throttl') || message.includes('too many requests')) {
+  if (
+    message.includes('429') ||
+    message.includes('throttl') ||
+    message.includes('too many requests')
+  ) {
     return { retryable: true, reason: 'Rate limited (429)' };
   }
   if (message.includes('timeout') || message.includes('timed out')) {

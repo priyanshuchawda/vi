@@ -3,13 +3,13 @@ import type { ExportFormat, ExportResolution } from '../../stores/useProjectStor
 import CollapsibleSection from './CollapsibleSection';
 
 const ExportSettingsPanel = () => {
-  const { 
-    exportFormat, 
-    exportResolution, 
-    setExportFormat, 
+  const {
+    exportFormat,
+    exportResolution,
+    setExportFormat,
     setExportResolution,
     setNotification,
-    clips
+    clips,
   } = useProjectStore();
 
   const formatOptions: { value: ExportFormat; label: string; description: string }[] = [
@@ -33,7 +33,7 @@ const ExportSettingsPanel = () => {
 
   const handleResolutionChange = (resolution: ExportResolution) => {
     setExportResolution(resolution);
-    const label = resolutionOptions.find(r => r.value === resolution)?.label || resolution;
+    const label = resolutionOptions.find((r) => r.value === resolution)?.label || resolution;
     setNotification({ type: 'success', message: `Resolution: ${label}` });
   };
 
@@ -45,8 +45,18 @@ const ExportSettingsPanel = () => {
       {/* Header */}
       <div className="p-4 border-b border-border-primary sticky top-0 bg-bg-elevated z-10">
         <div className="flex items-center gap-2 mb-1">
-          <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3 3m0 0l-3-3m3 3V10" />
+          <svg
+            className="w-5 h-5 text-accent"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3 3m0 0l-3-3m3 3V10"
+            />
           </svg>
           <h3 className="text-sm font-bold text-text-primary">Export Settings</h3>
         </div>
@@ -91,8 +101,18 @@ const ExportSettingsPanel = () => {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-bold">{option.label}</span>
                         {isSelected && (
-                          <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          <svg
+                            className="w-4 h-4 text-accent"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                         )}
                       </div>
@@ -125,8 +145,18 @@ const ExportSettingsPanel = () => {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-bold">{option.label}</span>
                         {isSelected && (
-                          <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          <svg
+                            className="w-4 h-4 text-accent"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                         )}
                       </div>
@@ -176,7 +206,8 @@ const ExportSettingsPanel = () => {
             <div className="flex justify-between">
               <span className="text-text-muted">Resolution:</span>
               <span className="text-text-primary font-bold">
-                {resolutionOptions.find(r => r.value === exportResolution)?.label || exportResolution}
+                {resolutionOptions.find((r) => r.value === exportResolution)?.label ||
+                  exportResolution}
               </span>
             </div>
           </div>

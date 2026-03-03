@@ -24,7 +24,7 @@ describe('clipOperations', () => {
   describe('validateSplitPosition', () => {
     it('should validate correct split positions', () => {
       const clip = createMockClip({ start: 0, end: 10 });
-      
+
       expect(validateSplitPosition(clip, 5)).toBe(true);
       expect(validateSplitPosition(clip, 2.5)).toBe(true);
       expect(validateSplitPosition(clip, 7.8)).toBe(true);
@@ -32,14 +32,14 @@ describe('clipOperations', () => {
 
     it('should reject split at boundaries', () => {
       const clip = createMockClip({ start: 0, end: 10 });
-      
+
       expect(validateSplitPosition(clip, 0)).toBe(false);
       expect(validateSplitPosition(clip, 10)).toBe(false);
     });
 
     it('should reject split outside clip bounds', () => {
       const clip = createMockClip({ start: 0, end: 10 });
-      
+
       expect(validateSplitPosition(clip, -1)).toBe(false);
       expect(validateSplitPosition(clip, 11)).toBe(false);
     });
@@ -61,7 +61,7 @@ describe('clipOperations', () => {
 
     it('should return null for invalid split positions', () => {
       const clip = createMockClip({ start: 0, end: 10 });
-      
+
       expect(splitClipAtTime(clip, 0)).toBeNull();
       expect(splitClipAtTime(clip, 10)).toBeNull();
       expect(splitClipAtTime(clip, -1)).toBeNull();
@@ -122,10 +122,7 @@ describe('clipOperations', () => {
     });
 
     it('should return empty array for adjacent clips', () => {
-      const clips = [
-        createMockClip({ start: 0, end: 5 }),
-        createMockClip({ start: 5, end: 10 }),
-      ];
+      const clips = [createMockClip({ start: 0, end: 5 }), createMockClip({ start: 5, end: 10 })];
 
       const gaps = detectGaps(clips);
       expect(gaps).toHaveLength(0);

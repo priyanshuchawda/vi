@@ -122,7 +122,10 @@ function saveBudgetPolicy(policy: BudgetPolicy): void {
 
 function textLength(content: AIChatMessage['content']): number {
   if (!Array.isArray(content)) return 0;
-  return content.reduce((sum, block) => sum + (typeof block?.text === 'string' ? block.text.length : 0), 0);
+  return content.reduce(
+    (sum, block) => sum + (typeof block?.text === 'string' ? block.text.length : 0),
+    0,
+  );
 }
 
 function estimateTokensFromChars(chars: number): number {
@@ -156,16 +159,8 @@ export function estimateTurnCost(input: CostPolicyInput): CostPolicyResult {
     estimatedTotalTokens > SOFT_TOTAL_TOKEN_BUDGET;
 
   // Keep edit planning richer than chat even in degraded mode.
-  const maxHistoryMessages = overBudget
-    ? input.intent === 'edit_plan'
-      ? 10
-      : 8
-    : 20;
-  const maxDynamicContextChars = overBudget
-    ? input.intent === 'edit_plan'
-      ? 3200
-      : 2400
-    : 5000;
+  const maxHistoryMessages = overBudget ? (input.intent === 'edit_plan' ? 10 : 8) : 20;
+  const maxDynamicContextChars = overBudget ? (input.intent === 'edit_plan' ? 3200 : 2400) : 5000;
 
   return {
     estimatedInputTokens,
@@ -181,10 +176,7 @@ export function estimateTurnCost(input: CostPolicyInput): CostPolicyResult {
   };
 }
 
-export function trimHistoryToLimit(
-  history: AIChatMessage[],
-  maxMessages: number,
-): AIChatMessage[] {
+export function trimHistoryToLimit(history: AIChatMessage[], maxMessages: number): AIChatMessage[] {
   if (history.length <= maxMessages) return history;
   const head = history.slice(0, 2);
   const tailCount = Math.max(0, maxMessages - head.length);

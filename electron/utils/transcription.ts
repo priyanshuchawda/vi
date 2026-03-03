@@ -91,7 +91,9 @@ function getModel(): Model {
   const modelPath = getModelPath();
 
   if (!fs.existsSync(modelPath)) {
-    throw new Error(`Vosk model not found at ${modelPath}. Please download the model from https://alphacephei.com/vosk/models`);
+    throw new Error(
+      `Vosk model not found at ${modelPath}. Please download the model from https://alphacephei.com/vosk/models`,
+    );
   }
 
   console.log('Loading Vosk model from:', modelPath);
@@ -122,7 +124,10 @@ async function transcribeWithVosk(audioPath: string): Promise<TranscriptionResul
       // Skip WAV header (44 bytes for standard WAV)
       const audioData = audioBuffer.subarray(44);
 
-      const results: Array<{ result: Array<{ word: string; start: number; end: number; conf?: number }>; text: string }> = [];
+      const results: Array<{
+        result: Array<{ word: string; start: number; end: number; conf?: number }>;
+        text: string;
+      }> = [];
       const fullText: string[] = [];
 
       // Process audio in chunks (8000 samples = 0.5 seconds at 16kHz, 16-bit = 16000 bytes)
@@ -168,7 +173,7 @@ async function transcribeWithVosk(audioPath: string): Promise<TranscriptionResul
 
       // 1. Collect all words from all results into a single timeline
       const allWords: Array<{ word: string; start: number; end: number; conf?: number }> = [];
-      results.forEach(r => {
+      results.forEach((r) => {
         if (r.result) {
           allWords.push(...r.result);
         }
@@ -199,7 +204,7 @@ async function transcribeWithVosk(audioPath: string): Promise<TranscriptionResul
                 id: segmentId++,
                 start: currentSegmentWords[0].start,
                 end: currentSegmentWords[currentSegmentWords.length - 1].end,
-                text: currentSegmentWords.map(w => w.word).join(' '),
+                text: currentSegmentWords.map((w) => w.word).join(' '),
                 words: [...currentSegmentWords],
               });
             }
@@ -221,7 +226,7 @@ async function transcribeWithVosk(audioPath: string): Promise<TranscriptionResul
             id: segmentId++,
             start: currentSegmentWords[0].start,
             end: currentSegmentWords[currentSegmentWords.length - 1].end,
-            text: currentSegmentWords.map(w => w.word).join(' '),
+            text: currentSegmentWords.map((w) => w.word).join(' '),
             words: [...currentSegmentWords],
           });
         }
@@ -250,7 +255,7 @@ async function hasAudioStream(videoPath: string): Promise<boolean> {
       }
 
       // Check if any stream is audio
-      const hasAudio = metadata.streams.some(stream => stream.codec_type === 'audio');
+      const hasAudio = metadata.streams.some((stream) => stream.codec_type === 'audio');
       resolve(hasAudio);
     });
   });
@@ -265,7 +270,11 @@ async function extractAudio(videoPath: string): Promise<string> {
       // First, check if video has audio stream
       const hasAudio = await hasAudioStream(videoPath);
       if (!hasAudio) {
-        reject(new Error('This video does not contain an audio track. Please select a video with audio to generate captions.'));
+        reject(
+          new Error(
+            'This video does not contain an audio track. Please select a video with audio to generate captions.',
+          ),
+        );
         return;
       }
 
@@ -312,7 +321,7 @@ async function extractAudio(videoPath: string): Promise<string> {
  */
 export async function transcribeVideo(
   videoPath: string,
-  progressCallback?: (progress: { status: string; progress?: number }) => void
+  progressCallback?: (progress: { status: string; progress?: number }) => void,
 ): Promise<TranscriptionResult> {
   let audioPath: string | null = null;
 
@@ -354,7 +363,7 @@ export async function transcribeVideo(
  */
 export async function transcribeTimeline(
   clips: Array<{ path: string; startTime: number; duration: number }>,
-  progressCallback?: (progress: { status: string; progress?: number; clip?: number }) => void
+  progressCallback?: (progress: { status: string; progress?: number; clip?: number }) => void,
 ): Promise<TranscriptionResult> {
   const allSegments: TranscriptionSegment[] = [];
   const allWords: TranscriptionWord[] = [];
@@ -372,7 +381,8 @@ export async function transcribeTimeline(
 
     try {
       const clipResult = await transcribeVideo(clip.path, (subProgress) => {
-        const overallProgress = (i / clips.length) * 100 + (subProgress.progress || 0) / clips.length;
+        const overallProgress =
+          (i / clips.length) * 100 + (subProgress.progress || 0) / clips.length;
         progressCallback?.({
           status: `Clip ${i + 1}/${clips.length}: ${subProgress.status}`,
           progress: Math.round(overallProgress),
@@ -381,12 +391,12 @@ export async function transcribeTimeline(
       });
 
       // Adjust timestamps based on clip position in timeline and reassign segment IDs
-      const adjustedSegments = clipResult.segments.map(seg => ({
+      const adjustedSegments = clipResult.segments.map((seg) => ({
         id: globalSegmentId++,
         start: seg.start + clip.startTime,
         end: seg.end + clip.startTime,
         text: seg.text,
-        words: seg.words?.map(w => ({
+        words: seg.words?.map((w) => ({
           ...w,
           start: w.start + clip.startTime,
           end: w.end + clip.startTime,
@@ -394,7 +404,7 @@ export async function transcribeTimeline(
       }));
 
       // Adjust word timestamps
-      const adjustedWords = clipResult.words.map(w => ({
+      const adjustedWords = clipResult.words.map((w) => ({
         ...w,
         start: w.start + clip.startTime,
         end: w.end + clip.startTime,

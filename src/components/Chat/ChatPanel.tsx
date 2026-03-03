@@ -15,15 +15,14 @@ import {
   sendToolResultsToAI,
   type StreamOptions,
 } from '../../lib/aiService';
-import {
-  getTelemetryRates,
-  recordTurnRetry,
-  resetTelemetry,
-} from '../../lib/aiTelemetry';
+import { getTelemetryRates, recordTurnRetry, resetTelemetry } from '../../lib/aiTelemetry';
 import { classifyTransientError, getRetryDelayMs } from '../../lib/retryClassifier';
 import { buildAIProjectSnapshot } from '../../lib/aiProjectSnapshot';
 import { normalizeUserIntent, type NormalizedIntent } from '../../lib/intentNormalizer';
-import { buildClarificationQuestion, formatClarificationForChat } from '../../lib/clarificationBuilder';
+import {
+  buildClarificationQuestion,
+  formatClarificationForChat,
+} from '../../lib/clarificationBuilder';
 
 interface SessionLogEntry {
   id: string;
@@ -113,7 +112,7 @@ const ChatPanel = () => {
   const [lastPlanExecutionError, setLastPlanExecutionError] = useState<string | null>(null);
 
   // Get memory stats
-  const completedMemoryEntries = entries.filter(e => e.status === 'completed');
+  const completedMemoryEntries = entries.filter((e) => e.status === 'completed');
   const hasMemory = completedMemoryEntries.length > 0;
 
   // Auto-scroll to bottom when new messages arrive
@@ -182,7 +181,7 @@ const ChatPanel = () => {
         message?: string;
         error?: string;
       };
-    }
+    },
   ) => {
     if (!currentTurnId) return;
     appendTurnPart(currentTurnId, {
@@ -291,9 +290,7 @@ const ChatPanel = () => {
   const getTurnRetryCount = (turnId: string): number => {
     const turn = turns.find((entry) => entry.id === turnId);
     if (!turn) return 0;
-    return turn.parts.filter(
-      (part) => part.type === 'status' && part.to === 'retry'
-    ).length;
+    return turn.parts.filter((part) => part.type === 'status' && part.to === 'retry').length;
   };
 
   const hashSnapshot = (snapshot: any): string => {
@@ -348,18 +345,26 @@ const ChatPanel = () => {
 
     try {
       const activeAwaitingTurn = activeTurnId
-        ? turns.find((turn) => turn.id === activeTurnId && turn.status === 'awaiting_approval' && !turn.endedAt)
+        ? turns.find(
+            (turn) =>
+              turn.id === activeTurnId && turn.status === 'awaiting_approval' && !turn.endedAt,
+          )
         : null;
       const hasReadyPendingPlan = Boolean(
         executionPlan &&
         executionPlan.plan.planReady &&
         executionContext.hasPendingPlan &&
-        activeAwaitingTurn
+        activeAwaitingTurn,
       );
 
-      if (isExecutionConfirmation(content) && executionPlan && executionContext.hasPendingPlan && !hasReadyPendingPlan) {
+      if (
+        isExecutionConfirmation(content) &&
+        executionPlan &&
+        executionContext.hasPendingPlan &&
+        !hasReadyPendingPlan
+      ) {
         assistantMessage(
-          `Plan is not ready for execution yet. ${executionPlan.plan.planReadyReason || 'Please refine or rebuild the plan first.'}`
+          `Plan is not ready for execution yet. ${executionPlan.plan.planReadyReason || 'Please refine or rebuild the plan first.'}`,
         );
         return;
       }
@@ -371,8 +376,10 @@ const ChatPanel = () => {
       }
 
       // Import intent classifier (zero-cost, local)
-      const { classifyIntentWithContext, detectContextNeeds } = await import('../../lib/intentClassifier');
-      const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant')?.content || '';
+      const { classifyIntentWithContext, detectContextNeeds } =
+        await import('../../lib/intentClassifier');
+      const lastAssistantMessage =
+        [...messages].reverse().find((m) => m.role === 'assistant')?.content || '';
       const recentEditingContext = hasRecentEditingContext(messages);
       let intent = classifyIntentWithContext(content, {
         hasPendingPlan: hasReadyPendingPlan,
@@ -402,11 +409,13 @@ const ChatPanel = () => {
       });
       const contextFlags = detectContextNeeds(content, intent);
 
-      console.log(`Intent: ${intent} | Context: T=${contextFlags.includeTimeline} M=${contextFlags.includeMemory} C=${contextFlags.includeChannel}`);
+      console.log(
+        `Intent: ${intent} | Context: T=${contextFlags.includeTimeline} M=${contextFlags.includeMemory} C=${contextFlags.includeChannel}`,
+      );
 
       // Convert chat history to Bedrock format (exclude system messages)
       const aiHistory = convertToAIHistory(
-        messages.filter(m => m.role !== 'system'),
+        messages.filter((m) => m.role !== 'system'),
         { mediaMode: intent === 'edit' ? 'descriptor_only' : 'inline_bytes' },
       );
 
@@ -431,7 +440,7 @@ const ChatPanel = () => {
             turnId,
             onRetryStatus: (attempt, nextAt, reason) => {
               assistantMessage(
-                `Transient planner error (${reason}). Retrying attempt ${attempt} at ${new Date(nextAt).toLocaleTimeString()}.`
+                `Transient planner error (${reason}). Retrying attempt ${attempt} at ${new Date(nextAt).toLocaleTimeString()}.`,
               );
             },
             maxRetries: 2,
@@ -447,7 +456,7 @@ const ChatPanel = () => {
           // Remove the "analyzing" message
           const currentMessages = useChatStore.getState().messages;
           useChatStore.setState({
-            messages: currentMessages.slice(0, -1)
+            messages: currentMessages.slice(0, -1),
           });
 
           const hasValidationIssues = plan.validation && plan.validation.valid === false;
@@ -459,7 +468,7 @@ const ChatPanel = () => {
             addMessage(
               'assistant',
               `Plan needs fixes before execution.\n\n${issuePreview || 'Validation failed.'}\n\nI kept the draft plan visible so you can review and adjust.`,
-              { error: true }
+              { error: true },
             );
             if (turnId) {
               appendTurnPart(turnId, {
@@ -499,7 +508,7 @@ const ChatPanel = () => {
               assistantMessage(formatClarificationForChat(clarificationQuestion));
             } else {
               assistantMessage(
-                `I need one clarification before running this safely. ${plan.executionRecommendationReason || plan.planReadyReason || ''}`.trim()
+                `I need one clarification before running this safely. ${plan.executionRecommendationReason || plan.planReadyReason || ''}`.trim(),
               );
             }
             setExecutionPlan({
@@ -520,7 +529,11 @@ const ChatPanel = () => {
           }
 
           // Auto-execute if enabled OR no approval is required (read-only plans)
-          if (plan.planReady && (autoExecute || !plan.requiresApproval) && meetsMutationAutoThreshold) {
+          if (
+            plan.planReady &&
+            (autoExecute || !plan.requiresApproval) &&
+            meetsMutationAutoThreshold
+          ) {
             if (turnId) {
               setTurnStatus(turnId, 'executing');
               appendTurnPart(turnId, {
@@ -530,11 +543,13 @@ const ChatPanel = () => {
               });
             }
             const readOnlyNotice = !plan.requiresApproval ? ' (read-only plan)' : '';
-            assistantMessage(`Auto-executing ${plan.operations.length} operation${plan.operations.length > 1 ? 's' : ''}${readOnlyNotice}...`);
-            
+            assistantMessage(
+              `Auto-executing ${plan.operations.length} operation${plan.operations.length > 1 ? 's' : ''}${readOnlyNotice}...`,
+            );
+
             try {
               const { executePlan } = await import('../../lib/aiPlanningService');
-              
+
               const finalResponse = await executePlan(
                 plan,
                 aiHistory,
@@ -543,7 +558,7 @@ const ChatPanel = () => {
                   setToolExecutionProgress({
                     current,
                     total,
-                    message: operation.description
+                    message: operation.description,
                   });
                 },
                 (event) => {
@@ -564,12 +579,12 @@ const ChatPanel = () => {
                   });
                 },
               );
-              
+
               setToolExecutionProgress(null);
-              
+
               const msgs = useChatStore.getState().messages;
               useChatStore.setState({
-                messages: msgs.slice(0, -1)
+                messages: msgs.slice(0, -1),
               });
               assistantMessage(finalResponse);
               if (turnId) {
@@ -608,9 +623,13 @@ const ChatPanel = () => {
             return;
           }
 
-          if (plan.planReady && (autoExecute || !plan.requiresApproval) && !meetsMutationAutoThreshold) {
+          if (
+            plan.planReady &&
+            (autoExecute || !plan.requiresApproval) &&
+            !meetsMutationAutoThreshold
+          ) {
             assistantMessage(
-              `Auto-execute skipped because confidence is ${(confidenceScore * 100).toFixed(0)}% (<85% for mutating edits). Please review and approve.`
+              `Auto-execute skipped because confidence is ${(confidenceScore * 100).toFixed(0)}% (<85% for mutating edits). Please review and approve.`,
             );
           }
 
@@ -642,11 +661,11 @@ const ChatPanel = () => {
         // Plan returned no executable operations — fail safe instead of fabricating edits
         const currentMessages = useChatStore.getState().messages;
         useChatStore.setState({
-          messages: currentMessages.slice(0, -1)
+          messages: currentMessages.slice(0, -1),
         });
         addMessage(
           'assistant',
-          "I couldn't generate executable edit operations from that. Please confirm exactly what to apply (clips/timestamps), and I'll execute it with tools."
+          "I couldn't generate executable edit operations from that. Please confirm exactly what to apply (clips/timestamps), and I'll execute it with tools.",
         );
         if (turnId) {
           appendTurnPart(turnId, {
@@ -668,25 +687,35 @@ const ChatPanel = () => {
       let currentMessageId = '';
 
       // For chat intent: skip tools + selective context = huge token savings
-      const streamOptions: StreamOptions = intent === 'chat'
-        ? {
-            includeTools: false,
-            contextFlags,
-            mediaMode: shouldInlineMediaBytes(content, attachments) ? 'inline_bytes' : 'descriptor_only',
-          }
-        : { includeTools: true, contextFlags, mediaMode: 'descriptor_only' as const };
+      const streamOptions: StreamOptions =
+        intent === 'chat'
+          ? {
+              includeTools: false,
+              contextFlags,
+              mediaMode: shouldInlineMediaBytes(content, attachments)
+                ? 'inline_bytes'
+                : 'descriptor_only',
+            }
+          : { includeTools: true, contextFlags, mediaMode: 'descriptor_only' as const };
 
-      for await (const chunk of sendMessageWithHistoryStream(content, aiHistory, attachments, streamOptions)) {
+      for await (const chunk of sendMessageWithHistoryStream(
+        content,
+        aiHistory,
+        attachments,
+        streamOptions,
+      )) {
         if (chunk.type === 'upload_progress' && chunk.uploadProgress) {
           setUploadStatus(`Uploading ${chunk.uploadProgress.fileName}...`);
         } else if (chunk.type === 'tool_plan') {
           const functionCalls = chunk.functionCalls || [];
-          if (openClarificationPrompt({
-            functionCalls,
-            modelContent: chunk.modelContent,
-            history: aiHistory,
-            turnId,
-          })) {
+          if (
+            openClarificationPrompt({
+              functionCalls,
+              modelContent: chunk.modelContent,
+              history: aiHistory,
+              turnId,
+            })
+          ) {
             setUploadStatus(null);
             setIsTyping(false);
             return;
@@ -718,19 +747,24 @@ const ChatPanel = () => {
             for await (const followupChunk of sendToolResultsToAI(
               aiHistory,
               chunk.modelContent,
-              results
+              results,
             )) {
               if (followupChunk.type === 'text' && followupChunk.text) {
                 followupText += followupChunk.text;
                 if (first) {
                   addMessage('assistant', followupText);
-                  const last = useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
+                  const last =
+                    useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
                   currentMessageId = last.id;
                   first = false;
                 } else {
                   updateLastMessage(followupText);
                 }
-              } else if (followupChunk.type === 'metadata' && followupChunk.tokens && currentMessageId) {
+              } else if (
+                followupChunk.type === 'metadata' &&
+                followupChunk.tokens &&
+                currentMessageId
+              ) {
                 updateMessageTokens(currentMessageId, followupChunk.tokens);
               }
             }
@@ -772,7 +806,8 @@ const ChatPanel = () => {
 
           if (isFirstChunk) {
             addMessage('assistant', fullResponse);
-            const lastMessage = useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
+            const lastMessage =
+              useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
             currentMessageId = lastMessage.id;
             isFirstChunk = false;
           } else {
@@ -788,7 +823,6 @@ const ChatPanel = () => {
         closeTurn(turnId, 'completed');
         turnClosed = true;
       }
-
     } catch (error) {
       console.error('Error communicating with AI:', error);
       let errorMessage = 'Error: ';
@@ -848,11 +882,7 @@ const ChatPanel = () => {
     };
 
     useChatStore.setState({
-      messages: [
-        ...(systemMessage ? [systemMessage] : []),
-        compactSummary,
-        ...retainedMessages,
-      ],
+      messages: [...(systemMessage ? [systemMessage] : []), compactSummary, ...retainedMessages],
     });
   };
 
@@ -871,7 +901,10 @@ const ChatPanel = () => {
     if (sessionLogs.length === 0) return;
     const payload = sessionLogs
       .map((entry) => {
-        const time = new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        const time = new Date(entry.timestamp).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
         const tokenInfo = entry.tokenTotal ? ` | tokens=${entry.tokenTotal}` : '';
         const errorInfo = entry.isError ? ' | error=true' : '';
         return `[${time}] ${entry.role}${tokenInfo}${errorInfo}\n${entry.content}`;
@@ -920,7 +953,7 @@ const ChatPanel = () => {
       addMessage(
         'assistant',
         `Execution blocked: ${executionPlan.plan.planReadyReason || 'plan is not ready yet. Please refine or rebuild.'}`,
-        { error: true }
+        { error: true },
       );
       return;
     }
@@ -928,11 +961,11 @@ const ChatPanel = () => {
       addMessage(
         'assistant',
         'Execution blocked: plan has validation issues. Please update the request or regenerate the plan.',
-        { error: true }
+        { error: true },
       );
       return;
     }
-    
+
     if (activeTurnId) {
       setTurnStatus(activeTurnId, 'executing');
       appendTurnPart(activeTurnId, {
@@ -945,10 +978,10 @@ const ChatPanel = () => {
     setIsTyping(true);
     setLastPlanExecutionError(null);
     let executionSucceeded = false;
-    
+
     try {
       const { executePlan } = await import('../../lib/aiPlanningService');
-      
+
       // Execute the complete plan
       const finalResponse = await executePlan(
         executionPlan.plan,
@@ -958,7 +991,7 @@ const ChatPanel = () => {
           setToolExecutionProgress({
             current,
             total,
-            message: operation.description
+            message: operation.description,
           });
         },
         (event) => {
@@ -979,10 +1012,10 @@ const ChatPanel = () => {
           });
         },
       );
-      
+
       // Clear progress
       setToolExecutionProgress(null);
-      
+
       // Add final response
       addMessage('assistant', finalResponse);
       if (activeTurnId) {
@@ -996,23 +1029,22 @@ const ChatPanel = () => {
       }
       clearExecutionContext();
       executionSucceeded = true;
-      
     } catch (error) {
       console.error('Plan execution error:', error);
-      
+
       let errorMessage = 'Error executing plan:\n\n';
       if (error instanceof Error) {
         // If error contains multiple operation failures, format them nicely
         if (error.message.includes('Some operations failed:')) {
-          errorMessage = 'Some operations failed:\n\n' + 
-            error.message.replace('Some operations failed:\n', '');
+          errorMessage =
+            'Some operations failed:\n\n' + error.message.replace('Some operations failed:\n', '');
         } else {
           errorMessage += error.message;
         }
       } else {
         errorMessage += 'Unknown error occurred';
       }
-      
+
       addMessage('assistant', errorMessage, { error: true });
       if (activeTurnId) {
         appendTurnPart(activeTurnId, {
@@ -1044,7 +1076,7 @@ const ChatPanel = () => {
     if (!executionPlan) return;
     addMessage(
       'assistant',
-      'Tell me exactly what to change in this plan, and I will regenerate a refined version.'
+      'Tell me exactly what to change in this plan, and I will regenerate a refined version.',
     );
   };
 
@@ -1058,12 +1090,10 @@ const ChatPanel = () => {
     try {
       const { generateCompletePlan } = await import('../../lib/aiPlanningService');
       const rebuilt = await runWithTransientRetry(
-        () => generateCompletePlan(
-          executionPlan.originalMessage,
-          executionPlan.history,
-          3,
-          { normalizedIntent: executionPlan.normalizedIntent },
-        ),
+        () =>
+          generateCompletePlan(executionPlan.originalMessage, executionPlan.history, 3, {
+            normalizedIntent: executionPlan.normalizedIntent,
+          }),
         {
           turnId: rebuildingTurnId,
           onRetryStatus: (attempt, nextAt, reason) => {
@@ -1073,7 +1103,7 @@ const ChatPanel = () => {
             );
           },
           maxRetries: 2,
-        }
+        },
       );
       setExecutionPlan({
         ...executionPlan,
@@ -1082,7 +1112,10 @@ const ChatPanel = () => {
       if (rebuildingTurnId) {
         setTurnStatus(rebuildingTurnId, 'awaiting_approval');
       }
-      addMessage('assistant', 'Rebuilt plan from current timeline state. Please review and execute.');
+      addMessage(
+        'assistant',
+        'Rebuilt plan from current timeline state. Please review and execute.',
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to rebuild plan';
       addMessage('assistant', `Failed to rebuild plan: ${message}`, { error: true });
@@ -1143,12 +1176,14 @@ const ChatPanel = () => {
       )) {
         if (chunk.type === 'tool_plan') {
           const functionCalls = chunk.functionCalls || [];
-          if (openClarificationPrompt({
-            functionCalls,
-            modelContent: chunk.modelContent,
-            history: clarification.history,
-            turnId: clarification.turnId,
-          })) {
+          if (
+            openClarificationPrompt({
+              functionCalls,
+              modelContent: chunk.modelContent,
+              history: clarification.history,
+              turnId: clarification.turnId,
+            })
+          ) {
             setIsTyping(false);
             return;
           }
@@ -1177,7 +1212,8 @@ const ChatPanel = () => {
           fullResponse += chunk.text;
           if (isFirstChunk) {
             addMessage('assistant', fullResponse);
-            const lastMessage = useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
+            const lastMessage =
+              useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
             currentMessageId = lastMessage.id;
             isFirstChunk = false;
           } else {
@@ -1216,7 +1252,7 @@ const ChatPanel = () => {
   const handleExecuteTools = async () => {
     if (!pendingToolCalls) return;
     setPendingClarification(null);
-    
+
     const beforeSnapshot = buildAIProjectSnapshot();
     if (activeTurnId) {
       setTurnStatus(activeTurnId, 'executing');
@@ -1224,11 +1260,11 @@ const ChatPanel = () => {
     setIsExecutingTools(true);
     setIsTyping(true);
     let toolExecutionFailed = false;
-    
+
     try {
       // Import ToolExecutor
       const { ToolExecutor } = await import('../../lib/toolExecutor');
-      
+
       // Execute all tools with progress
       const results = await ToolExecutor.executeWithPolicy(
         pendingToolCalls.functionCalls,
@@ -1241,7 +1277,7 @@ const ChatPanel = () => {
           setToolExecutionProgress({
             current,
             total,
-            message: result.result.message
+            message: result.result.message,
           });
         },
         {
@@ -1251,25 +1287,26 @@ const ChatPanel = () => {
           },
         },
       );
-      
+
       // Clear progress
       setToolExecutionProgress(null);
-      
+
       // Send results back to AI for final response
       let fullResponse = '';
       let isFirstChunk = true;
       let currentMessageId = '';
-      
+
       for await (const chunk of sendToolResultsToAI(
         pendingToolCalls.history,
         pendingToolCalls.modelContent,
-        results
+        results,
       )) {
         if (chunk.type === 'text' && chunk.text) {
           fullResponse += chunk.text;
           if (isFirstChunk) {
             addMessage('assistant', fullResponse);
-            const lastMessage = useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
+            const lastMessage =
+              useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
             currentMessageId = lastMessage.id;
             isFirstChunk = false;
           } else {
@@ -1306,10 +1343,11 @@ const ChatPanel = () => {
           retries: getTurnRetryCount(activeTurnId),
         });
       }
-      
     } catch (error) {
       console.error('Tool execution error:', error);
-      addMessage('assistant', 'Error executing operations: ' + (error as Error).message, { error: true });
+      addMessage('assistant', 'Error executing operations: ' + (error as Error).message, {
+        error: true,
+      });
       if (activeTurnId) {
         appendTurnPart(activeTurnId, {
           type: 'error',
@@ -1334,40 +1372,42 @@ const ChatPanel = () => {
 
   const getToolDescription = (call: { name: string; args: any }): string => {
     const state = useProjectStore.getState();
-    
+
     switch (call.name) {
       case 'split_clip': {
-        const clip = state.clips.find(c => c.id === call.args.clip_id);
+        const clip = state.clips.find((c) => c.id === call.args.clip_id);
         return `Split "${clip?.name || 'clip'}" at ${call.args.time_in_clip}s`;
       }
       case 'set_clip_volume': {
-        const clipCount = call.args.clip_ids.includes('all') 
-          ? state.clips.length 
+        const clipCount = call.args.clip_ids.includes('all')
+          ? state.clips.length
           : call.args.clip_ids.length;
         const volumePct = Math.round(call.args.volume * 100);
         return `Set volume to ${volumePct}% for ${clipCount} clip(s)`;
       }
       case 'delete_clips': {
-        const clipNames = call.args.clip_ids.map((id: string) => 
-          state.clips.find(c => c.id === id)?.name || id
-        ).join(', ');
+        const clipNames = call.args.clip_ids
+          .map((id: string) => state.clips.find((c) => c.id === id)?.name || id)
+          .join(', ');
         return `Delete: ${clipNames}`;
       }
       case 'move_clip': {
-        const clip = state.clips.find(c => c.id === call.args.clip_id);
+        const clip = state.clips.find((c) => c.id === call.args.clip_id);
         return `Move "${clip?.name || 'clip'}" to ${call.args.start_time}s`;
       }
       case 'merge_clips': {
-        const clipNames = call.args.clip_ids.map((id: string) => 
-          state.clips.find(c => c.id === id)?.name || id
-        ).join(', ');
+        const clipNames = call.args.clip_ids
+          .map((id: string) => state.clips.find((c) => c.id === id)?.name || id)
+          .join(', ');
         return `Merge: ${clipNames}`;
       }
       case 'toggle_clip_mute': {
         return `Toggle mute for ${call.args.clip_ids.length} clip(s)`;
       }
       case 'select_clips': {
-        const count = call.args.clip_ids.includes('all') ? state.clips.length : call.args.clip_ids.length;
+        const count = call.args.clip_ids.includes('all')
+          ? state.clips.length
+          : call.args.clip_ids.length;
         return `Select ${count} clip(s)`;
       }
       case 'copy_clips': {
@@ -1386,11 +1426,11 @@ const ChatPanel = () => {
         return `Move playhead to ${call.args.time}s`;
       }
       case 'update_clip_bounds': {
-        const clip = state.clips.find(c => c.id === call.args.clip_id);
+        const clip = state.clips.find((c) => c.id === call.args.clip_id);
         return `Trim "${clip?.name || 'clip'}"`;
       }
       case 'get_clip_details': {
-        const clip = state.clips.find(c => c.id === call.args.clip_id);
+        const clip = state.clips.find((c) => c.id === call.args.clip_id);
         return `Get details for "${clip?.name || 'clip'}"`;
       }
       case 'get_timeline_info': {
@@ -1421,13 +1461,25 @@ const ChatPanel = () => {
       <div className="border-b border-white/5 px-3 py-2.5 flex items-start justify-between gap-2 bg-bg-elevated/50 backdrop-blur-sm animate-slide-up">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-7 h-7 bg-gradient-to-br from-accent/20 to-accent/10 rounded-md flex items-center justify-center animate-float">
-            <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            <svg
+              className="w-3.5 h-3.5 text-accent"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+              />
             </svg>
           </div>
           <div>
             <h2 className="text-[15px] leading-5 font-semibold text-text-primary">AI Copilot</h2>
-            <p className="text-[11px] leading-4 text-text-muted/70">Intelligent Editing Assistant</p>
+            <p className="text-[11px] leading-4 text-text-muted/70">
+              Intelligent Editing Assistant
+            </p>
           </div>
           <div className="hidden 2xl:block">
             <TokenCounter />
@@ -1440,7 +1492,12 @@ const ChatPanel = () => {
             title="Session logs"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17h6M9 13h6M9 9h6M5 5h14v14H5z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M9 17h6M9 13h6M9 9h6M5 5h14v14H5z"
+              />
             </svg>
           </button>
           <button
@@ -1449,7 +1506,12 @@ const ChatPanel = () => {
             title="AI reliability telemetry"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 12l3-3 2 2 5-5M5 19h14" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M7 12l3-3 2 2 5-5M5 19h14"
+              />
             </svg>
           </button>
           <button
@@ -1458,7 +1520,12 @@ const ChatPanel = () => {
             title="Compact context"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8h16M4 12h12M4 16h8" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M4 8h16M4 12h12M4 16h8"
+              />
             </svg>
           </button>
           <button
@@ -1467,21 +1534,35 @@ const ChatPanel = () => {
             title="Cost budget settings"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-10V6m0 12v-2M5 12a7 7 0 1014 0 7 7 0 10-14 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-10V6m0 12v-2M5 12a7 7 0 1014 0 7 7 0 10-14 0z"
+              />
             </svg>
           </button>
           <button
             onClick={toggleAutoExecute}
             className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-md transition-all duration-200 hover:scale-110 active:scale-95 ${autoExecute ? 'text-green-400 bg-green-500/10 hover:bg-green-500/15' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
-            title={autoExecute ? "Auto-execute ON" : "Auto-execute OFF"}
+            title={autoExecute ? 'Auto-execute ON' : 'Auto-execute OFF'}
           >
             {autoExecute ? (
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                <path
+                  fillRule="evenodd"
+                  d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
+                  clipRule="evenodd"
+                />
               </svg>
             ) : (
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
               </svg>
             )}
           </button>
@@ -1491,7 +1572,12 @@ const ChatPanel = () => {
             title="Clear chat"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
             </svg>
           </button>
           <button
@@ -1500,7 +1586,12 @@ const ChatPanel = () => {
             title="Close (Ctrl+K)"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -1608,7 +1699,11 @@ const ChatPanel = () => {
         <div className="px-4 py-2 bg-green-500/5 border-b border-green-500/10 animate-slide-up">
           <div className="flex items-center gap-2 text-xs text-green-400">
             <svg className="w-3.5 h-3.5 animate-pulse-glow" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+              <path
+                fillRule="evenodd"
+                d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
+                clipRule="evenodd"
+              />
             </svg>
             <span>Auto-execute enabled. Operations will run automatically without approval.</span>
           </div>
@@ -1617,7 +1712,10 @@ const ChatPanel = () => {
 
       {/* Channel Analysis Context Banner */}
       {analysisData && (
-        <div className="px-4 py-2 bg-blue-500/10 border-b border-blue-500/20 animate-slide-up" style={{ animationDelay: '0.1s', animationFillMode: 'both' }}>
+        <div
+          className="px-4 py-2 bg-blue-500/10 border-b border-blue-500/20 animate-slide-up"
+          style={{ animationDelay: '0.1s', animationFillMode: 'both' }}
+        >
           <div className="flex items-center gap-2 text-xs text-blue-400">
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3h.5a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-.5a1.5 1.5 0 00-3 0v.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1h-.5a1.5 1.5 0 010-3H4a1 1 0 001-1V6a1 1 0 011-1h3a1 1 0 001-1v-.5z" />
@@ -1638,7 +1736,10 @@ const ChatPanel = () => {
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
               </svg>
-              <span>Memory active. {completedMemoryEntries.length} analyzed media file{completedMemoryEntries.length !== 1 ? 's' : ''} in context.</span>
+              <span>
+                Memory active. {completedMemoryEntries.length} analyzed media file
+                {completedMemoryEntries.length !== 1 ? 's' : ''} in context.
+              </span>
             </div>
             <svg
               className={`w-4 h-4 text-purple-400 transition-transform ${showMemoryDetails ? 'rotate-180' : ''}`}
@@ -1646,7 +1747,12 @@ const ChatPanel = () => {
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
 
@@ -1654,22 +1760,32 @@ const ChatPanel = () => {
           {showMemoryDetails && (
             <div className="px-4 pb-3 space-y-1.5 max-h-48 overflow-y-auto">
               {completedMemoryEntries.map((entry, idx) => (
-                <div key={entry.id} className="text-[11px] bg-purple-500/5 border border-purple-500/10 rounded p-2">
+                <div
+                  key={entry.id}
+                  className="text-[11px] bg-purple-500/5 border border-purple-500/10 rounded p-2"
+                >
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className="text-purple-300 font-semibold">{idx + 1}.</span>
                     <span className="text-purple-200 truncate flex-1">{entry.fileName}</span>
-                    <span className="text-purple-400/60 text-[9px] uppercase">{entry.mediaType}</span>
+                    <span className="text-purple-400/60 text-[9px] uppercase">
+                      {entry.mediaType}
+                    </span>
                   </div>
                   <p className="text-purple-300/80 text-[10px] line-clamp-2">{entry.summary}</p>
                   {entry.tags && entry.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {entry.tags.slice(0, 5).map((tag) => (
-                        <span key={tag} className="text-[8px] px-1 py-0.5 bg-purple-500/20 text-purple-300 rounded">
+                        <span
+                          key={tag}
+                          className="text-[8px] px-1 py-0.5 bg-purple-500/20 text-purple-300 rounded"
+                        >
                           {tag}
                         </span>
                       ))}
                       {entry.tags.length > 5 && (
-                        <span className="text-[8px] text-purple-400/60">+{entry.tags.length - 5}</span>
+                        <span className="text-[8px] text-purple-400/60">
+                          +{entry.tags.length - 5}
+                        </span>
                       )}
                     </div>
                   )}
@@ -1722,20 +1838,32 @@ const ChatPanel = () => {
           </div>
           <div className="max-h-40 overflow-y-auto px-4 pb-2 custom-scrollbar">
             {sessionLogs.length === 0 ? (
-              <div className="text-[11px] text-text-muted py-2">No logs captured yet in this session.</div>
+              <div className="text-[11px] text-text-muted py-2">
+                No logs captured yet in this session.
+              </div>
             ) : (
-              sessionLogs.slice().reverse().map((entry) => (
-                <div key={entry.id} className="text-[11px] py-1 border-t border-border-primary/40 first:border-t-0">
-                  <div className="text-text-muted">
-                    {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} • {entry.role}
-                    {entry.tokenTotal ? ` • ${entry.tokenTotal}t` : ''}
-                    {entry.isError ? ' • error' : ''}
+              sessionLogs
+                .slice()
+                .reverse()
+                .map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="text-[11px] py-1 border-t border-border-primary/40 first:border-t-0"
+                  >
+                    <div className="text-text-muted">
+                      {new Date(entry.timestamp).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      • {entry.role}
+                      {entry.tokenTotal ? ` • ${entry.tokenTotal}t` : ''}
+                      {entry.isError ? ' • error' : ''}
+                    </div>
+                    <div className="text-text-secondary whitespace-pre-wrap break-words line-clamp-2">
+                      {entry.content}
+                    </div>
                   </div>
-                  <div className="text-text-secondary whitespace-pre-wrap break-words line-clamp-2">
-                    {entry.content}
-                  </div>
-                </div>
-              ))
+                ))
             )}
           </div>
         </div>
@@ -1754,19 +1882,30 @@ const ChatPanel = () => {
           </div>
           <div className="px-4 pb-3 grid grid-cols-1 gap-1.5 text-[11px]">
             <div className="text-text-secondary">
-              plan_compile_fail_rate: <span className="text-cyan-200">{formatRate(telemetryRates?.plan_compile_fail_rate)}</span>
+              plan_compile_fail_rate:{' '}
+              <span className="text-cyan-200">
+                {formatRate(telemetryRates?.plan_compile_fail_rate)}
+              </span>
             </div>
             <div className="text-text-secondary">
-              fallback_rate: <span className="text-cyan-200">{formatRate(telemetryRates?.fallback_rate)}</span>
+              fallback_rate:{' '}
+              <span className="text-cyan-200">{formatRate(telemetryRates?.fallback_rate)}</span>
             </div>
             <div className="text-text-secondary">
-              execution_validation_fail_rate: <span className="text-cyan-200">{formatRate(telemetryRates?.execution_validation_fail_rate)}</span>
+              execution_validation_fail_rate:{' '}
+              <span className="text-cyan-200">
+                {formatRate(telemetryRates?.execution_validation_fail_rate)}
+              </span>
             </div>
             <div className="text-text-secondary">
-              turn_retry_rate: <span className="text-cyan-200">{formatRate(telemetryRates?.turn_retry_rate)}</span>
+              turn_retry_rate:{' '}
+              <span className="text-cyan-200">{formatRate(telemetryRates?.turn_retry_rate)}</span>
             </div>
             <div className="text-text-secondary">
-              repeat_response_rate: <span className="text-cyan-200">{formatRate(telemetryRates?.repeat_response_rate)}</span>
+              repeat_response_rate:{' '}
+              <span className="text-cyan-200">
+                {formatRate(telemetryRates?.repeat_response_rate)}
+              </span>
             </div>
           </div>
         </div>
@@ -1776,10 +1915,22 @@ const ChatPanel = () => {
       {clips.length > 0 && (
         <div className="px-4 py-2 bg-bg-surface/30 border-b border-border-primary">
           <div className="flex items-center gap-2 text-xs text-text-muted">
-            <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            <svg
+              className="w-3.5 h-3.5 text-accent"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+              />
             </svg>
-            <span>{clips.length} clip{clips.length !== 1 ? 's' : ''} in project</span>
+            <span>
+              {clips.length} clip{clips.length !== 1 ? 's' : ''} in project
+            </span>
           </div>
         </div>
       )}
@@ -1801,14 +1952,10 @@ const ChatPanel = () => {
                   <span className="text-text-primary">
                     {turn.mode.toUpperCase()} · {formatTurnStatus(turn.status)}
                   </span>
-                  <span className="text-text-muted">
-                    {formatTurnElapsed(turn)}
-                  </span>
+                  <span className="text-text-muted">{formatTurnElapsed(turn)}</span>
                 </div>
                 <div className="mt-1 flex items-center justify-between gap-2">
-                  <span className="text-text-muted truncate">
-                    {getTurnLatestSummary(turn)}
-                  </span>
+                  <span className="text-text-muted truncate">{getTurnLatestSummary(turn)}</span>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-text-muted">
                       {turn.parts.length} part{turn.parts.length !== 1 ? 's' : ''}
@@ -1825,7 +1972,8 @@ const ChatPanel = () => {
                 </div>
                 {turn.status === 'retry' && turn.retryInfo && (
                   <div className="mt-1 text-[10px] text-amber-300">
-                    Retry #{turn.retryInfo.attempt} in {formatRetryCountdown(turn.retryInfo.nextAt)} · {turn.retryInfo.message}
+                    Retry #{turn.retryInfo.attempt} in {formatRetryCountdown(turn.retryInfo.nextAt)}{' '}
+                    · {turn.retryInfo.message}
                   </div>
                 )}
               </div>
@@ -1868,8 +2016,16 @@ const ChatPanel = () => {
             <div className="text-xs text-cyan-200 mb-1">Tools</div>
             <div className="text-xs text-text-muted space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
               {selectedAudit.toolInputs.map((input, index) => (
-                <div key={`${input.name}-${JSON.stringify(input.args || {})}`} className="border border-border-primary rounded p-2 bg-bg-primary/60">
-                  <div>• {input.name}: {selectedAudit.toolResults[index]?.success ? 'success' : `failed (${selectedAudit.toolResults[index]?.error || 'unknown error'})`}</div>
+                <div
+                  key={`${input.name}-${JSON.stringify(input.args || {})}`}
+                  className="border border-border-primary rounded p-2 bg-bg-primary/60"
+                >
+                  <div>
+                    • {input.name}:{' '}
+                    {selectedAudit.toolResults[index]?.success
+                      ? 'success'
+                      : `failed (${selectedAudit.toolResults[index]?.error || 'unknown error'})`}
+                  </div>
                   <div className="font-mono text-[10px] text-text-muted mt-1 overflow-x-auto">
                     {JSON.stringify(input.args || {}, null, 2)}
                   </div>
@@ -1922,16 +2078,17 @@ const ChatPanel = () => {
           <div className="mb-4 border-2 border-accent-blue rounded-lg p-4 bg-bg-secondary shadow-lg">
             <div className="flex items-start gap-3">
               <div className="flex-1">
-                <h3 className="font-semibold text-text-primary mb-2">
-                  AI Video Editing Plan
-                </h3>
+                <h3 className="font-semibold text-text-primary mb-2">AI Video Editing Plan</h3>
                 <p className="text-text-secondary text-sm mb-3">
                   AI suggests the following operations:
                 </p>
-                
+
                 <div className="space-y-2 mb-4 max-h-64 overflow-y-auto custom-scrollbar">
                   {pendingToolCalls.functionCalls.map((call, i) => (
-                    <div key={`${call.name}-${JSON.stringify(call.args)}`} className="bg-bg-primary rounded p-3 border border-border-primary">
+                    <div
+                      key={`${call.name}-${JSON.stringify(call.args)}`}
+                      className="bg-bg-primary rounded p-3 border border-border-primary"
+                    >
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-accent-blue font-semibold text-sm">
                           {i + 1}. {call.name.replace(/_/g, ' ')}
@@ -1940,20 +2097,20 @@ const ChatPanel = () => {
                       <div className="text-xs text-text-muted font-mono bg-bg-surface rounded p-2 mb-2 overflow-x-auto">
                         {JSON.stringify(call.args, null, 2)}
                       </div>
-                      <div className="text-sm text-text-secondary">
-                        {getToolDescription(call)}
-                      </div>
+                      <div className="text-sm text-text-secondary">{getToolDescription(call)}</div>
                     </div>
                   ))}
                 </div>
-                
+
                 <div className="flex gap-2">
                   <button
                     onClick={handleExecuteTools}
                     disabled={isExecutingTools}
                     className="px-3 py-1.5 text-sm bg-accent-blue text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
                   >
-                    {isExecutingTools ? 'Executing...' : `Execute All (${pendingToolCalls.functionCalls.length})`}
+                    {isExecutingTools
+                      ? 'Executing...'
+                      : `Execute All (${pendingToolCalls.functionCalls.length})`}
                   </button>
                   <button
                     onClick={() => setPendingToolCalls(null)}
@@ -1963,16 +2120,18 @@ const ChatPanel = () => {
                     Cancel
                   </button>
                 </div>
-                
+
                 {toolExecutionProgress && (
                   <div className="mt-3">
                     <div className="text-sm text-text-secondary mb-1">
                       Progress: {toolExecutionProgress.current} / {toolExecutionProgress.total}
                     </div>
                     <div className="w-full bg-bg-primary rounded-full h-2 overflow-hidden">
-                      <div 
+                      <div
                         className="bg-accent-blue h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${(toolExecutionProgress.current / toolExecutionProgress.total) * 100}%` }}
+                        style={{
+                          width: `${(toolExecutionProgress.current / toolExecutionProgress.total) * 100}%`,
+                        }}
                       />
                     </div>
                     <div className="text-xs text-text-muted mt-1">
@@ -1993,11 +2152,14 @@ const ChatPanel = () => {
                 <h3 className="font-semibold text-text-primary mb-2 flex items-center gap-2">
                   Complete Execution Plan
                   <span className="text-xs font-normal text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded">
-                    {executionPlan.plan.totalRounds} round{executionPlan.plan.totalRounds > 1 ? 's' : ''}
+                    {executionPlan.plan.totalRounds} round
+                    {executionPlan.plan.totalRounds > 1 ? 's' : ''}
                   </span>
                 </h3>
                 <p className="text-text-secondary text-sm mb-3">
-                  AI has analyzed your request and planned {executionPlan.plan.operations.length} operation{executionPlan.plan.operations.length > 1 ? 's' : ''} across multiple steps:
+                  AI has analyzed your request and planned {executionPlan.plan.operations.length}{' '}
+                  operation{executionPlan.plan.operations.length > 1 ? 's' : ''} across multiple
+                  steps:
                 </p>
 
                 {executionPlan.plan.understanding && (
@@ -2006,35 +2168,45 @@ const ChatPanel = () => {
                     <div className="text-sm text-text-primary mb-2">
                       {executionPlan.plan.understanding.goal}
                     </div>
-                    {Array.isArray(executionPlan.plan.understanding.constraints) && executionPlan.plan.understanding.constraints.length > 0 && (
-                      <div className="space-y-1">
-                        {executionPlan.plan.understanding.constraints.map((constraint: string) => (
-                          <div key={constraint} className="text-xs text-text-muted">
-                            • {constraint}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {Array.isArray(executionPlan.plan.understanding.constraints) &&
+                      executionPlan.plan.understanding.constraints.length > 0 && (
+                        <div className="space-y-1">
+                          {executionPlan.plan.understanding.constraints.map(
+                            (constraint: string) => (
+                              <div key={constraint} className="text-xs text-text-muted">
+                                • {constraint}
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      )}
                     {executionPlan.plan.executionPolicy && (
                       <div className="mt-2 text-[11px] text-purple-300">
-                        Execution policy: {executionPlan.plan.executionPolicy.mode} (read-only batch up to {executionPlan.plan.executionPolicy.maxReadOnlyBatchSize})
+                        Execution policy: {executionPlan.plan.executionPolicy.mode} (read-only batch
+                        up to {executionPlan.plan.executionPolicy.maxReadOnlyBatchSize})
                       </div>
                     )}
                     <div className="mt-3 grid grid-cols-1 gap-2 text-xs">
                       <div className="bg-bg-surface border border-border-primary rounded p-2">
                         <div className="text-purple-300 font-medium mb-1">Why this plan</div>
                         <div className="text-text-muted">
-                          Generated from current timeline and tool constraints with runtime-safe preflight checks.
+                          Generated from current timeline and tool constraints with runtime-safe
+                          preflight checks.
                         </div>
                       </div>
                       <div className="bg-bg-surface border border-border-primary rounded p-2">
                         <div className="text-purple-300 font-medium mb-1">What will change</div>
-                        {Array.isArray(executionPlan.plan.changeSummary) && executionPlan.plan.changeSummary.length > 0 ? (
+                        {Array.isArray(executionPlan.plan.changeSummary) &&
+                        executionPlan.plan.changeSummary.length > 0 ? (
                           executionPlan.plan.changeSummary.map((line: string) => (
-                            <div key={line} className="text-text-muted">• {line}</div>
+                            <div key={line} className="text-text-muted">
+                              • {line}
+                            </div>
                           ))
                         ) : (
-                          <div className="text-text-muted">No explicit change summary available.</div>
+                          <div className="text-text-muted">
+                            No explicit change summary available.
+                          </div>
                         )}
                       </div>
                       <div className="bg-bg-surface border border-border-primary rounded p-2">
@@ -2048,7 +2220,8 @@ const ChatPanel = () => {
                       <div className="bg-bg-surface border border-border-primary rounded p-2">
                         <div className="text-purple-300 font-medium mb-1">Rollback</div>
                         <div className="text-text-muted">
-                          {executionPlan.plan.rollbackNote || 'Undo is available immediately after execution.'}
+                          {executionPlan.plan.rollbackNote ||
+                            'Undo is available immediately after execution.'}
                         </div>
                       </div>
                     </div>
@@ -2056,67 +2229,98 @@ const ChatPanel = () => {
                 )}
 
                 {executionPlan.plan.validation && (
-                  <div className={`mb-3 rounded-lg border p-3 ${
-                    executionPlan.plan.validation.valid
-                      ? 'bg-green-500/10 border-green-500/20'
-                      : 'bg-orange-500/10 border-orange-500/30'
-                  }`}>
-                    <div className={`text-xs font-semibold mb-1 ${
-                      executionPlan.plan.validation.valid ? 'text-green-300' : 'text-orange-300'
-                    }`}>
-                      {executionPlan.plan.validation.valid ? 'Validation Passed' : 'Validation Needs Attention'}
+                  <div
+                    className={`mb-3 rounded-lg border p-3 ${
+                      executionPlan.plan.validation.valid
+                        ? 'bg-green-500/10 border-green-500/20'
+                        : 'bg-orange-500/10 border-orange-500/30'
+                    }`}
+                  >
+                    <div
+                      className={`text-xs font-semibold mb-1 ${
+                        executionPlan.plan.validation.valid ? 'text-green-300' : 'text-orange-300'
+                      }`}
+                    >
+                      {executionPlan.plan.validation.valid
+                        ? 'Validation Passed'
+                        : 'Validation Needs Attention'}
                     </div>
-                    {Array.isArray(executionPlan.plan.validation.corrections) && executionPlan.plan.validation.corrections.length > 0 && (
-                      <div className="mb-2">
-                        <div className="text-[11px] text-text-secondary mb-1">Auto-corrections</div>
-                        {executionPlan.plan.validation.corrections.map((correction: string) => (
-                          <div key={correction} className="text-xs text-text-muted">• {correction}</div>
-                        ))}
-                      </div>
-                    )}
-                    {Array.isArray(executionPlan.plan.validation.issues) && executionPlan.plan.validation.issues.length > 0 && (
-                      <div>
-                        <div className="text-[11px] text-text-secondary mb-1">Issues</div>
-                        {executionPlan.plan.validation.issues.slice(0, 4).map((issue: any) => (
-                          <div key={`${issue.category}-${issue.toolName}-${issue.message}`} className="text-xs text-orange-200">
-                            • [{issue.category}] {issue.toolName}: {issue.message}
+                    {Array.isArray(executionPlan.plan.validation.corrections) &&
+                      executionPlan.plan.validation.corrections.length > 0 && (
+                        <div className="mb-2">
+                          <div className="text-[11px] text-text-secondary mb-1">
+                            Auto-corrections
                           </div>
-                        ))}
-                      </div>
-                    )}
+                          {executionPlan.plan.validation.corrections.map((correction: string) => (
+                            <div key={correction} className="text-xs text-text-muted">
+                              • {correction}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    {Array.isArray(executionPlan.plan.validation.issues) &&
+                      executionPlan.plan.validation.issues.length > 0 && (
+                        <div>
+                          <div className="text-[11px] text-text-secondary mb-1">Issues</div>
+                          {executionPlan.plan.validation.issues.slice(0, 4).map((issue: any) => (
+                            <div
+                              key={`${issue.category}-${issue.toolName}-${issue.message}`}
+                              className="text-xs text-orange-200"
+                            >
+                              • [{issue.category}] {issue.toolName}: {issue.message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                   </div>
                 )}
-                
+
                 <div className="space-y-3 mb-4 max-h-96 overflow-y-auto custom-scrollbar">
-                  {Array.isArray(executionPlan.plan.steps) && executionPlan.plan.steps.length > 0 && (
-                    <div className="bg-bg-primary rounded-lg p-3 border border-purple-500/30">
-                      <div className="text-purple-400 font-semibold text-sm mb-2">Planned Steps</div>
-                      <div className="space-y-2">
-                        {executionPlan.plan.steps.slice(0, 8).map((step: any) => (
-                          <div key={step.order} className="text-xs text-text-secondary border border-border-primary rounded p-2">
-                            <div className="text-text-primary font-medium">
-                              {step.order}. {step.description}
+                  {Array.isArray(executionPlan.plan.steps) &&
+                    executionPlan.plan.steps.length > 0 && (
+                      <div className="bg-bg-primary rounded-lg p-3 border border-purple-500/30">
+                        <div className="text-purple-400 font-semibold text-sm mb-2">
+                          Planned Steps
+                        </div>
+                        <div className="space-y-2">
+                          {executionPlan.plan.steps.slice(0, 8).map((step: any) => (
+                            <div
+                              key={step.order}
+                              className="text-xs text-text-secondary border border-border-primary rounded p-2"
+                            >
+                              <div className="text-text-primary font-medium">
+                                {step.order}. {step.description}
+                              </div>
+                              <div className="mt-1 text-text-muted">
+                                Preconditions:{' '}
+                                {Array.isArray(step.preconditions)
+                                  ? step.preconditions.join('; ')
+                                  : 'n/a'}
+                              </div>
+                              <div className="text-text-muted">Expected: {step.expectedResult}</div>
                             </div>
-                            <div className="mt-1 text-text-muted">
-                              Preconditions: {Array.isArray(step.preconditions) ? step.preconditions.join('; ') : 'n/a'}
+                          ))}
+                          {executionPlan.plan.steps.length > 8 && (
+                            <div className="text-xs text-text-muted">
+                              +{executionPlan.plan.steps.length - 8} more step(s)
                             </div>
-                            <div className="text-text-muted">Expected: {step.expectedResult}</div>
-                          </div>
-                        ))}
-                        {executionPlan.plan.steps.length > 8 && (
-                          <div className="text-xs text-text-muted">
-                            +{executionPlan.plan.steps.length - 8} more step(s)
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   {/* Group operations by round */}
-                  {Array.from(new Set<number>(executionPlan.plan.operations.map((op: any) => op.round))).map((round) => {
-                    const roundOps = executionPlan.plan.operations.filter((op: any) => op.round === round);
+                  {Array.from(
+                    new Set<number>(executionPlan.plan.operations.map((op: any) => op.round)),
+                  ).map((round) => {
+                    const roundOps = executionPlan.plan.operations.filter(
+                      (op: any) => op.round === round,
+                    );
                     return (
-                      <div key={round} className="bg-bg-primary rounded-lg p-3 border border-purple-500/30">
+                      <div
+                        key={round}
+                        className="bg-bg-primary rounded-lg p-3 border border-purple-500/30"
+                      >
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-purple-400 font-semibold text-sm">
                             Round {round}
@@ -2125,7 +2329,7 @@ const ChatPanel = () => {
                             ({roundOps.length} operation{roundOps.length > 1 ? 's' : ''})
                           </span>
                         </div>
-                        
+
                         <div className="space-y-2">
                           {roundOps.map((op: any, i: number) => (
                             <div key={i} className="flex items-start gap-2 pl-2">
@@ -2133,9 +2337,7 @@ const ChatPanel = () => {
                                 {op.isReadOnly ? 'Read' : 'Edit'}
                               </span>
                               <div className="flex-1">
-                                <div className="text-sm text-text-primary">
-                                  {op.description}
-                                </div>
+                                <div className="text-sm text-text-primary">{op.description}</div>
                                 <div className="text-xs text-text-muted font-mono mt-1">
                                   {formatOperationName(op.functionCall.name)}
                                 </div>
@@ -2153,33 +2355,40 @@ const ChatPanel = () => {
                   })}
                 </div>
 
-                <div className={`mb-3 rounded-lg border p-3 ${
-                  executionPlan.plan.planReady
-                    ? 'bg-emerald-500/10 border-emerald-500/30'
-                    : 'bg-amber-500/10 border-amber-500/30'
-                }`}>
-                  <div className={`text-xs font-semibold ${
-                    executionPlan.plan.planReady ? 'text-emerald-200' : 'text-amber-200'
-                  }`}>
+                <div
+                  className={`mb-3 rounded-lg border p-3 ${
+                    executionPlan.plan.planReady
+                      ? 'bg-emerald-500/10 border-emerald-500/30'
+                      : 'bg-amber-500/10 border-amber-500/30'
+                  }`}
+                >
+                  <div
+                    className={`text-xs font-semibold ${
+                      executionPlan.plan.planReady ? 'text-emerald-200' : 'text-amber-200'
+                    }`}
+                  >
                     {executionPlan.plan.planReady ? 'Plan Ready' : 'Plan Not Ready'}
                   </div>
                   <div className="text-xs text-text-secondary mt-1">
                     {executionPlan.plan.planReadyReason}
                   </div>
-                  {Array.isArray(executionPlan.plan.riskNotes) && executionPlan.plan.riskNotes.length > 0 && (
-                    <div className="mt-2 text-xs text-text-muted">
-                      Risks: {executionPlan.plan.riskNotes.join(' | ')}
-                    </div>
-                  )}
+                  {Array.isArray(executionPlan.plan.riskNotes) &&
+                    executionPlan.plan.riskNotes.length > 0 && (
+                      <div className="mt-2 text-xs text-text-muted">
+                        Risks: {executionPlan.plan.riskNotes.join(' | ')}
+                      </div>
+                    )}
                 </div>
-                
+
                 <div className="flex gap-2">
                   <button
                     onClick={handleExecutePlan}
                     disabled={isExecutingTools || !executionPlan.plan.planReady}
                     className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors flex items-center gap-2"
                   >
-                    {isExecutingTools ? 'Executing...' : `Execute (${executionPlan.plan.operations.length})`}
+                    {isExecutingTools
+                      ? 'Executing...'
+                      : `Execute (${executionPlan.plan.operations.length})`}
                   </button>
                   <button
                     onClick={handleRefinePlan}
@@ -2213,10 +2422,12 @@ const ChatPanel = () => {
 
                 {lastPlanExecutionError && (
                   <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-                    <div className="text-xs text-red-200 whitespace-pre-wrap">{lastPlanExecutionError}</div>
+                    <div className="text-xs text-red-200 whitespace-pre-wrap">
+                      {lastPlanExecutionError}
+                    </div>
                   </div>
                 )}
-                
+
                 {toolExecutionProgress && (
                   <div className="mt-3">
                     <div className="text-sm text-text-secondary mb-1 flex items-center justify-between">
@@ -2226,16 +2437,19 @@ const ChatPanel = () => {
                       </span>
                     </div>
                     <div className="w-full bg-bg-primary rounded-full h-2 overflow-hidden">
-                      <div 
+                      <div
                         className="bg-purple-500 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${(toolExecutionProgress.current / toolExecutionProgress.total) * 100}%` }}
+                        style={{
+                          width: `${(toolExecutionProgress.current / toolExecutionProgress.total) * 100}%`,
+                        }}
                       />
                     </div>
                   </div>
                 )}
-                
+
                 <div className="mt-3 text-xs text-text-muted bg-purple-500/10 rounded p-2">
-                  <strong>Note:</strong> This plan was generated by analyzing all necessary steps. Operations marked with Edit will modify your timeline.
+                  <strong>Note:</strong> This plan was generated by analyzing all necessary steps.
+                  Operations marked with Edit will modify your timeline.
                 </div>
               </div>
             </div>
@@ -2247,8 +2461,19 @@ const ChatPanel = () => {
           <div className="flex justify-start mb-4">
             <div className="flex items-center gap-2 px-4 py-2 bg-bg-surface border border-border-primary rounded-2xl rounded-tl-sm text-xs text-text-muted">
               <svg className="w-4 h-4 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
               </svg>
               <span>{uploadStatus}</span>
             </div>
@@ -2260,8 +2485,19 @@ const ChatPanel = () => {
           <div className="flex justify-start mb-4">
             <div className="flex items-center gap-2 px-4 py-2 bg-purple-500/10 border border-purple-500/30 rounded-2xl rounded-tl-sm text-xs text-purple-300">
               <svg className="w-4 h-4 animate-spin text-purple-400" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
               </svg>
               <span>Generating complete execution plan...</span>
             </div>
@@ -2282,7 +2518,9 @@ export default ChatPanel;
 
 function isExecutionConfirmation(input: string): boolean {
   const text = input.toLowerCase().trim();
-  return /\b(do it|go ahead|execute|apply (it|that)|proceed|make it|yes|ok|okay|sure|continue)\b/.test(text);
+  return /\b(do it|go ahead|execute|apply (it|that)|proceed|make it|yes|ok|okay|sure|continue)\b/.test(
+    text,
+  );
 }
 
 function looksLikeEditPlan(text: string): boolean {
@@ -2300,22 +2538,25 @@ function looksLikeEditPlan(text: string): boolean {
 function isAmbiguousContinuation(input: string): boolean {
   const text = input.toLowerCase().trim();
   return (
-    /\b(yes|ok|okay|sure|continue|next|step by step|move next)\b/.test(text) &&
-    text.length <= 60
+    /\b(yes|ok|okay|sure|continue|next|step by step|move next)\b/.test(text) && text.length <= 60
   );
 }
 
 function shouldInlineMediaBytes(input: string, attachments?: MediaAttachment[]): boolean {
   if (!attachments || attachments.length === 0) return false;
-  return /\b(analyze|describe|what do you see|review this frame|visual analysis|inspect image|inspect video)\b/i
-    .test(input);
+  return /\b(analyze|describe|what do you see|review this frame|visual analysis|inspect image|inspect video)\b/i.test(
+    input,
+  );
 }
 
-function hasRecentEditingContext(
-  messages: Array<{ role: string; content: string }>
-): boolean {
-  const recent = messages.slice(-8).map((m) => m.content.toLowerCase()).join(" ");
-  return /\b(edit|timeline|clip|split|trim|merge|subtitle|caption|transcribe|youtube video|execution plan)\b/.test(recent);
+function hasRecentEditingContext(messages: Array<{ role: string; content: string }>): boolean {
+  const recent = messages
+    .slice(-8)
+    .map((m) => m.content.toLowerCase())
+    .join(' ');
+  return /\b(edit|timeline|clip|split|trim|merge|subtitle|caption|transcribe|youtube video|execution plan)\b/.test(
+    recent,
+  );
 }
 
 function isReadOnlyToolCall(call: { name: string }): boolean {

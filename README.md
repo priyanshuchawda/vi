@@ -1,10 +1,14 @@
-You have this respo means you are contributing remember so you must read contributing.md
+You have this respo means you are contributing remember so you must read
+contributing.md
 
 # QuickCut
 
-QuickCut is an AI-enabled desktop video editor built with Electron, React, TypeScript, and FFmpeg.
+QuickCut is an AI-enabled desktop video editor built with Electron, React,
+TypeScript, and FFmpeg.
 
-It combines a local-first editing engine (timeline, subtitles, transcription, export) with an AI assistant that can reason about project state, generate safe execution plans, and run supported editing tools.
+It combines a local-first editing engine (timeline, subtitles, transcription,
+export) with an AI assistant that can reason about project state, generate safe
+execution plans, and run supported editing tools.
 
 ## Core Capabilities
 
@@ -115,6 +119,13 @@ npm run test:coverage
 npm run lint
 ```
 
+## Format
+
+```bash
+npm run format
+npm run format:check
+```
+
 ## Typecheck
 
 ```bash
@@ -130,11 +141,13 @@ GitHub Actions workflows:
   - `Lint`
   - `Test`
   - `Build`
-- `Release Desktop` runs on version tags (`v*`) and produces Linux desktop artifacts.
+- `Release Desktop` runs on version tags (`v*`) and produces Linux desktop
+  artifacts.
 
 ## Release and Updates
 
-- `electron-updater` is integrated for packaged app update checks/download/install flow.
+- `electron-updater` is integrated for packaged app update
+  checks/download/install flow.
 - Release/publish and signing environment contract is documented in:
   [docs/release-and-updates.md](./docs/release-and-updates.md)
 
@@ -145,7 +158,8 @@ GitHub Actions workflows:
 
 ## Observability
 
-- Error tracking, structured logging, and privacy telemetry boundaries are documented in:
+- Error tracking, structured logging, and privacy telemetry boundaries are
+  documented in:
   [docs/observability-and-telemetry.md](./docs/observability-and-telemetry.md)
 
 ## Storage Strategy
@@ -165,7 +179,8 @@ GitHub Actions workflows:
 
 ## Notes on Tests
 
-Some integration tests depend on local test media files and may fail if those assets are not present in your environment. Unit tests run independently.
+Some integration tests depend on local test media files and may fail if those
+assets are not present in your environment. Unit tests run independently.
 
 ## Recent Architecture Additions
 
@@ -176,11 +191,14 @@ Some integration tests depend on local test media files and may fail if those as
 
 ## Contributing
 
-Reading and following [CONTRIBUTING.md](./CONTRIBUTING.md) is mandatory for every PR.
+Reading and following [CONTRIBUTING.md](./CONTRIBUTING.md) is mandatory for
+every PR.
 
 1. Create a branch from `main`
-2. Follow `CONTRIBUTING.md` rules (tests required for every change, checks must pass)
-3. Open a PR with validation notes (`build`, `test`, `lint`, and relevant extra checks)
+2. Follow `CONTRIBUTING.md` rules (tests required for every change, checks must
+   pass)
+3. Open a PR with validation notes (`build`, `test`, `lint`, and relevant extra
+   checks)
 4. Merge via GitHub when approved
 
 ## License

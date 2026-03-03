@@ -9,7 +9,15 @@
     "expectJson": true,
     "expectKeywords": ["trim", "merge", "transition", "assumption", "confidence"],
     "jsonContract": {
-      "requiredKeys": ["intent_type", "mode", "operations", "assumptions", "ambiguities", "needs_clarification", "confidence"],
+      "requiredKeys": [
+        "intent_type",
+        "mode",
+        "operations",
+        "assumptions",
+        "ambiguities",
+        "needs_clarification",
+        "confidence"
+      ],
       "allowedModes": ["create", "modify", "delete"],
       "minOperations": 3,
       "requiredOperationNames": ["trim", "merge", "transition"],
@@ -32,7 +40,14 @@
     "expectJson": true,
     "expectKeywords": ["order", "cut_first", "timeline", "confidence"],
     "jsonContract": {
-      "requiredKeys": ["story_goal", "edit_order", "cut_first", "timeline_notes", "assumptions", "confidence"],
+      "requiredKeys": [
+        "story_goal",
+        "edit_order",
+        "cut_first",
+        "timeline_notes",
+        "assumptions",
+        "confidence"
+      ],
       "minOperations": 0,
       "minConfidence": 0.35,
       "maxConfidence": 0.95
@@ -66,7 +81,16 @@
     "expectJson": true,
     "expectKeywords": ["modify", "operations", "needs_clarification", "confidence"],
     "jsonContract": {
-      "requiredKeys": ["intent_type", "mode", "operations", "assumptions", "ambiguities", "needs_clarification", "confidence", "execution_recommendation"],
+      "requiredKeys": [
+        "intent_type",
+        "mode",
+        "operations",
+        "assumptions",
+        "ambiguities",
+        "needs_clarification",
+        "confidence",
+        "execution_recommendation"
+      ],
       "allowedModes": ["create", "modify", "delete"],
       "allowedExecutionRecommendations": ["auto_execute", "preview_required", "clarify_required"],
       "minOperations": 2,
@@ -84,7 +108,15 @@
     "expectJson": true,
     "expectKeywords": ["create", "assumption", "confidence"],
     "jsonContract": {
-      "requiredKeys": ["intent_type", "mode", "operations", "assumptions", "ambiguities", "needs_clarification", "confidence"],
+      "requiredKeys": [
+        "intent_type",
+        "mode",
+        "operations",
+        "assumptions",
+        "ambiguities",
+        "needs_clarification",
+        "confidence"
+      ],
       "allowedModes": ["create", "modify", "delete"],
       "allowedOperationNames": ["trim", "merge", "transition", "other"],
       "minOperations": 2,
@@ -107,7 +139,16 @@
     "expectJson": true,
     "expectKeywords": ["edit", "script", "short", "goals"],
     "jsonContract": {
-      "requiredKeys": ["intent_type", "mode", "goals", "deliverables", "assumptions", "ambiguities", "needs_clarification", "confidence"],
+      "requiredKeys": [
+        "intent_type",
+        "mode",
+        "goals",
+        "deliverables",
+        "assumptions",
+        "ambiguities",
+        "needs_clarification",
+        "confidence"
+      ],
       "allowedModes": ["create", "modify", "delete"],
       "minConfidence": 0.35,
       "maxConfidence": 0.95
@@ -248,7 +289,14 @@
     "expectJson": true,
     "expectKeywords": ["modify", "preview", "confidence"],
     "jsonContract": {
-      "requiredKeys": ["intent_type", "mode", "operations", "needs_clarification", "confidence", "execution_recommendation"],
+      "requiredKeys": [
+        "intent_type",
+        "mode",
+        "operations",
+        "needs_clarification",
+        "confidence",
+        "execution_recommendation"
+      ],
       "allowedModes": ["create", "modify", "delete"],
       "allowedExecutionRecommendations": ["auto_execute", "preview_required", "clarify_required"],
       "allowedOperationNames": ["trim", "merge", "transition", "other"],
@@ -267,7 +315,14 @@
     "expectJson": true,
     "expectKeywords": ["modify", "operations", "execution_recommendation", "confidence"],
     "jsonContract": {
-      "requiredKeys": ["intent_type", "mode", "operations", "needs_clarification", "confidence", "execution_recommendation"],
+      "requiredKeys": [
+        "intent_type",
+        "mode",
+        "operations",
+        "needs_clarification",
+        "confidence",
+        "execution_recommendation"
+      ],
       "allowedModes": ["create", "modify", "delete"],
       "allowedExecutionRecommendations": ["auto_execute", "preview_required", "clarify_required"],
       "allowedOperationNames": ["trim", "merge", "transition", "other"],
@@ -314,7 +369,16 @@
     "expectJson": true,
     "expectKeywords": ["modify", "trim", "operations", "confidence"],
     "jsonContract": {
-      "requiredKeys": ["intent_type", "mode", "operations", "assumptions", "ambiguities", "needs_clarification", "confidence", "execution_recommendation"],
+      "requiredKeys": [
+        "intent_type",
+        "mode",
+        "operations",
+        "assumptions",
+        "ambiguities",
+        "needs_clarification",
+        "confidence",
+        "execution_recommendation"
+      ],
       "allowedModes": ["create", "modify", "delete"],
       "allowedExecutionRecommendations": ["auto_execute", "preview_required", "clarify_required"],
       "allowedOperationNames": ["trim", "merge", "transition", "other"],
@@ -333,7 +397,16 @@
     "expectJson": true,
     "expectKeywords": ["modify", "operations", "needs_clarification", "confidence"],
     "jsonContract": {
-      "requiredKeys": ["intent_type", "mode", "operations", "assumptions", "ambiguities", "needs_clarification", "confidence", "execution_recommendation"],
+      "requiredKeys": [
+        "intent_type",
+        "mode",
+        "operations",
+        "assumptions",
+        "ambiguities",
+        "needs_clarification",
+        "confidence",
+        "execution_recommendation"
+      ],
       "allowedModes": ["create", "modify", "delete"],
       "allowedExecutionRecommendations": ["auto_execute", "preview_required", "clarify_required"],
       "allowedOperationNames": ["trim", "merge", "transition", "other"],

@@ -12,8 +12,21 @@ export type ChatTurnStatus =
 
 export type TurnPart =
   | { type: 'text'; text: string; role: 'user' | 'assistant'; timestamp: number }
-  | { type: 'tool_call'; name: string; args: Record<string, any>; state: 'pending' | 'running' | 'completed' | 'error'; timestamp: number }
-  | { type: 'tool_result'; name: string; success: boolean; message?: string; error?: string; timestamp: number }
+  | {
+      type: 'tool_call';
+      name: string;
+      args: Record<string, any>;
+      state: 'pending' | 'running' | 'completed' | 'error';
+      timestamp: number;
+    }
+  | {
+      type: 'tool_result';
+      name: string;
+      success: boolean;
+      message?: string;
+      error?: string;
+      timestamp: number;
+    }
   | { type: 'step_start'; label: string; timestamp: number }
   | { type: 'step_finish'; label: string; success: boolean; timestamp: number }
   | { type: 'status'; from: ChatTurnStatus; to: ChatTurnStatus; timestamp: number }
@@ -88,8 +101,25 @@ export interface ChatContext {
 // Supported media types for AI
 export const SUPPORTED_MEDIA_TYPES: Record<string, string[]> = {
   image: ['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif'],
-  video: ['video/mp4', 'video/mpeg', 'video/mov', 'video/avi', 'video/x-flv', 'video/webm', 'video/wmv', 'video/3gpp'],
-  audio: ['audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/aiff', 'audio/aac', 'audio/ogg', 'audio/flac'],
+  video: [
+    'video/mp4',
+    'video/mpeg',
+    'video/mov',
+    'video/avi',
+    'video/x-flv',
+    'video/webm',
+    'video/wmv',
+    'video/3gpp',
+  ],
+  audio: [
+    'audio/wav',
+    'audio/mp3',
+    'audio/mpeg',
+    'audio/aiff',
+    'audio/aac',
+    'audio/ogg',
+    'audio/flac',
+  ],
   document: ['application/pdf'],
 };
 

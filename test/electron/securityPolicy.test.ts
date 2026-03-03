@@ -15,7 +15,9 @@ describe('electron security policy', () => {
   });
 
   it('blocks navigation across origins', () => {
-    expect(shouldBlockNavigation('http://localhost:7377/editor', 'http://localhost:7377/settings')).toBe(false);
+    expect(
+      shouldBlockNavigation('http://localhost:7377/editor', 'http://localhost:7377/settings'),
+    ).toBe(false);
     expect(shouldBlockNavigation('http://localhost:7377/editor', 'https://github.com')).toBe(true);
   });
 

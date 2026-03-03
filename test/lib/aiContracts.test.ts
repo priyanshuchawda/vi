@@ -6,10 +6,7 @@ import {
   buildAliasedSnapshotForPlanning,
   formatSnapshotForPrompt,
 } from '../../src/lib/aiProjectSnapshot';
-import {
-  buildToolCapabilityMatrix,
-  isReadOnlyTool,
-} from '../../src/lib/toolCapabilityMatrix';
+import { buildToolCapabilityMatrix, isReadOnlyTool } from '../../src/lib/toolCapabilityMatrix';
 
 const BASE_SUBTITLE_STYLE = {
   fontSize: 24,
@@ -123,14 +120,15 @@ describe('AI contracts', () => {
   });
 
   it('builds capability matrix with safety metadata', () => {
-    const matrix = buildToolCapabilityMatrix([
-      'get_timeline_info',
-      'set_clip_volume',
-    ]);
+    const matrix = buildToolCapabilityMatrix(['get_timeline_info', 'set_clip_volume']);
 
     expect(matrix.tools.length).toBe(2);
-    expect(matrix.tools.find((tool) => tool.name === 'get_timeline_info')?.safety).toBe('read_only');
-    expect(matrix.tools.find((tool) => tool.name === 'set_clip_volume')?.constraints.volume).toContain('0.0');
+    expect(matrix.tools.find((tool) => tool.name === 'get_timeline_info')?.safety).toBe(
+      'read_only',
+    );
+    expect(
+      matrix.tools.find((tool) => tool.name === 'set_clip_volume')?.constraints.volume,
+    ).toContain('0.0');
     expect(isReadOnlyTool('get_timeline_info')).toBe(true);
     expect(matrix.unsupportedOperations.length).toBeGreaterThan(0);
   });

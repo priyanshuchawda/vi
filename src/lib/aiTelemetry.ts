@@ -42,10 +42,7 @@ function loadState(): TelemetryState {
 
 function saveState(state: TelemetryState): void {
   try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ ...state, updatedAt: Date.now() }),
-    );
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, updatedAt: Date.now() }));
   } catch {
     // ignore storage errors
   }
@@ -68,9 +65,7 @@ export function recordPlanningAttempt(metrics: {
   });
 }
 
-export function recordExecutionAttempt(metrics: {
-  validationFailed?: boolean;
-}): void {
+export function recordExecutionAttempt(metrics: { validationFailed?: boolean }): void {
   update((state) => {
     state.executionAttempts += 1;
     if (metrics.validationFailed) state.executionValidationFailures += 1;
@@ -107,25 +102,14 @@ export function getTelemetryRates(): {
 
   return {
     plan_compile_fail_rate:
-      state.planningAttempts > 0
-        ? state.planCompileFailures / state.planningAttempts
-        : 0,
-    fallback_rate:
-      state.planningAttempts > 0
-        ? state.fallbackCount / state.planningAttempts
-        : 0,
+      state.planningAttempts > 0 ? state.planCompileFailures / state.planningAttempts : 0,
+    fallback_rate: state.planningAttempts > 0 ? state.fallbackCount / state.planningAttempts : 0,
     execution_validation_fail_rate:
-      state.executionAttempts > 0
-        ? state.executionValidationFailures / state.executionAttempts
-        : 0,
+      state.executionAttempts > 0 ? state.executionValidationFailures / state.executionAttempts : 0,
     turn_retry_rate:
-      state.executionAttempts > 0
-        ? state.retryAttempts / state.executionAttempts
-        : 0,
+      state.executionAttempts > 0 ? state.retryAttempts / state.executionAttempts : 0,
     repeat_response_rate:
-      state.assistantResponses > 0
-        ? state.repeatedResponses / state.assistantResponses
-        : 0,
+      state.assistantResponses > 0 ? state.repeatedResponses / state.assistantResponses : 0,
   };
 }
 

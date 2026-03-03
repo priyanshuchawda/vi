@@ -6,7 +6,8 @@ import { useProjectStore } from '../stores/useProjectStore';
  * at regular intervals when enabled
  */
 const AutoSave = () => {
-  const { autoSaveEnabled, autoSaveInterval, hasUnsavedChanges, projectPath, autoSave } = useProjectStore();
+  const { autoSaveEnabled, autoSaveInterval, hasUnsavedChanges, projectPath, autoSave } =
+    useProjectStore();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -43,7 +44,7 @@ const AutoSave = () => {
       if (hasUnsavedChanges) {
         e.preventDefault();
         e.returnValue = '';
-        
+
         // Attempt to save before closing
         autoSave();
       }

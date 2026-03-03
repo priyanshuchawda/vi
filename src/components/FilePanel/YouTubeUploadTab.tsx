@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
-import type { YouTubeVideoMetadata, YouTubeUploadProgress, YouTubeVideo } from '../../types/electron';
+import type {
+  YouTubeVideoMetadata,
+  YouTubeUploadProgress,
+  YouTubeVideo,
+} from '../../types/electron';
 import {
   isYouTubeAvailable,
   useYouTubeAuthStatus,
@@ -150,13 +154,13 @@ const YouTubeUploadTab = () => {
         // Show success message with video link
         const videoUrl = `https://www.youtube.com/watch?v=${result.videoId}`;
         const openVideo = confirm(
-          `✅ Upload Successful!\n\nYour video has been uploaded to YouTube.\n\nVideo ID: ${result.videoId}\n\nClick OK to open it in your browser, or Cancel to continue editing.`
+          `✅ Upload Successful!\n\nYour video has been uploaded to YouTube.\n\nVideo ID: ${result.videoId}\n\nClick OK to open it in your browser, or Cancel to continue editing.`,
         );
-        
+
         if (openVideo) {
           window.open(videoUrl, '_blank');
         }
-        
+
         // Reset form
         setTitle('');
         setDescription('');
@@ -174,16 +178,10 @@ const YouTubeUploadTab = () => {
   if (!isAuthenticated) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-        <svg
-          className="w-16 h-16 mb-4 text-red-500"
-          fill="currentColor"
-          viewBox="0 0 24 24"
-        >
+        <svg className="w-16 h-16 mb-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
           <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
         </svg>
-        <h2 className="text-xl font-bold mb-2 text-text-primary">
-          Upload to YouTube
-        </h2>
+        <h2 className="text-xl font-bold mb-2 text-text-primary">Upload to YouTube</h2>
         <p className="text-text-muted mb-6 max-w-md">
           Connect your YouTube account to upload videos directly from QuickCut.
         </p>
@@ -193,7 +191,7 @@ const YouTubeUploadTab = () => {
           className={clsx(
             'px-6 py-3 bg-red-600 text-white rounded-lg font-medium',
             'hover:bg-red-700 transition-colors',
-            'disabled:opacity-50 disabled:cursor-not-allowed'
+            'disabled:opacity-50 disabled:cursor-not-allowed',
           )}
         >
           {isAuthenticating ? 'Connecting...' : 'Connect YouTube Account'}
@@ -209,17 +207,11 @@ const YouTubeUploadTab = () => {
       <div className="p-4 border-b border-border-primary bg-bg-elevated">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <svg
-              className="w-6 h-6 text-red-500"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-6 h-6 text-red-500" fill="currentColor" viewBox="0 0 24 24">
               <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
             </svg>
             <div>
-              <h2 className="text-sm font-bold text-text-primary">
-                YouTube Upload
-              </h2>
+              <h2 className="text-sm font-bold text-text-primary">YouTube Upload</h2>
               <p className="text-xs text-text-muted">Connected</p>
             </div>
           </div>
@@ -236,15 +228,11 @@ const YouTubeUploadTab = () => {
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {/* Upload Form */}
         <section>
-          <h3 className="text-sm font-bold text-text-primary mb-3">
-            Video Details
-          </h3>
+          <h3 className="text-sm font-bold text-text-primary mb-3">Video Details</h3>
           <div className="space-y-3">
             {/* Title */}
             <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">
-                Title *
-              </label>
+              <label className="block text-xs font-medium text-text-muted mb-1">Title *</label>
               <input
                 type="text"
                 value={title}
@@ -253,16 +241,12 @@ const YouTubeUploadTab = () => {
                 maxLength={100}
                 className="w-full px-3 py-2 bg-bg-primary border border-border-primary rounded text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
               />
-              <p className="text-xs text-text-muted mt-1">
-                {title.length}/100 characters
-              </p>
+              <p className="text-xs text-text-muted mt-1">{title.length}/100 characters</p>
             </div>
 
             {/* Description */}
             <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">
-                Description
-              </label>
+              <label className="block text-xs font-medium text-text-muted mb-1">Description</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -271,9 +255,7 @@ const YouTubeUploadTab = () => {
                 rows={4}
                 className="w-full px-3 py-2 bg-bg-primary border border-border-primary rounded text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent resize-none"
               />
-              <p className="text-xs text-text-muted mt-1">
-                {description.length}/5000 characters
-              </p>
+              <p className="text-xs text-text-muted mt-1">{description.length}/5000 characters</p>
             </div>
 
             {/* Tags */}
@@ -292,9 +274,7 @@ const YouTubeUploadTab = () => {
 
             {/* Privacy Status */}
             <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">
-                Privacy
-              </label>
+              <label className="block text-xs font-medium text-text-muted mb-1">Privacy</label>
               <select
                 value={privacyStatus}
                 onChange={(e) =>
@@ -317,10 +297,7 @@ const YouTubeUploadTab = () => {
                 onChange={(e) => setMadeForKids(e.target.checked)}
                 className="w-4 h-4 accent-accent"
               />
-              <label
-                htmlFor="madeForKids"
-                className="text-xs text-text-muted cursor-pointer"
-              >
+              <label htmlFor="madeForKids" className="text-xs text-text-muted cursor-pointer">
                 Made for kids
               </label>
             </div>
@@ -329,9 +306,7 @@ const YouTubeUploadTab = () => {
 
         {/* Upload Button */}
         <section>
-          <h3 className="text-sm font-bold text-text-primary mb-3">
-            Upload to YouTube
-          </h3>
+          <h3 className="text-sm font-bold text-text-primary mb-3">Upload to YouTube</h3>
           {clips.length === 0 && (
             <p className="text-xs text-yellow-500 mb-2">
               ⚠️ Add media to your timeline first (MEDIA tab)
@@ -343,15 +318,13 @@ const YouTubeUploadTab = () => {
             className={clsx(
               'w-full px-4 py-3 bg-red-600 text-white rounded-lg font-medium',
               'hover:bg-red-700 transition-colors',
-              'disabled:opacity-50 disabled:cursor-not-allowed'
+              'disabled:opacity-50 disabled:cursor-not-allowed',
             )}
           >
             {isUploading ? 'Uploading...' : 'Upload to YouTube'}
           </button>
           {!isUploading && clips.length > 0 && !title.trim() && (
-            <p className="text-xs text-text-muted mt-2">
-              Enter a title to enable upload
-            </p>
+            <p className="text-xs text-text-muted mt-2">Enter a title to enable upload</p>
           )}
 
           {/* Upload Progress */}
@@ -359,12 +332,8 @@ const YouTubeUploadTab = () => {
             <div className="mt-4 p-4 bg-bg-elevated rounded-lg border-2 border-accent shadow-lg">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  {uploadProgress.status === 'completed' && (
-                    <span className="text-2xl">✅</span>
-                  )}
-                  {uploadProgress.status === 'failed' && (
-                    <span className="text-2xl">❌</span>
-                  )}
+                  {uploadProgress.status === 'completed' && <span className="text-2xl">✅</span>}
+                  {uploadProgress.status === 'failed' && <span className="text-2xl">❌</span>}
                   {uploadProgress.status === 'uploading' && (
                     <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
                   )}
@@ -375,9 +344,7 @@ const YouTubeUploadTab = () => {
                     {uploadProgress.status === 'failed' && 'Upload Failed'}
                   </span>
                 </div>
-                <span className="text-lg font-bold text-accent">
-                  {uploadProgress.percentage}%
-                </span>
+                <span className="text-lg font-bold text-accent">{uploadProgress.percentage}%</span>
               </div>
               <div className="w-full h-3 bg-bg-primary rounded-full overflow-hidden">
                 <div
@@ -386,15 +353,16 @@ const YouTubeUploadTab = () => {
                     uploadProgress.status === 'completed'
                       ? 'bg-green-500'
                       : uploadProgress.status === 'failed'
-                      ? 'bg-red-500'
-                      : 'bg-accent'
+                        ? 'bg-red-500'
+                        : 'bg-accent',
                   )}
                   style={{ width: `${uploadProgress.percentage}%` }}
                 />
               </div>
               {uploadProgress.bytesUploaded > 0 && (
                 <p className="mt-2 text-xs text-text-muted">
-                  {(uploadProgress.bytesUploaded / 1024 / 1024).toFixed(1)} MB / {(uploadProgress.totalBytes / 1024 / 1024).toFixed(1)} MB
+                  {(uploadProgress.bytesUploaded / 1024 / 1024).toFixed(1)} MB /{' '}
+                  {(uploadProgress.totalBytes / 1024 / 1024).toFixed(1)} MB
                 </p>
               )}
               {uploadProgress.error && (
@@ -449,9 +417,7 @@ const YouTubeUploadTab = () => {
                       <h4 className="text-xs font-medium text-text-primary truncate">
                         {video.snippet.title}
                       </h4>
-                      <p className="text-xs text-text-muted mt-1">
-                        {video.status.privacyStatus}
-                      </p>
+                      <p className="text-xs text-text-muted mt-1">{video.status.privacyStatus}</p>
                       {video.statistics && (
                         <p className="text-xs text-text-muted mt-1">
                           {parseInt(video.statistics.viewCount).toLocaleString()} views

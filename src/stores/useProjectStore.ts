@@ -2,10 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { useAiMemoryStore } from './useAiMemoryStore';
 import { useChatStore } from './useChatStore';
-import {
-  splitClipAtTime,
-  validateSplitPosition,
-} from '../lib/clipOperations';
+import { splitClipAtTime, validateSplitPosition } from '../lib/clipOperations';
 import type { ClipSegment } from '../lib/clipOperations';
 import type { SubtitleEntry } from '../lib/srtParser';
 import type { TranscriptionResult } from '../types/electron';
@@ -60,9 +57,9 @@ export interface Clip {
   speed?: number; // Playback speed multiplier (default 1.0, range 0.25–8.0)
   effects?: {
     brightness?: number; // -1 to 1 (0 = no change)
-    contrast?: number;   // 0 to 3  (1 = no change)
+    contrast?: number; // 0 to 3  (1 = no change)
     saturation?: number; // 0 to 3  (1 = no change)
-    gamma?: number;      // 0.1 to 10 (1 = no change)
+    gamma?: number; // 0.1 to 10 (1 = no change)
   };
 }
 
@@ -160,7 +157,9 @@ interface ProjectState {
   activeSidebarTab: SidebarTab;
   defaultImageDuration: number; // Default duration for imported images in seconds
   exportedVideoPath: string | null; // Path to the last exported video
-  addClip: (clip: Omit<Clip, 'id' | 'duration' | 'start' | 'end' | 'startTime'> & { duration: number }) => void;
+  addClip: (
+    clip: Omit<Clip, 'id' | 'duration' | 'start' | 'end' | 'startTime'> & { duration: number },
+  ) => void;
   removeClip: (id: string) => boolean;
   setActiveClip: (id: string | null) => void;
   setCurrentTime: (time: number) => void;
@@ -201,7 +200,9 @@ interface ProjectState {
   markUnsaved: () => void;
   autoSave: () => Promise<void>;
   setTranscription: (transcription: TranscriptionResult | null) => void;
-  setTranscriptionProgress: (progress: { status: string; progress?: number; clip?: number } | null) => void;
+  setTranscriptionProgress: (
+    progress: { status: string; progress?: number; clip?: number } | null,
+  ) => void;
   transcribeCurrentClip: () => Promise<void>;
   transcribeFile: (path: string) => Promise<void>;
   transcribeTimeline: () => Promise<void>;
@@ -300,25 +301,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       }
 
       // Calculate start time - place at end of existing clips on same track
-      const trackClips = state.clips.filter(c => (c.trackIndex ?? 0) === trackIndex);
+      const trackClips = state.clips.filter((c) => (c.trackIndex ?? 0) === trackIndex);
       let startTime = 0;
       if (trackClips.length > 0) {
         // Find the furthest end time on this track
-        startTime = Math.max(...trackClips.map(c => c.startTime + c.duration));
+        startTime = Math.max(...trackClips.map((c) => c.startTime + c.duration));
       }
 
       const newState = {
-        clips: [...state.clips, {
-          ...clip,
-          id: uuidv4(),
-          sourceDuration: clip.duration,
-          start: 0,
-          end: clip.duration,
-          startTime,
-          volume: 1,
-          muted: false,
-          trackIndex,
-        }],
+        clips: [
+          ...state.clips,
+          {
+            ...clip,
+            id: uuidv4(),
+            sourceDuration: clip.duration,
+            start: 0,
+            end: clip.duration,
+            startTime,
+            volume: 1,
+            muted: false,
+            trackIndex,
+          },
+        ],
       };
       return { ...newState, ...saveToHistory({ ...state, ...newState }) };
     }),
@@ -353,7 +357,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       };
 
       // Sync memory with updated project state
-      const clipIds = newState.clips.map(c => c.id);
+      const clipIds = newState.clips.map((c) => c.id);
       useAiMemoryStore.getState().syncWithProject(clipIds);
 
       return { ...newState, ...saveToHistory({ ...state, ...newState }) };
@@ -364,229 +368,241 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setCurrentTime: (time) => set({ currentTime: time }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setNotification: (notification) => set({ notification }),
-  reorderClips: (startIndex, endIndex) => set((state) => {
-    const newClips = Array.from(state.clips);
-    const [removed] = newClips.splice(startIndex, 1);
-    newClips.splice(endIndex, 0, removed);
-    const newState = { clips: newClips };
-    return { ...newState, ...saveToHistory({ ...state, ...newState }) };
-  }),
-  moveClipToTime: (id, startTime, trackIndex) => set((state) => {
-    const newState = {
-      clips: state.clips.map((clip) => {
+  reorderClips: (startIndex, endIndex) =>
+    set((state) => {
+      const newClips = Array.from(state.clips);
+      const [removed] = newClips.splice(startIndex, 1);
+      newClips.splice(endIndex, 0, removed);
+      const newState = { clips: newClips };
+      return { ...newState, ...saveToHistory({ ...state, ...newState }) };
+    }),
+  moveClipToTime: (id, startTime, trackIndex) =>
+    set((state) => {
+      const newState = {
+        clips: state.clips.map((clip) => {
+          if (clip.id === id) {
+            return {
+              ...clip,
+              startTime: Math.max(0, startTime),
+              ...(trackIndex !== undefined && { trackIndex }),
+            };
+          }
+          return clip;
+        }),
+      };
+      return { ...newState, ...saveToHistory({ ...state, ...newState }) };
+    }),
+  updateClip: (id, updates) =>
+    set((state) => {
+      const originalClip = state.clips.find((c) => c.id === id);
+
+      // First pass: update the target clip
+      const updatedClips = state.clips.map((clip) => {
         if (clip.id === id) {
-          return {
-            ...clip,
-            startTime: Math.max(0, startTime),
-            ...(trackIndex !== undefined && { trackIndex }),
-          };
+          const newClip = { ...clip, ...updates };
+          // Recalculate duration if bounds changed
+          if (updates.start !== undefined || updates.end !== undefined) {
+            newClip.duration = newClip.end - newClip.start;
+          }
+          return newClip;
         }
         return clip;
-      }),
-    };
-    return { ...newState, ...saveToHistory({ ...state, ...newState }) };
-  }),
-  updateClip: (id, updates) => set((state) => {
-    const originalClip = state.clips.find((c) => c.id === id);
+      });
 
-    // First pass: update the target clip
-    const updatedClips = state.clips.map((clip) => {
-      if (clip.id === id) {
-        const newClip = { ...clip, ...updates };
-        // Recalculate duration if bounds changed
-        if (updates.start !== undefined || updates.end !== undefined) {
-          newClip.duration = newClip.end - newClip.start;
-        }
-        return newClip;
-      }
-      return clip;
-    });
-
-    // Second pass: if the clip's duration changed, ripple-shift subsequent clips on the same track
-    let finalClips = updatedClips;
-    if (originalClip && (updates.start !== undefined || updates.end !== undefined)) {
-      const updatedClip = updatedClips.find((c) => c.id === id);
-      if (updatedClip) {
-        const durationDelta = updatedClip.duration - originalClip.duration;
-        if (durationDelta !== 0) {
-          const clipTrack = originalClip.trackIndex ?? 0;
-          const clipEndTime = originalClip.startTime + originalClip.duration;
-          finalClips = updatedClips.map((c) => {
-            if (c.id !== id && (c.trackIndex ?? 0) === clipTrack && c.startTime >= clipEndTime) {
-              return { ...c, startTime: Math.max(0, c.startTime + durationDelta) };
-            }
-            return c;
-          });
+      // Second pass: if the clip's duration changed, ripple-shift subsequent clips on the same track
+      let finalClips = updatedClips;
+      if (originalClip && (updates.start !== undefined || updates.end !== undefined)) {
+        const updatedClip = updatedClips.find((c) => c.id === id);
+        if (updatedClip) {
+          const durationDelta = updatedClip.duration - originalClip.duration;
+          if (durationDelta !== 0) {
+            const clipTrack = originalClip.trackIndex ?? 0;
+            const clipEndTime = originalClip.startTime + originalClip.duration;
+            finalClips = updatedClips.map((c) => {
+              if (c.id !== id && (c.trackIndex ?? 0) === clipTrack && c.startTime >= clipEndTime) {
+                return { ...c, startTime: Math.max(0, c.startTime + durationDelta) };
+              }
+              return c;
+            });
+          }
         }
       }
-    }
 
-    const newState = { clips: finalClips };
-    return { ...newState, ...saveToHistory({ ...state, ...newState }) };
-  }),
-  splitClip: (id, time) => set((state) => {
-    const clipIndex = state.clips.findIndex(c => c.id === id);
-    if (clipIndex === -1) return state;
+      const newState = { clips: finalClips };
+      return { ...newState, ...saveToHistory({ ...state, ...newState }) };
+    }),
+  splitClip: (id, time) =>
+    set((state) => {
+      const clipIndex = state.clips.findIndex((c) => c.id === id);
+      if (clipIndex === -1) return state;
 
-    const originalClip = state.clips[clipIndex];
-    const splitTimeInSource = originalClip.start + time;
+      const originalClip = state.clips[clipIndex];
+      const splitTimeInSource = originalClip.start + time;
 
-    if (!validateSplitPosition(
-      { ...originalClip, trackId: '', trackType: 'video' } as ClipSegment,
-      splitTimeInSource
-    )) {
-      return state;
-    }
+      if (
+        !validateSplitPosition(
+          { ...originalClip, trackId: '', trackType: 'video' } as ClipSegment,
+          splitTimeInSource,
+        )
+      ) {
+        return state;
+      }
 
-    const result = splitClipAtTime(
-      { ...originalClip, trackId: '', trackType: 'video' } as ClipSegment,
-      splitTimeInSource
-    );
+      const result = splitClipAtTime(
+        { ...originalClip, trackId: '', trackType: 'video' } as ClipSegment,
+        splitTimeInSource,
+      );
 
-    if (!result) return state;
+      if (!result) return state;
 
-    const firstPart: Clip = {
-      id: result.before.id,
-      path: originalClip.path,
-      name: originalClip.name,
-      start: result.before.start,
-      end: result.before.end,
-      duration: result.before.duration,
-      sourceDuration: originalClip.sourceDuration,
-      thumbnail: originalClip.thumbnail,
-      waveform: originalClip.waveform,
-      trackIndex: originalClip.trackIndex || 0,
-      mediaType: originalClip.mediaType,
-      volume: originalClip.volume,
-      muted: originalClip.muted,
-      startTime: originalClip.startTime,
-    };
+      const firstPart: Clip = {
+        id: result.before.id,
+        path: originalClip.path,
+        name: originalClip.name,
+        start: result.before.start,
+        end: result.before.end,
+        duration: result.before.duration,
+        sourceDuration: originalClip.sourceDuration,
+        thumbnail: originalClip.thumbnail,
+        waveform: originalClip.waveform,
+        trackIndex: originalClip.trackIndex || 0,
+        mediaType: originalClip.mediaType,
+        volume: originalClip.volume,
+        muted: originalClip.muted,
+        startTime: originalClip.startTime,
+      };
 
-    const secondPart: Clip = {
-      id: result.after.id,
-      path: originalClip.path,
-      name: originalClip.name,
-      start: result.after.start,
-      end: result.after.end,
-      duration: result.after.duration,
-      sourceDuration: originalClip.sourceDuration,
-      thumbnail: originalClip.thumbnail,
-      waveform: originalClip.waveform,
-      trackIndex: originalClip.trackIndex || 0,
-      mediaType: originalClip.mediaType,
-      volume: originalClip.volume,
-      muted: originalClip.muted,
-      startTime: originalClip.startTime + result.before.duration,
-    };
+      const secondPart: Clip = {
+        id: result.after.id,
+        path: originalClip.path,
+        name: originalClip.name,
+        start: result.after.start,
+        end: result.after.end,
+        duration: result.after.duration,
+        sourceDuration: originalClip.sourceDuration,
+        thumbnail: originalClip.thumbnail,
+        waveform: originalClip.waveform,
+        trackIndex: originalClip.trackIndex || 0,
+        mediaType: originalClip.mediaType,
+        volume: originalClip.volume,
+        muted: originalClip.muted,
+        startTime: originalClip.startTime + result.before.duration,
+      };
 
-    const newClips = [...state.clips];
-    newClips.splice(clipIndex, 1, firstPart, secondPart);
+      const newClips = [...state.clips];
+      newClips.splice(clipIndex, 1, firstPart, secondPart);
 
-    const newState = { clips: newClips };
-    return { ...newState, ...saveToHistory({ ...state, ...newState }) };
-  }),
-  toggleClipSelection: (id, multiSelect) => set((state) => {
-    if (!multiSelect) {
-      return { selectedClipIds: [id], activeClipId: id };
-    }
-    const isSelected = state.selectedClipIds.includes(id);
-    return {
-      selectedClipIds: isSelected
-        ? state.selectedClipIds.filter(cid => cid !== id)
-        : [...state.selectedClipIds, id],
-      activeClipId: id
-    };
-  }),
+      const newState = { clips: newClips };
+      return { ...newState, ...saveToHistory({ ...state, ...newState }) };
+    }),
+  toggleClipSelection: (id, multiSelect) =>
+    set((state) => {
+      if (!multiSelect) {
+        return { selectedClipIds: [id], activeClipId: id };
+      }
+      const isSelected = state.selectedClipIds.includes(id);
+      return {
+        selectedClipIds: isSelected
+          ? state.selectedClipIds.filter((cid) => cid !== id)
+          : [...state.selectedClipIds, id],
+        activeClipId: id,
+      };
+    }),
   selectClips: (ids) => set({ selectedClipIds: ids }),
-  mergeSelectedClips: () => set((state) => {
-    if (state.selectedClipIds.length < 2) {
-      return { notification: { type: 'error' as const, message: 'Select at least 2 clips' } };
-    }
-
-    const selectedClips = state.clips
-      .map((clip, index) => ({ clip, index }))
-      .filter(({ clip }) => state.selectedClipIds.includes(clip.id))
-      .sort((a, b) => a.index - b.index);
-
-    if (selectedClips.some(({ clip }) => clip.locked)) {
-      return { notification: { type: 'error' as const, message: 'Cannot merge locked clips' } };
-    }
-
-    // Allow merging clips from different sources (no consecutive check needed)
-
-    const segments = selectedClips.flatMap(({ clip }) => {
-      if (clip.segments) {
-        return clip.segments;
+  mergeSelectedClips: () =>
+    set((state) => {
+      if (state.selectedClipIds.length < 2) {
+        return { notification: { type: 'error' as const, message: 'Select at least 2 clips' } };
       }
-      return [{
-        sourcePath: clip.path,
-        sourceStart: clip.start,
-        sourceEnd: clip.end,
-        duration: clip.duration
-      }];
-    });
 
-    const firstClip = selectedClips[0].clip;
-    const totalDuration = segments.reduce((sum, seg) => sum + seg.duration, 0);
+      const selectedClips = state.clips
+        .map((clip, index) => ({ clip, index }))
+        .filter(({ clip }) => state.selectedClipIds.includes(clip.id))
+        .sort((a, b) => a.index - b.index);
 
-    // Create a compound clip that can contain segments from multiple sources
-    const mergedClip: Clip = {
-      id: uuidv4(),
-      path: firstClip.path, // Keep for reference, but segments define actual sources
-      name: `Merged (${selectedClips.length} clips)`,
-      start: 0,
-      end: totalDuration,
-      duration: totalDuration,
-      sourceDuration: totalDuration,
-      thumbnail: firstClip.thumbnail,
-      waveform: firstClip.waveform,
-      segments: segments,
-      isMerged: true,
-      trackId: firstClip.trackId || 'default',
-      trackIndex: firstClip.trackIndex || 0,
-      mediaType: firstClip.mediaType,
-      volume: firstClip.volume,
-      muted: firstClip.muted,
-      startTime: firstClip.startTime,
-    };
+      if (selectedClips.some(({ clip }) => clip.locked)) {
+        return { notification: { type: 'error' as const, message: 'Cannot merge locked clips' } };
+      }
 
-    const firstIndex = selectedClips[0].index;
-    const newClips = state.clips.filter(clip => !state.selectedClipIds.includes(clip.id));
-    newClips.splice(firstIndex, 0, mergedClip);
+      // Allow merging clips from different sources (no consecutive check needed)
 
-    const newState = {
-      clips: newClips,
-      selectedClipIds: [mergedClip.id],
-      activeClipId: mergedClip.id,
-      notification: { type: 'success' as const, message: `Merged ${segments.length} segments` }
-    };
-    return { ...newState, ...saveToHistory({ ...state, ...newState }) };
-  }),
-  copyClips: () => set((state) => {
-    const clipsToCopy = state.clips.filter(clip => state.selectedClipIds.includes(clip.id));
-    return {
-      copiedClips: clipsToCopy,
-      notification: { type: 'success', message: `Copied ${clipsToCopy.length} clip(s)` }
-    };
-  }),
-  pasteClips: () => set((state) => {
-    if (state.copiedClips.length === 0) {
-      return { notification: { type: 'error', message: 'No clips to paste' } };
-    }
+      const segments = selectedClips.flatMap(({ clip }) => {
+        if (clip.segments) {
+          return clip.segments;
+        }
+        return [
+          {
+            sourcePath: clip.path,
+            sourceStart: clip.start,
+            sourceEnd: clip.end,
+            duration: clip.duration,
+          },
+        ];
+      });
 
-    // Clone copied clips with new IDs
-    const pastedClips = state.copiedClips.map(clip => ({
-      ...clip,
-      id: uuidv4(),
-      name: clip.name + ' (Copy)'
-    }));
+      const firstClip = selectedClips[0].clip;
+      const totalDuration = segments.reduce((sum, seg) => sum + seg.duration, 0);
 
-    return {
-      clips: [...state.clips, ...pastedClips],
-      selectedClipIds: pastedClips.map(c => c.id),
-      notification: { type: 'success', message: `Pasted ${pastedClips.length} clip(s)` }
-    };
-  }),
+      // Create a compound clip that can contain segments from multiple sources
+      const mergedClip: Clip = {
+        id: uuidv4(),
+        path: firstClip.path, // Keep for reference, but segments define actual sources
+        name: `Merged (${selectedClips.length} clips)`,
+        start: 0,
+        end: totalDuration,
+        duration: totalDuration,
+        sourceDuration: totalDuration,
+        thumbnail: firstClip.thumbnail,
+        waveform: firstClip.waveform,
+        segments: segments,
+        isMerged: true,
+        trackId: firstClip.trackId || 'default',
+        trackIndex: firstClip.trackIndex || 0,
+        mediaType: firstClip.mediaType,
+        volume: firstClip.volume,
+        muted: firstClip.muted,
+        startTime: firstClip.startTime,
+      };
+
+      const firstIndex = selectedClips[0].index;
+      const newClips = state.clips.filter((clip) => !state.selectedClipIds.includes(clip.id));
+      newClips.splice(firstIndex, 0, mergedClip);
+
+      const newState = {
+        clips: newClips,
+        selectedClipIds: [mergedClip.id],
+        activeClipId: mergedClip.id,
+        notification: { type: 'success' as const, message: `Merged ${segments.length} segments` },
+      };
+      return { ...newState, ...saveToHistory({ ...state, ...newState }) };
+    }),
+  copyClips: () =>
+    set((state) => {
+      const clipsToCopy = state.clips.filter((clip) => state.selectedClipIds.includes(clip.id));
+      return {
+        copiedClips: clipsToCopy,
+        notification: { type: 'success', message: `Copied ${clipsToCopy.length} clip(s)` },
+      };
+    }),
+  pasteClips: () =>
+    set((state) => {
+      if (state.copiedClips.length === 0) {
+        return { notification: { type: 'error', message: 'No clips to paste' } };
+      }
+
+      // Clone copied clips with new IDs
+      const pastedClips = state.copiedClips.map((clip) => ({
+        ...clip,
+        id: uuidv4(),
+        name: clip.name + ' (Copy)',
+      }));
+
+      return {
+        clips: [...state.clips, ...pastedClips],
+        selectedClipIds: pastedClips.map((c) => c.id),
+        notification: { type: 'success', message: `Pasted ${pastedClips.length} clip(s)` },
+      };
+    }),
   saveProject: async () => {
     const state = get();
 
@@ -631,7 +647,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           projectId,
           hasUnsavedChanges: false,
           lastSaved: Date.now(),
-          notification: { type: 'success', message: 'Project saved successfully!' }
+          notification: { type: 'success', message: 'Project saved successfully!' },
         });
 
         // Update chat store with current project ID
@@ -681,7 +697,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const projectData = result.data as LoadedProjectData;
         // If old project doesn't have projectId, generate one
         const projectId = projectData.projectId || uuidv4();
-        
+
         set({
           clips: projectData.clips || [],
           activeClipId: projectData.activeClipId || null,
@@ -704,7 +720,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           projectId,
           hasUnsavedChanges: false,
           lastSaved: Date.now(),
-          notification: { type: 'success', message: 'Project loaded successfully!' }
+          notification: { type: 'success', message: 'Project loaded successfully!' },
         });
 
         // Load memory from project file
@@ -713,7 +729,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
         // Load chat from project file
         const chatState = useChatStore.getState();
-        
+
         if (projectData.chat && projectData.chat.messages) {
           // Restore chat messages and session tokens from project
           useChatStore.setState({
@@ -756,7 +772,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       timelineVersion: 0,
       hasUnsavedChanges: false,
       lastSaved: null,
-      notification: { type: 'success', message: 'New project created' }
+      notification: { type: 'success', message: 'New project created' },
     });
 
     // Clear memory for new project
@@ -766,48 +782,50 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     // Clear chat for new project
     useChatStore.getState().clearChatForNewProject();
   },
-  undo: () => set((state) => {
-    if (state.historyIndex > 0) {
-      const previousState = state.history[state.historyIndex - 1];
-      return {
-        ...previousState,
-        history: state.history,
-        historyIndex: state.historyIndex - 1,
-        timelineVersion: previousState.timelineVersion,
-        notification: { type: 'success', message: 'Undo' },
-      };
-    }
-    return state;
-  }),
-  redo: () => set((state) => {
-    if (state.historyIndex < state.history.length - 1) {
-      const nextState = state.history[state.historyIndex + 1];
-      return {
-        ...nextState,
-        history: state.history,
-        historyIndex: state.historyIndex + 1,
-        timelineVersion: nextState.timelineVersion,
-        notification: { type: 'success', message: 'Redo' },
-      };
-    }
-    return state;
-  }),
+  undo: () =>
+    set((state) => {
+      if (state.historyIndex > 0) {
+        const previousState = state.history[state.historyIndex - 1];
+        return {
+          ...previousState,
+          history: state.history,
+          historyIndex: state.historyIndex - 1,
+          timelineVersion: previousState.timelineVersion,
+          notification: { type: 'success', message: 'Undo' },
+        };
+      }
+      return state;
+    }),
+  redo: () =>
+    set((state) => {
+      if (state.historyIndex < state.history.length - 1) {
+        const nextState = state.history[state.historyIndex + 1];
+        return {
+          ...nextState,
+          history: state.history,
+          historyIndex: state.historyIndex + 1,
+          timelineVersion: nextState.timelineVersion,
+          notification: { type: 'success', message: 'Redo' },
+        };
+      }
+      return state;
+    }),
   canUndo: () => get().historyIndex > 0,
   canRedo: () => get().historyIndex < get().history.length - 1,
   setExportFormat: (format) => set({ exportFormat: format }),
   setExportResolution: (resolution) => set({ exportResolution: resolution }),
   setSnapToGrid: (enabled) => set({ snapToGrid: enabled }),
   setGridSize: (size) => set({ gridSize: size }),
-  setClipVolume: (id, volume) => set((state) => ({
-    clips: state.clips.map((clip) =>
-      clip.id === id ? { ...clip, volume: Math.max(0, Math.min(1, volume)) } : clip
-    ),
-  })),
-  toggleClipMute: (id) => set((state) => ({
-    clips: state.clips.map((clip) =>
-      clip.id === id ? { ...clip, muted: !clip.muted } : clip
-    ),
-  })),
+  setClipVolume: (id, volume) =>
+    set((state) => ({
+      clips: state.clips.map((clip) =>
+        clip.id === id ? { ...clip, volume: Math.max(0, Math.min(1, volume)) } : clip,
+      ),
+    })),
+  toggleClipMute: (id) =>
+    set((state) => ({
+      clips: state.clips.map((clip) => (clip.id === id ? { ...clip, muted: !clip.muted } : clip)),
+    })),
   setClipSpeed: (id, speed) => {
     const clampedSpeed = Math.max(0.25, Math.min(8.0, speed));
     set((state) => {
@@ -817,7 +835,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       // Adjust clip duration proportionally to the speed change
       const newDuration = clip.duration * (oldSpeed / clampedSpeed);
       const newClips = state.clips.map((c) =>
-        c.id === id ? { ...c, speed: clampedSpeed, duration: newDuration } : c
+        c.id === id ? { ...c, speed: clampedSpeed, duration: newDuration } : c,
       );
       const newState = { clips: newClips, hasUnsavedChanges: true };
       return { ...newState, ...saveToHistory({ ...state, ...newState }) };
@@ -826,7 +844,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setClipEffects: (id, effects) => {
     set((state) => {
       const newClips = state.clips.map((clip) =>
-        clip.id === id ? { ...clip, effects: { ...clip.effects, ...effects } } : clip
+        clip.id === id ? { ...clip, effects: { ...clip.effects, ...effects } } : clip,
       );
       const newState = { clips: newClips, hasUnsavedChanges: true };
       return { ...newState, ...saveToHistory({ ...state, ...newState }) };
@@ -837,18 +855,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (state.clips.length === 0) return 0;
 
     // Find the furthest end time across all clips
-    const endTimes = state.clips.map(clip => clip.startTime + clip.duration);
+    const endTimes = state.clips.map((clip) => clip.startTime + clip.duration);
     return Math.max(...endTimes, 0);
   },
   getClipAtTime: (time) => {
     const state = get();
 
     // Find video clips at the given time (prioritize lower track indices)
-    const videoClips = state.clips.filter(clip => {
+    const videoClips = state.clips.filter((clip) => {
       const trackIndex = clip.trackIndex ?? 0;
-      return trackIndex < 10 && // Video tracks are 0-9
+      return (
+        trackIndex < 10 && // Video tracks are 0-9
         time >= clip.startTime &&
-        time < clip.startTime + clip.duration;
+        time < clip.startTime + clip.duration
+      );
     });
 
     if (videoClips.length === 0) return null;
@@ -859,17 +879,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
   getActiveClips: (time) => {
     const state = get();
-    return state.clips.filter(clip =>
-      time >= clip.startTime &&
-      time < clip.startTime + clip.duration
+    return state.clips.filter(
+      (clip) => time >= clip.startTime && time < clip.startTime + clip.duration,
     );
   },
   setSubtitles: (subtitles) => set({ subtitles, hasUnsavedChanges: true }),
   clearSubtitles: () => set({ subtitles: [], hasUnsavedChanges: true }),
-  updateSubtitleStyle: (style) => set((state) => ({
-    subtitleStyle: { ...state.subtitleStyle, ...style },
-    hasUnsavedChanges: true
-  })),
+  updateSubtitleStyle: (style) =>
+    set((state) => ({
+      subtitleStyle: { ...state.subtitleStyle, ...style },
+      hasUnsavedChanges: true,
+    })),
   setAutoSaveEnabled: (enabled) => set({ autoSaveEnabled: enabled }),
   setAutoSaveInterval: (interval) => set({ autoSaveInterval: interval }),
   markSaved: () => set({ hasUnsavedChanges: false, lastSaved: Date.now() }),
@@ -902,14 +922,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
       const result = await window.electronAPI.writeProjectFile({
         filePath: state.projectPath,
-        data: projectData
+        data: projectData,
       });
 
       if (result.success) {
         set({
           hasUnsavedChanges: false,
           lastSaved: Date.now(),
-          notification: { type: 'success', message: 'Auto-saved' }
+          notification: { type: 'success', message: 'Auto-saved' },
         });
       }
     } catch (error) {
@@ -920,7 +940,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setTranscriptionProgress: (progress) => set({ transcriptionProgress: progress }),
   transcribeCurrentClip: async () => {
     const state = get();
-    const currentClip = state.clips.find(c => c.id === state.activeClipId);
+    const currentClip = state.clips.find((c) => c.id === state.activeClipId);
 
     if (!currentClip) {
       set({ notification: { type: 'error', message: 'No clip selected' } });
@@ -948,29 +968,32 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           transcription: response.result,
           isTranscribing: false,
           transcriptionProgress: null,
-          notification: { type: 'success', message: 'Transcription complete!' }
+          notification: { type: 'success', message: 'Transcription complete!' },
         });
       } else {
         // Check if error is due to missing audio track
         const errorMsg = response.error || '';
-        const isNoAudioError = errorMsg.includes('does not contain an audio track') || 
-                               errorMsg.includes('no audio') ||
-                               errorMsg.includes('Output file does not contain any stream');
-        
+        const isNoAudioError =
+          errorMsg.includes('does not contain an audio track') ||
+          errorMsg.includes('no audio') ||
+          errorMsg.includes('Output file does not contain any stream');
+
         if (isNoAudioError) {
           // Fall back to AI-based caption generation
           console.log(' No audio track detected, attempting AI fallback...');
           set({ transcriptionProgress: { status: 'Using AI for transcription...', progress: 50 } });
-          
+
           try {
             const { generateCaptions } = await import('../lib/captioningService');
-            const mimeType = currentClip.path.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'video/quicktime';
+            const mimeType = currentClip.path.toLowerCase().endsWith('.mp4')
+              ? 'video/mp4'
+              : 'video/quicktime';
             const result = await generateCaptions(currentClip.path, mimeType);
-            
+
             // Convert caption format to transcription format
             const transcription = {
-              text: result.segments.map(s => s.text).join(' '),
-              segments: result.segments.map(s => ({
+              text: result.segments.map((s) => s.text).join(' '),
+              segments: result.segments.map((s) => ({
                 id: s.index,
                 start: srtTimeToSeconds(s.startTime),
                 end: srtTimeToSeconds(s.endTime),
@@ -978,26 +1001,26 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
               })),
               words: [], // AI doesn't provide word-level timestamps
             };
-            
+
             set({
               transcription,
               isTranscribing: false,
               transcriptionProgress: null,
-              notification: { type: 'success', message: 'Captions generated with AI!' }
+              notification: { type: 'success', message: 'Captions generated with AI!' },
             });
           } catch (fallbackError) {
             console.error('AI fallback failed:', fallbackError);
             set({
               isTranscribing: false,
               transcriptionProgress: null,
-              notification: { type: 'error', message: `Transcription failed: ${errorMsg}` }
+              notification: { type: 'error', message: `Transcription failed: ${errorMsg}` },
             });
           }
         } else {
           set({
             isTranscribing: false,
             transcriptionProgress: null,
-            notification: { type: 'error', message: `Transcription failed: ${errorMsg}` }
+            notification: { type: 'error', message: `Transcription failed: ${errorMsg}` },
           });
         }
       }
@@ -1006,7 +1029,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       set({
         isTranscribing: false,
         transcriptionProgress: null,
-        notification: { type: 'error', message: 'Transcription error' }
+        notification: { type: 'error', message: 'Transcription error' },
       });
     } finally {
       unsubscribeProgress?.();
@@ -1035,7 +1058,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           index: i + 1,
           startTime: s.start,
           endTime: s.end,
-          text: s.text
+          text: s.text,
         }));
 
         set({
@@ -1044,29 +1067,30 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           hasUnsavedChanges: true,
           isTranscribing: false,
           transcriptionProgress: null,
-          notification: { type: 'success', message: 'Transcription complete!' }
+          notification: { type: 'success', message: 'Transcription complete!' },
         });
       } else {
         // Check if error is due to missing audio track
         const errorMsg = response.error || '';
-        const isNoAudioError = errorMsg.includes('does not contain an audio track') || 
-                               errorMsg.includes('no audio') ||
-                               errorMsg.includes('Output file does not contain any stream');
-        
+        const isNoAudioError =
+          errorMsg.includes('does not contain an audio track') ||
+          errorMsg.includes('no audio') ||
+          errorMsg.includes('Output file does not contain any stream');
+
         if (isNoAudioError) {
           // Fall back to AI-based caption generation
           console.log(' No audio track detected, attempting AI fallback...');
           set({ transcriptionProgress: { status: 'Using AI for transcription...', progress: 50 } });
-          
+
           try {
             const { generateCaptions } = await import('../lib/captioningService');
             const mimeType = path.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'video/quicktime';
             const result = await generateCaptions(path, mimeType);
-            
+
             // Convert caption format to transcription format
             const transcription = {
-              text: result.segments.map(s => s.text).join(' '),
-              segments: result.segments.map(s => ({
+              text: result.segments.map((s) => s.text).join(' '),
+              segments: result.segments.map((s) => ({
                 id: s.index,
                 start: srtTimeToSeconds(s.startTime),
                 end: srtTimeToSeconds(s.endTime),
@@ -1074,36 +1098,36 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
               })),
               words: [], // AI doesn't provide word-level timestamps
             };
-            
+
             // Convert to subtitles format
             const newSubtitles = transcription.segments.map((s, i) => ({
               index: i + 1,
               startTime: s.start,
               endTime: s.end,
-              text: s.text
+              text: s.text,
             }));
-            
+
             set({
               transcription,
               subtitles: newSubtitles,
               hasUnsavedChanges: true,
               isTranscribing: false,
               transcriptionProgress: null,
-              notification: { type: 'success', message: 'Captions generated with AI!' }
+              notification: { type: 'success', message: 'Captions generated with AI!' },
             });
           } catch (fallbackError) {
             console.error('AI fallback failed:', fallbackError);
             set({
               isTranscribing: false,
               transcriptionProgress: null,
-              notification: { type: 'error', message: `Transcription failed: ${errorMsg}` }
+              notification: { type: 'error', message: `Transcription failed: ${errorMsg}` },
             });
           }
         } else {
           set({
             isTranscribing: false,
             transcriptionProgress: null,
-            notification: { type: 'error', message: `Transcription failed: ${errorMsg}` }
+            notification: { type: 'error', message: `Transcription failed: ${errorMsg}` },
           });
         }
       }
@@ -1112,7 +1136,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       set({
         isTranscribing: false,
         transcriptionProgress: null,
-        notification: { type: 'error', message: 'Transcription error' }
+        notification: { type: 'error', message: 'Transcription error' },
       });
     } finally {
       unsubscribeProgress?.();
@@ -1142,8 +1166,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
       // Prepare clips for transcription - only include video/audio clips
       const clipsToTranscribe = state.clips
-        .filter(clip => clip.mediaType === 'video' || clip.mediaType === 'audio')
-        .map(clip => ({
+        .filter((clip) => clip.mediaType === 'video' || clip.mediaType === 'audio')
+        .map((clip) => ({
           path: clip.path,
           startTime: clip.startTime,
           duration: clip.duration,
@@ -1153,7 +1177,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         set({
           isTranscribing: false,
           transcriptionProgress: null,
-          notification: { type: 'error', message: 'No video/audio clips to transcribe' }
+          notification: { type: 'error', message: 'No video/audio clips to transcribe' },
         });
         return;
       }
@@ -1165,13 +1189,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           transcription: response.result,
           isTranscribing: false,
           transcriptionProgress: null,
-          notification: { type: 'success', message: 'Timeline transcription complete!' }
+          notification: { type: 'success', message: 'Timeline transcription complete!' },
         });
       } else {
         set({
           isTranscribing: false,
           transcriptionProgress: null,
-          notification: { type: 'error', message: `Transcription failed: ${response.error}` }
+          notification: { type: 'error', message: `Transcription failed: ${response.error}` },
         });
       }
     } catch (error) {
@@ -1179,7 +1203,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       set({
         isTranscribing: false,
         transcriptionProgress: null,
-        notification: { type: 'error', message: 'Transcription error' }
+        notification: { type: 'error', message: 'Transcription error' },
       });
     } finally {
       unsubscribeProgress?.();
@@ -1196,7 +1220,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
 
     // Import helper functions
-    const { prepareCutRanges, calculateCrossfadeDuration } = await import('../lib/transcriptEditHelpers');
+    const { prepareCutRanges, calculateCrossfadeDuration } =
+      await import('../lib/transcriptEditHelpers');
 
     // Get words for silence detection
     const words = state.transcription?.words || [];
@@ -1205,7 +1230,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const processedRanges = prepareCutRanges(
       deletionRanges,
       state.transcriptEditSettings,
-      words.length > 0 ? words : undefined
+      words.length > 0 ? words : undefined,
     );
 
     if (processedRanges.length === 0) {
@@ -1297,7 +1322,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       }
 
       // Close gap: shift all clips after the deletion range
-      clips = clips.map(clip => {
+      clips = clips.map((clip) => {
         if (clip.startTime >= rangeEnd) {
           return {
             ...clip,
@@ -1317,8 +1342,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       ...saveToHistory({ ...state, ...newState }),
       notification: {
         type: 'success',
-        message: `Applied ${processedRanges.length} professional cut(s) (${totalRemoved.toFixed(2)}s removed)`
-      }
+        message: `Applied ${processedRanges.length} professional cut(s) (${totalRemoved.toFixed(2)}s removed)`,
+      },
     });
   },
 
@@ -1359,8 +1384,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   getTurnAudit: (turnId) => {
-    return get().turnAudits
-      .slice()
+    return get()
+      .turnAudits.slice()
       .reverse()
       .find((audit) => audit.turnId === turnId);
   },

@@ -17,12 +17,15 @@ const OnboardingWizard = lazy(() =>
   import('./components/Onboarding').then((module) => ({ default: module.OnboardingWizard })),
 );
 
-const panelFallback = (
-  <div className="h-full w-full animate-pulse bg-bg-secondary/50" />
-);
+const panelFallback = <div className="h-full w-full animate-pulse bg-bg-secondary/50" />;
 
 function App() {
-  const { togglePanel, isOpen: isChatOpen, panelWidth, setPanelWidth } = useChatStore(
+  const {
+    togglePanel,
+    isOpen: isChatOpen,
+    panelWidth,
+    setPanelWidth,
+  } = useChatStore(
     useShallow((state) => ({
       togglePanel: state.togglePanel,
       isOpen: state.isOpen,
@@ -114,12 +117,12 @@ function App() {
   const handleOnboardingComplete = (analysisData?: ChannelAnalysisData) => {
     const userId = crypto.randomUUID();
     completeOnboarding(userId, analysisData);
-    
+
     // Create or update profile with the analysis data
     if (!profile) {
       createProfile(userId);
     }
-    
+
     // If analysis data is available, save it to profile
     if (analysisData) {
       // Extract YouTube URL from the analysis data if available
@@ -127,7 +130,7 @@ function App() {
       const youtubeUrl = `https://www.youtube.com/channel/${channelId}`;
       setYouTubeChannel(youtubeUrl, analysisData);
     }
-    
+
     // Link analysis to user if provided
     if (analysisData && window.electronAPI) {
       window.electronAPI.linkAnalysisToUser(userId, analysisData.channel.id);
@@ -142,10 +145,7 @@ function App() {
   if (!hasCompletedOnboarding) {
     return (
       <Suspense fallback={panelFallback}>
-        <OnboardingWizard 
-          onComplete={handleOnboardingComplete}
-          onSkip={handleOnboardingSkip}
-        />
+        <OnboardingWizard onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
       </Suspense>
     );
   }
@@ -158,7 +158,7 @@ function App() {
 
       {/* LEFT: Vertical Icon Toolbar - 64px fixed width with premium styling */}
       <div className="w-16 bg-gradient-to-b from-bg-secondary via-bg-secondary to-bg-elevated border-r border-white/5 flex flex-col items-center py-4 gap-2 z-20 shadow-2xl">
-        <Toolbar 
+        <Toolbar
           onToggleFilePanel={() => setIsFilePanelOpen(!isFilePanelOpen)}
           onToggleRightPanel={() => setIsRightPanelOpen(!isRightPanelOpen)}
           isFilePanelOpen={isFilePanelOpen}
@@ -171,7 +171,10 @@ function App() {
         {/* CENTER: Editor column */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Top section: File panel + Preview */}
-          <div className="flex-1 flex overflow-hidden" style={{ height: `calc(100vh - ${timelineHeight}px)` }}>
+          <div
+            className="flex-1 flex overflow-hidden"
+            style={{ height: `calc(100vh - ${timelineHeight}px)` }}
+          >
             {/* LEFT: File Panel with smooth transition */}
             {isFilePanelOpen && (
               <div className="animate-slide-in">

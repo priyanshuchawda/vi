@@ -9,14 +9,22 @@ interface TextEditorProps {
   initialDuration?: number;
 }
 
-const TextEditor = ({ isOpen, onClose, onSave, initialText, initialDuration = 5 }: TextEditorProps) => {
+const TextEditor = ({
+  isOpen,
+  onClose,
+  onSave,
+  initialText,
+  initialDuration = 5,
+}: TextEditorProps) => {
   const [text, setText] = useState(initialText?.text || '');
   const [duration, setDuration] = useState(initialDuration);
   const [fontSize, setFontSize] = useState(initialText?.fontSize || 48);
   const [fontFamily, setFontFamily] = useState(initialText?.fontFamily || 'Arial');
   const [color, setColor] = useState(initialText?.color || '#ffffff');
   const [backgroundColor, setBackgroundColor] = useState(initialText?.backgroundColor || '');
-  const [position, setPosition] = useState<'top' | 'center' | 'bottom' | 'custom'>(initialText?.position || 'center');
+  const [position, setPosition] = useState<'top' | 'center' | 'bottom' | 'custom'>(
+    initialText?.position || 'center',
+  );
   const [align, setAlign] = useState<'left' | 'center' | 'right'>(initialText?.align || 'center');
   const [bold, setBold] = useState(initialText?.bold || false);
   const [italic, setItalic] = useState(initialText?.italic || false);
@@ -67,7 +75,7 @@ const TextEditor = ({ isOpen, onClose, onSave, initialText, initialDuration = 5 
 
   const getPreviewStyle = () => {
     let positionStyle: React.CSSProperties = {};
-    
+
     switch (position) {
       case 'top':
         positionStyle = { top: '10%', left: '50%', transform: 'translateX(-50%)' };
@@ -101,19 +109,40 @@ const TextEditor = ({ isOpen, onClose, onSave, initialText, initialDuration = 5 
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center" onClick={onClose}>
-      <div className="bg-bg-elevated border border-border-primary rounded-lg shadow-2xl w-[90%] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-bg-elevated border border-border-primary rounded-lg shadow-2xl w-[90%] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-border-primary flex items-center justify-between">
           <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
-            <svg className="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            <svg
+              className="w-6 h-6 text-accent"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              />
             </svg>
             Text Editor
           </h2>
           <button onClick={onClose} className="text-text-muted hover:text-text-primary transition">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -124,7 +153,9 @@ const TextEditor = ({ isOpen, onClose, onSave, initialText, initialDuration = 5 
             {/* Left: Editor */}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-2">Text Content</label>
+                <label className="block text-sm font-medium text-text-secondary mb-2">
+                  Text Content
+                </label>
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
@@ -135,7 +166,9 @@ const TextEditor = ({ isOpen, onClose, onSave, initialText, initialDuration = 5 
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-2">Duration (seconds)</label>
+                  <label className="block text-sm font-medium text-text-secondary mb-2">
+                    Duration (seconds)
+                  </label>
                   <input
                     type="number"
                     value={duration}
@@ -147,7 +180,9 @@ const TextEditor = ({ isOpen, onClose, onSave, initialText, initialDuration = 5 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-2">Font Size</label>
+                  <label className="block text-sm font-medium text-text-secondary mb-2">
+                    Font Size
+                  </label>
                   <input
                     type="number"
                     value={fontSize}
@@ -160,7 +195,9 @@ const TextEditor = ({ isOpen, onClose, onSave, initialText, initialDuration = 5 
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-2">Font Family</label>
+                <label className="block text-sm font-medium text-text-secondary mb-2">
+                  Font Family
+                </label>
                 <select
                   value={fontFamily}
                   onChange={(e) => setFontFamily(e.target.value)}
@@ -178,7 +215,9 @@ const TextEditor = ({ isOpen, onClose, onSave, initialText, initialDuration = 5 
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-2">Text Color</label>
+                  <label className="block text-sm font-medium text-text-secondary mb-2">
+                    Text Color
+                  </label>
                   <div className="flex gap-2">
                     <input
                       type="color"
@@ -196,7 +235,9 @@ const TextEditor = ({ isOpen, onClose, onSave, initialText, initialDuration = 5 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-2">Background</label>
+                  <label className="block text-sm font-medium text-text-secondary mb-2">
+                    Background
+                  </label>
                   <div className="flex gap-2">
                     <input
                       type="color"
@@ -216,7 +257,9 @@ const TextEditor = ({ isOpen, onClose, onSave, initialText, initialDuration = 5 
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-2">Position</label>
+                <label className="block text-sm font-medium text-text-secondary mb-2">
+                  Position
+                </label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['top', 'center', 'bottom'] as const).map((pos) => (
                     <button
@@ -235,7 +278,9 @@ const TextEditor = ({ isOpen, onClose, onSave, initialText, initialDuration = 5 
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-2">Alignment</label>
+                <label className="block text-sm font-medium text-text-secondary mb-2">
+                  Alignment
+                </label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['left', 'center', 'right'] as const).map((al) => (
                     <button

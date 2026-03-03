@@ -31,7 +31,7 @@ export interface UploadProgress {
 export async function uploadVideo(
   filePath: string,
   metadata: VideoMetadata,
-  onProgress?: (progress: UploadProgress) => void
+  onProgress?: (progress: UploadProgress) => void,
 ): Promise<string> {
   try {
     // Ensure token is valid
@@ -93,7 +93,7 @@ export async function uploadVideo(
 
           console.log(`Upload progress: ${percentage}%`);
         },
-      }
+      },
     );
 
     const videoId = response.data.id;
@@ -242,7 +242,8 @@ export async function getUserVideos(maxResults: number = 10): Promise<youtube_v3
       mine: true,
     });
 
-    const uploadsPlaylistId = channelResponse.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+    const uploadsPlaylistId =
+      channelResponse.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
     if (!uploadsPlaylistId) {
       return [];
     }

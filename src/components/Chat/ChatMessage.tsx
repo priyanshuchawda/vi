@@ -12,25 +12,45 @@ const MediaPreview = ({ attachment }: { attachment: MediaAttachment }) => {
       case 'image':
         return (
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
           </svg>
         );
       case 'video':
         return (
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+            />
           </svg>
         );
       case 'audio':
         return (
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+            />
           </svg>
         );
       case 'document':
         return (
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
           </svg>
         );
     }
@@ -38,10 +58,14 @@ const MediaPreview = ({ attachment }: { attachment: MediaAttachment }) => {
 
   const getTypeBadgeColor = (type: MediaAttachment['type']) => {
     switch (type) {
-      case 'image': return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
-      case 'video': return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
-      case 'audio': return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
-      case 'document': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+      case 'image':
+        return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+      case 'video':
+        return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+      case 'audio':
+        return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+      case 'document':
+        return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
     }
   };
 
@@ -60,7 +84,9 @@ const MediaPreview = ({ attachment }: { attachment: MediaAttachment }) => {
           </div>
         </div>
       ) : (
-        <div className={`flex items-center gap-2 p-2 rounded-lg border ${getTypeBadgeColor(attachment.type)}`}>
+        <div
+          className={`flex items-center gap-2 p-2 rounded-lg border ${getTypeBadgeColor(attachment.type)}`}
+        >
           {getTypeIcon(attachment.type)}
           <div className="flex flex-col min-w-0">
             <span className="text-xs font-medium truncate">{attachment.name}</span>
@@ -116,7 +142,7 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
         {/* Media attachments */}
         {message.attachments && message.attachments.length > 0 && (
           <div className={`flex flex-col gap-1 mb-1 ${isUser ? 'items-end' : 'items-start'}`}>
-            {message.attachments.map(attachment => (
+            {message.attachments.map((attachment) => (
               <MediaPreview key={attachment.id} attachment={attachment} />
             ))}
           </div>
@@ -124,16 +150,15 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
 
         {/* Message bubble */}
         <div
-          className={`px-3.5 py-2 rounded-xl ${isUser
-            ? 'bg-accent text-white rounded-tr-sm'
-            : isError
-              ? 'bg-red-500/10 border border-red-500/30 text-red-400 rounded-tl-sm'
-              : 'bg-bg-surface border border-border-primary text-text-primary rounded-tl-sm'
-            }`}
+          className={`px-3.5 py-2 rounded-xl ${
+            isUser
+              ? 'bg-accent text-white rounded-tr-sm'
+              : isError
+                ? 'bg-red-500/10 border border-red-500/30 text-red-400 rounded-tl-sm'
+                : 'bg-bg-surface border border-border-primary text-text-primary rounded-tl-sm'
+          }`}
         >
-          <p className="text-[13px] leading-6 whitespace-pre-wrap break-words">
-            {message.content}
-          </p>
+          <p className="text-[13px] leading-6 whitespace-pre-wrap break-words">{message.content}</p>
         </div>
 
         {/* Timestamp and Token Badge */}
@@ -169,11 +194,15 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
                     <span className="text-gray-400">Input:</span>
-                    <span className="text-white font-mono">{formatTokens(message.tokens.promptTokens)}</span>
+                    <span className="text-white font-mono">
+                      {formatTokens(message.tokens.promptTokens)}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Output:</span>
-                    <span className="text-white font-mono">{formatTokens(message.tokens.responseTokens)}</span>
+                    <span className="text-white font-mono">
+                      {formatTokens(message.tokens.responseTokens)}
+                    </span>
                   </div>
                   {message.tokens.cachedTokens != null && message.tokens.cachedTokens > 0 && (
                     <div className="flex justify-between text-green-400">
@@ -183,7 +212,9 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
                   )}
                   <div className="flex justify-between font-semibold pt-1 border-t border-gray-700">
                     <span className="text-gray-300">Total:</span>
-                    <span className="text-white font-mono">{formatTokens(message.tokens.totalTokens)}</span>
+                    <span className="text-white font-mono">
+                      {formatTokens(message.tokens.totalTokens)}
+                    </span>
                   </div>
                 </div>
               </div>

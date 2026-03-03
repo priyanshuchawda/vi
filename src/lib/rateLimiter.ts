@@ -13,8 +13,8 @@
  * Limits are set conservatively for safety.
  */
 
-const STORAGE_KEY_RPM = "qc_rpm_timestamps";
-const STORAGE_KEY_RPD = "qc_rpd_date_count";
+const STORAGE_KEY_RPM = 'qc_rpm_timestamps';
+const STORAGE_KEY_RPD = 'qc_rpd_date_count';
 
 const RPM_LIMIT = 60; // Conservative — Bedrock supports much higher
 const RPD_LIMIT = 10_000; // Soft limit for cost awareness
@@ -85,9 +85,7 @@ export function recordRequest(): void {
  * Wait until a request slot is available, then record the request.
  * Call this before EVERY Bedrock API call.
  */
-export async function waitForSlot(
-  onWaiting?: (msRemaining: number) => void,
-): Promise<void> {
+export async function waitForSlot(onWaiting?: (msRemaining: number) => void): Promise<void> {
   init();
   let waitMs = msUntilSlotFree();
 
@@ -103,7 +101,7 @@ export async function waitForSlot(
 // ── Daily RPD tracking ─────────────────────────────────────────────────────
 
 function getTodayKey(): string {
-  return new Date().toISOString().split("T")[0];
+  return new Date().toISOString().split('T')[0];
 }
 
 function getDailyRecord(): { date: string; count: number } {
@@ -174,11 +172,9 @@ export function resetRateLimitData(): void {
  */
 export function parseThrottlingRetryMs(error: unknown): number {
   try {
-    const msg = (error as Record<string, unknown>)?.message ?? "";
+    const msg = (error as Record<string, unknown>)?.message ?? '';
     // Bedrock may include "Retry after X seconds" in the error
-    const match = String(msg).match(
-      /retry\s+(?:after\s+)?(\d+(?:\.\d+)?)\s*s/i,
-    );
+    const match = String(msg).match(/retry\s+(?:after\s+)?(\d+(?:\.\d+)?)\s*s/i);
     if (match) return Math.ceil(parseFloat(match[1]) * 1000) + 500;
   } catch {
     /* ignore */
@@ -194,23 +190,19 @@ export async function withRetryOn429<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err: unknown) {
-    const errorName = (err as Record<string, unknown>)?.name ?? "";
-    const errorMessage = String(
-      (err as Record<string, unknown>)?.message ?? "",
-    );
+    const errorName = (err as Record<string, unknown>)?.name ?? '';
+    const errorMessage = String((err as Record<string, unknown>)?.message ?? '');
 
     const isThrottled =
-      String(errorName) === "ThrottlingException" ||
-      errorMessage.includes("ThrottlingException") ||
-      errorMessage.includes("Too Many Requests") ||
-      errorMessage.includes("Rate exceeded");
+      String(errorName) === 'ThrottlingException' ||
+      errorMessage.includes('ThrottlingException') ||
+      errorMessage.includes('Too Many Requests') ||
+      errorMessage.includes('Rate exceeded');
 
     if (!isThrottled) throw err;
 
     const waitMs = parseThrottlingRetryMs(err);
-    console.warn(
-      ` Bedrock throttled — waiting ${Math.round(waitMs / 1000)}s before retry...`,
-    );
+    console.warn(` Bedrock throttled — waiting ${Math.round(waitMs / 1000)}s before retry...`);
     _timestamps = [];
     saveTimestamps(_timestamps);
     await new Promise((resolve) => setTimeout(resolve, waitMs));

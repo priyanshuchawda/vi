@@ -98,7 +98,7 @@ export const useProfileStore = create<ProfileState>()(
           if (response.success && response.data) {
             console.log('[Profile] Analysis successful');
             get().setYouTubeChannel(channelUrl, response.data);
-            
+
             // Link analysis to user
             const profile = get().profile;
             if (profile && window.electronAPI.linkAnalysisToUser) {
@@ -109,17 +109,17 @@ export const useProfileStore = create<ProfileState>()(
             return true;
           } else {
             console.error('[Profile] Analysis failed:', response.error);
-            set({ 
+            set({
               isAnalyzing: false,
-              analysisError: response.error || 'Analysis failed'
+              analysisError: response.error || 'Analysis failed',
             });
             return false;
           }
         } catch (error) {
           console.error('[Profile] Error analyzing channel:', error);
-          set({ 
+          set({
             isAnalyzing: false,
-            analysisError: error instanceof Error ? error.message : 'Unknown error'
+            analysisError: error instanceof Error ? error.message : 'Unknown error',
           });
           return false;
         }
@@ -143,6 +143,6 @@ export const useProfileStore = create<ProfileState>()(
     }),
     {
       name: 'user-profile-storage',
-    }
-  )
+    },
+  ),
 );

@@ -5,7 +5,9 @@ describe('retryClassifier', () => {
   it('classifies retryable transient errors', () => {
     expect(classifyTransientError(new Error('429 Too Many Requests')).retryable).toBe(true);
     expect(classifyTransientError(new Error('503 Service Unavailable')).retryable).toBe(true);
-    expect(classifyTransientError(new Error('network timeout while fetching')).retryable).toBe(true);
+    expect(classifyTransientError(new Error('network timeout while fetching')).retryable).toBe(
+      true,
+    );
   });
 
   it('does not classify validation errors as retryable', () => {

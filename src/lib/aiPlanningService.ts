@@ -8,15 +8,9 @@
  * (Bedrock has no chat session — each call passes the full history).
  */
 
-import {
-  converseBedrock,
-  isBedrockConfigured,
-} from './bedrockGateway';
+import { converseBedrock, isBedrockConfigured } from './bedrockGateway';
 import type { AIChatMessage } from './aiService';
-import {
-  getChannelAnalysisContext,
-  summarizeHistory,
-} from './aiService';
+import { getChannelAnalysisContext, summarizeHistory } from './aiService';
 import { allVideoEditingTools } from './videoEditingTools';
 import type { FunctionCall, ToolResult } from './videoEditingTools';
 import { useProjectStore } from '../stores/useProjectStore';
@@ -28,19 +22,19 @@ import { estimateTurnCost, evaluateBudgetPolicy, trimHistoryToLimit } from './co
 import { evaluateTokenGuard } from './bedrockTokenEstimator';
 import { maskToolOutputsInHistory } from './toolOutputMaskingService';
 import { routeBedrockModel } from './modelRoutingPolicy';
-import {
-  buildSemanticCacheKey,
-  getCached,
-  hashString,
-  setCached,
-} from './requestCache';
+import { buildSemanticCacheKey, getCached, hashString, setCached } from './requestCache';
 import {
   buildAliasedSnapshotForPlanning,
   buildAIProjectSnapshot,
   formatSnapshotForPrompt,
   type AIProjectSnapshot,
 } from './aiProjectSnapshot';
-import { resolveAlias, resolveUuid, validateAliasReferences, type AliasMap } from './clipAliasMapper';
+import {
+  resolveAlias,
+  resolveUuid,
+  validateAliasReferences,
+  type AliasMap,
+} from './clipAliasMapper';
 import {
   formatCapabilityMatrixForPrompt,
   isReadOnlyTool,
@@ -54,14 +48,19 @@ import {
   parseStrategyResponse,
   type StrategyPlan,
 } from './strategyPlanner';
-import { recommendExecutionPolicy, type ExecutionRecommendation } from './executionConfidencePolicy';
-import { compilePlan, generateCorrectionPrompt, validatePlannerOutputContract, type CompilationError } from './planCompiler';
+import {
+  recommendExecutionPolicy,
+  type ExecutionRecommendation,
+} from './executionConfidencePolicy';
+import {
+  compilePlan,
+  generateCorrectionPrompt,
+  validatePlannerOutputContract,
+  type CompilationError,
+} from './planCompiler';
 import { buildFallbackExecutionPlan, shouldUseFallback } from './fallbackPlanGenerator';
 import { recordPlanningAttempt, recordExecutionAttempt } from './aiTelemetry';
-import {
-  formatRetrievedMemoryContext,
-  retrieveRelevantMemory,
-} from './memoryRetrieval';
+import { formatRetrievedMemoryContext, retrieveRelevantMemory } from './memoryRetrieval';
 
 const DEFAULT_MAX_ROUNDS = 2;
 const ABSOLUTE_MAX_ROUNDS = 3;
@@ -346,11 +345,11 @@ export async function generateCompletePlan(
     message,
     degraded: costPreflight.degraded || budgetDecision.shouldDegrade,
   });
-  
+
   // Build aliased snapshot for LLM-safe clip references
   const realSnapshot = buildAIProjectSnapshot(toolNames);
   const { snapshot: aliasedSnapshot, aliasMap } = buildAliasedSnapshotForPlanning(toolNames);
-  
+
   const channelContext = truncateBlock(getChannelAnalysisContext(), 800);
   const snapshotContext = formatSnapshotForPrompt(aliasedSnapshot, 'planning', 3400);
   const capabilityContext = formatCapabilityMatrixForPrompt(toolNames, 2400);
@@ -401,14 +400,15 @@ Use normalized_intent.mode as routing anchor:
 If ambiguities are present, prefer ask_clarification before destructive operations.
 </instruction>
 `;
-  const dynamicCap = costPreflight.degraded || budgetDecision.shouldDegrade
-    ? Math.min(
-        MAX_DYNAMIC_CONTEXT_CHARS,
-        budgetDecision.shouldDegrade
-          ? Math.min(costPreflight.maxDynamicContextChars, 1800)
-          : costPreflight.maxDynamicContextChars,
-      )
-    : MAX_DYNAMIC_CONTEXT_CHARS;
+  const dynamicCap =
+    costPreflight.degraded || budgetDecision.shouldDegrade
+      ? Math.min(
+          MAX_DYNAMIC_CONTEXT_CHARS,
+          budgetDecision.shouldDegrade
+            ? Math.min(costPreflight.maxDynamicContextChars, 1800)
+            : costPreflight.maxDynamicContextChars,
+        )
+      : MAX_DYNAMIC_CONTEXT_CHARS;
   if (dynamicContext.length > dynamicCap) {
     dynamicContext = `${dynamicContext.slice(0, dynamicCap)}\n[Planning context truncated for token efficiency]`;
   }
@@ -434,9 +434,10 @@ If ambiguities are present, prefer ask_clarification before destructive operatio
     currentRound++;
 
     // Inject dynamic context into the first message of the loop
-    const messageContent = (currentRound === 1)
-      ? `${dynamicContext}\n\nTask: ${message}`
-      : `Continue planning from previous tool results.
+    const messageContent =
+      currentRound === 1
+        ? `${dynamicContext}\n\nTask: ${message}`
+        : `Continue planning from previous tool results.
 
 Return only the next concrete operation(s) that are executable now.
 If the goal is complete, return no new tool calls.`;
@@ -562,12 +563,14 @@ If the goal is complete, return no new tool calls.`;
 
         trimPlanningMessages(messages);
         const operationsAddedThisRound = operations.length - operationsBeforeRound;
-        if (shouldEscalatePlanningRounds({
-          currentRound,
-          allowedRounds,
-          operationsAddedThisRound,
-          toolCallsInRound: toolUses.length,
-        })) {
+        if (
+          shouldEscalatePlanningRounds({
+            currentRound,
+            allowedRounds,
+            operationsAddedThisRound,
+            toolCallsInRound: toolUses.length,
+          })
+        ) {
           allowedRounds = Math.min(ABSOLUTE_MAX_ROUNDS, allowedRounds + 1);
         }
       } else {
@@ -591,25 +594,25 @@ If the goal is complete, return no new tool calls.`;
   // We need to validate and convert them to executable UUIDs
   const selfCheckIssues = runPlannerSelfCheck(operations, aliasMap);
   planningIssues.push(...selfCheckIssues);
-  
+
   let compiledOperations = operations;
-  
+
   // First compilation attempt
   let compilationResult = compilePlan(operations, aliasMap, realSnapshot);
   const compileFailed = compilationResult.errors.length > 0;
-  
+
   // If compilation found critical errors, try one retry with correction prompt
   if (shouldRetryCompilation(compilationResult.errors) && currentRound < allowedRounds) {
     const correctionPrompt = generateCorrectionPrompt(compilationResult);
-    
+
     // Add correction prompt to conversation
     messages.push({
       role: 'user',
       content: [{ text: correctionPrompt }],
     });
-    
+
     await waitForSlot();
-    
+
     const retryResponse = await withRetryOn429(() =>
       converseBedrock({
         modelId: routingDecision.modelId,
@@ -619,7 +622,7 @@ If the goal is complete, return no new tool calls.`;
         inferenceConfig: { maxTokens: PLANNING_MAX_TOKENS, temperature: 0.2 },
       }),
     );
-    
+
     // Record token usage from retry
     if (retryResponse.usage) {
       recordUsage({
@@ -628,17 +631,17 @@ If the goal is complete, return no new tool calls.`;
         totalTokenCount: retryResponse.usage.totalTokens,
       });
     }
-    
+
     // Extract retry tool calls
     if (retryResponse.stopReason === 'tool_use') {
       const retryToolUses = (retryResponse.output?.message?.content || [])
         .filter((c: any) => c.toolUse)
         .map((c: any) => c.toolUse);
-      
+
       const retryOperations: PlannedOperation[] = [];
       for (const toolUse of retryToolUses) {
         if (!isKnownTool(toolUse.name)) continue;
-        
+
         const functionCall = {
           name: toolUse.name,
           args: toolUse.input,
@@ -650,7 +653,7 @@ If the goal is complete, return no new tool calls.`;
           isReadOnly: isReadOnlyTool(toolUse.name),
         });
       }
-      
+
       // Try compiling the retry operations
       if (retryOperations.length > 0) {
         const retryCompilation = compilePlan(retryOperations, aliasMap, realSnapshot);
@@ -662,7 +665,7 @@ If the goal is complete, return no new tool calls.`;
       }
     }
   }
-  
+
   // If we still have no valid operations after retry, use fallback plan
   if (shouldUseFallback(compilationResult.operations)) {
     recordPlanningAttempt({
@@ -671,7 +674,7 @@ If the goal is complete, return no new tool calls.`;
     });
     return buildFallbackExecutionPlan(realSnapshot, aliasMap, message);
   }
-  
+
   // Use compiled operations (already preserve round/description/isReadOnly from source ops)
   compiledOperations = compilationResult.operations;
 
@@ -735,7 +738,7 @@ If the goal is complete, return no new tool calls.`;
   });
   const confidenceDecision = recommendExecutionPolicy({
     confidenceScore,
-    mode: (options?.normalizedIntent?.mode as EditMode | undefined) || "modify",
+    mode: (options?.normalizedIntent?.mode as EditMode | undefined) || 'modify',
     hasAmbiguities: (options?.normalizedIntent?.ambiguities?.length || 0) > 0,
     mutating: requiresApproval,
   });
@@ -746,19 +749,19 @@ If the goal is complete, return no new tool calls.`;
     preflightValid: preflight.valid,
     operationCount: normalizedOperations.length,
   });
-  const finalReadiness = confidenceDecision.recommendation === "clarify_required"
-    ? {
-        planReady: false,
-        planReadyReason: confidenceDecision.reason,
-      }
-    : readiness;
+  const finalReadiness =
+    confidenceDecision.recommendation === 'clarify_required'
+      ? {
+          planReady: false,
+          planReadyReason: confidenceDecision.reason,
+        }
+      : readiness;
   recordPlanningAttempt({
     compileFailed,
     fallbackUsed: false,
   });
-  const riskNotes = planQuality.notes.length > 0
-    ? planQuality.notes
-    : ['No major planning risks detected'];
+  const riskNotes =
+    planQuality.notes.length > 0 ? planQuality.notes : ['No major planning risks detected'];
   const contractValidation = validatePlannerOutputContract({
     understanding,
     operations: normalizedOperations,
@@ -788,7 +791,8 @@ If the goal is complete, return no new tool calls.`;
     riskNotes,
     confidenceScore,
     changeSummary,
-    rollbackNote: 'Undo is available immediately after execution if the result is not what you expected.',
+    rollbackNote:
+      'Undo is available immediately after execution if the result is not what you expected.',
     strategyArtifact,
     executionRecommendation: confidenceDecision.recommendation,
     executionRecommendationReason: confidenceDecision.reason,
@@ -839,10 +843,7 @@ export async function executePlan(
   }));
   const executionPolicy: PlanExecutionPolicy = {
     mode: plan.executionPolicy?.mode || 'strict_sequential',
-    maxReadOnlyBatchSize: Math.max(
-      1,
-      Math.min(3, plan.executionPolicy?.maxReadOnlyBatchSize || 3),
-    ),
+    maxReadOnlyBatchSize: Math.max(1, Math.min(3, plan.executionPolicy?.maxReadOnlyBatchSize || 3)),
     stopOnFailure: plan.executionPolicy?.stopOnFailure ?? true,
   };
 
@@ -859,7 +860,7 @@ export async function executePlan(
 
   // Execute operations round by round
   for (const roundOperations of operationsByRound.values()) {
-    const functionCalls = roundOperations.map(op => op.functionCall);
+    const functionCalls = roundOperations.map((op) => op.functionCall);
 
     // Default: strict sequential with output check after each operation.
     // Optional: hybrid mode allows read-only micro-batching (max 3) when safe.
@@ -886,7 +887,7 @@ export async function executePlan(
     allResults.push(...results);
 
     // Check for any failed operations
-    const failedOps = results.filter(r => !r.result.success);
+    const failedOps = results.filter((r) => !r.result.success);
     if (failedOps.length > 0) {
       const errorMessages = failedOps
         .map(
@@ -1010,17 +1011,16 @@ function trimPlanningMessages(messages: AIChatMessage[]): void {
 
 function truncateBlock(value: string, maxChars: number = 1800): string {
   if (!value) return '';
-  return value.length <= maxChars ? value : `${value.slice(0, maxChars)}\n[Context block truncated]`;
+  return value.length <= maxChars
+    ? value
+    : `${value.slice(0, maxChars)}\n[Context block truncated]`;
 }
 
 function isKnownTool(name: string): boolean {
   return allVideoEditingTools.some((tool: any) => tool?.toolSpec?.name === name);
 }
 
-function selectPlanningTools(
-  message: string,
-  mode: 'standard' | 'economy' = 'standard',
-) {
+function selectPlanningTools(message: string, mode: 'standard' | 'economy' = 'standard') {
   const text = message.toLowerCase();
   const base = new Set<string>([
     'get_timeline_info',
@@ -1081,9 +1081,7 @@ function selectPlanningTools(
     base.add('get_all_media_analysis');
   }
 
-  return allVideoEditingTools.filter((tool: any) =>
-    base.has(tool?.toolSpec?.name),
-  );
+  return allVideoEditingTools.filter((tool: any) => base.has(tool?.toolSpec?.name));
 }
 
 /**
@@ -1093,7 +1091,7 @@ function selectPlanningTools(
 function simulateFunctionExecution(toolUses: any[], aliasMap: AliasMap): any[] {
   const state = useProjectStore.getState();
 
-  return toolUses.map(tu => {
+  return toolUses.map((tu) => {
     const name = tu.name;
     const args = tu.input;
 
@@ -1116,9 +1114,10 @@ function simulateFunctionExecution(toolUses: any[], aliasMap: AliasMap): any[] {
         },
       };
     } else if (name === 'get_clip_details') {
-      const requestedClipId = typeof args?.clip_id === 'string'
-        ? (resolveAlias(args.clip_id, aliasMap) || args.clip_id)
-        : '';
+      const requestedClipId =
+        typeof args?.clip_id === 'string'
+          ? resolveAlias(args.clip_id, aliasMap) || args.clip_id
+          : '';
       const clip = state.clips.find((c: any) => c.id === requestedClipId);
       if (clip) {
         return {
@@ -1153,7 +1152,7 @@ function generateOperationDescription(functionCall: any): string {
 
   switch (functionCall.name) {
     case 'split_clip': {
-      const clip = state.clips.find(c => c.id === functionCall.args.clip_id);
+      const clip = state.clips.find((c) => c.id === functionCall.args.clip_id);
       return `Split "${clip?.name || 'clip'}" at ${functionCall.args.time_in_clip}s`;
     }
     case 'set_clip_volume': {
@@ -1165,12 +1164,12 @@ function generateOperationDescription(functionCall: any): string {
     }
     case 'delete_clips': {
       const clipNames = functionCall.args.clip_ids
-        .map((id: string) => state.clips.find(c => c.id === id)?.name || id)
+        .map((id: string) => state.clips.find((c) => c.id === id)?.name || id)
         .join(', ');
       return `Delete: ${clipNames}`;
     }
     case 'move_clip': {
-      const clip = state.clips.find(c => c.id === functionCall.args.clip_id);
+      const clip = state.clips.find((c) => c.id === functionCall.args.clip_id);
       return `Move "${clip?.name || 'clip'}" to ${functionCall.args.start_time}s`;
     }
     case 'merge_clips': {
@@ -1180,7 +1179,7 @@ function generateOperationDescription(functionCall: any): string {
       return `Check timeline state`;
     }
     case 'get_clip_details': {
-      const clip = state.clips.find(c => c.id === functionCall.args.clip_id);
+      const clip = state.clips.find((c) => c.id === functionCall.args.clip_id);
       return `Get details for "${clip?.name || 'clip'}"`;
     }
     default:
@@ -1188,10 +1187,7 @@ function generateOperationDescription(functionCall: any): string {
   }
 }
 
-function buildUnderstanding(
-  message: string,
-  snapshot: AIProjectSnapshot,
-): PlanUnderstanding {
+function buildUnderstanding(message: string, snapshot: AIProjectSnapshot): PlanUnderstanding {
   return {
     goal: message.trim(),
     constraints: [
@@ -1369,10 +1365,7 @@ function blendConfidenceScore(input: {
   normalizedIntent?: NormalizedIntent;
 }): number {
   const planScore = Math.max(0, Math.min(1, input.planQualityScore));
-  const strategyScore = Math.max(
-    0,
-    Math.min(1, input.strategyConfidence ?? planScore),
-  );
+  const strategyScore = Math.max(0, Math.min(1, input.strategyConfidence ?? planScore));
   const ambiguityPenalty = (input.normalizedIntent?.ambiguities?.length || 0) * 0.08;
   const validationPenalty = Math.min(0.25, input.validationIssueCount * 0.03);
   const blended = planScore * 0.65 + strategyScore * 0.35 - ambiguityPenalty - validationPenalty;

@@ -96,7 +96,13 @@ export type UpdateStatusPayload =
   | { status: 'checking' }
   | { status: 'available'; version: string; notes?: string }
   | { status: 'not-available' }
-  | { status: 'downloading'; percent: number; transferred: number; total: number; bytesPerSecond: number }
+  | {
+      status: 'downloading';
+      percent: number;
+      transferred: number;
+      total: number;
+      bytesPerSecond: number;
+    }
   | { status: 'downloaded'; version: string }
   | { status: 'error'; message: string };
 
@@ -150,11 +156,19 @@ export interface ElectronAPI {
   writeProjectFile: (data: ProjectWritePayload) => Promise<{ success: boolean; error?: string }>;
   readProjectFile: (filePath: string) => Promise<ProjectFileResult>;
   readTextFile: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
-  transcribeVideo: (videoPath: string) => Promise<{ success: boolean; result?: TranscriptionResult; error?: string }>;
-  transcribeTimeline: (clips: Array<{ path: string; startTime: number; duration: number }>) => Promise<{ success: boolean; result?: TranscriptionResult; error?: string }>;
-  onTranscriptionProgress: (callback: (progress: TranscriptionProgressPayload) => void) => () => void;
+  transcribeVideo: (
+    videoPath: string,
+  ) => Promise<{ success: boolean; result?: TranscriptionResult; error?: string }>;
+  transcribeTimeline: (
+    clips: Array<{ path: string; startTime: number; duration: number }>,
+  ) => Promise<{ success: boolean; result?: TranscriptionResult; error?: string }>;
+  onTranscriptionProgress: (
+    callback: (progress: TranscriptionProgressPayload) => void,
+  ) => () => void;
   analyzeChannel: (channelUrl: string) => Promise<AnalysisResponse>;
-  getUserAnalysis: (userId: string) => Promise<{ success: boolean; data?: ChannelAnalysisData; error?: string }>;
+  getUserAnalysis: (
+    userId: string,
+  ) => Promise<{ success: boolean; data?: ChannelAnalysisData; error?: string }>;
   linkAnalysisToUser: (userId: string, channelUrl: string) => Promise<{ success: boolean }>;
   readFileAsBase64: (filePath: string) => Promise<string>;
   getFileSize: (filePath: string) => Promise<number>;
@@ -166,7 +180,7 @@ export interface ElectronAPI {
     uploadVideo: (
       filePath: string,
       metadata: YouTubeVideoMetadata,
-      onProgress?: (progress: YouTubeUploadProgress) => void
+      onProgress?: (progress: YouTubeUploadProgress) => void,
     ) => Promise<{ success: boolean; videoId?: string; error?: string }>;
   };
   updates: {
@@ -178,7 +192,10 @@ export interface ElectronAPI {
   // AI Memory — file-based persistence (project-specific)
   memorySave: (data: unknown) => Promise<{ success: boolean; path?: string; error?: string }>;
   memoryLoad: (projectId?: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
-  memorySaveMarkdown: (entry: unknown, projectId?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+  memorySaveMarkdown: (
+    entry: unknown,
+    projectId?: string,
+  ) => Promise<{ success: boolean; path?: string; error?: string }>;
   memoryGetDir: () => Promise<{ dir: string; index: string; analyses: string }>;
   bedrockConverse: (input: Record<string, unknown>) => Promise<unknown>;
 }

@@ -1,7 +1,8 @@
 import { useProjectStore } from '../../stores/useProjectStore';
 
 const ProjectTab = () => {
-  const { saveProject, loadProject, newProject, hasUnsavedChanges, lastSaved, clips } = useProjectStore();
+  const { saveProject, loadProject, newProject, hasUnsavedChanges, lastSaved, clips } =
+    useProjectStore();
 
   const totalClips = clips.length;
   const totalDuration = clips.reduce((sum, clip) => sum + clip.duration, 0);
@@ -37,8 +38,18 @@ const ProjectTab = () => {
                   </>
                 ) : (
                   <>
-                    <svg className="w-3 h-3 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    <svg
+                      className="w-3 h-3 text-accent"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M5 13l4 4L19 7"
+                      />
                     </svg>
                     <span className="text-accent font-medium">All changes saved</span>
                   </>
@@ -71,7 +82,12 @@ const ProjectTab = () => {
           title="Save Project (Ctrl+S)"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+            />
           </svg>
           Save Project
         </button>
@@ -82,7 +98,12 @@ const ProjectTab = () => {
           title="Load Project (Ctrl+O)"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+            />
           </svg>
           Load Project
         </button>
@@ -129,8 +150,18 @@ const ProjectTab = () => {
       {clips.length === 0 && (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <svg className="w-12 h-12 mx-auto mb-3 text-text-muted opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            <svg
+              className="w-12 h-12 mx-auto mb-3 text-text-muted opacity-30"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.5"
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+              />
             </svg>
             <p className="text-xs text-text-muted">No project loaded</p>
             <p className="text-[10px] text-text-muted/60 mt-1">

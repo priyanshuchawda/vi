@@ -12,7 +12,10 @@ import { app } from 'electron';
 
 const SCOPES = ['https://www.googleapis.com/auth/youtube.upload'];
 const TOKEN_PATH = path.join(app.getPath('userData'), 'youtube-token.json');
-const CREDENTIALS_PATH = path.join(process.cwd(), 'client_secret_235744043692-85hlp2prkgdp0bitbmh46gfbug5vfn2e.apps.googleusercontent.com.json');
+const CREDENTIALS_PATH = path.join(
+  process.cwd(),
+  'client_secret_235744043692-85hlp2prkgdp0bitbmh46gfbug5vfn2e.apps.googleusercontent.com.json',
+);
 
 let oauth2Client: OAuth2Client | null = null;
 
@@ -40,11 +43,7 @@ export function createOAuth2Client(): OAuth2Client {
   const credentials = loadCredentials();
   const { client_id, client_secret, redirect_uris } = credentials.installed;
 
-  const client = new google.auth.OAuth2(
-    client_id,
-    client_secret,
-    redirect_uris[0]
-  );
+  const client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
   oauth2Client = client;
 
   return client;
@@ -59,7 +58,7 @@ export function isAuthenticated(): boolean {
       const token = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf-8'));
       const client = createOAuth2Client();
       client.setCredentials(token);
-      
+
       // Check if token is expired
       const expiry = token.expiry_date;
       if (expiry && expiry > Date.now()) {

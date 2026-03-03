@@ -36,8 +36,18 @@ const TextTab = () => {
       {/* Add Text/Title Section */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 mb-2">
-          <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          <svg
+            className="w-4 h-4 text-accent"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+            />
           </svg>
           <h4 className="text-xs font-bold text-text-primary">Text Overlays</h4>
         </div>
@@ -54,7 +64,8 @@ const TextTab = () => {
 
         <div className="bg-bg-elevated rounded-lg p-3 border border-border-primary">
           <p className="text-xs text-text-muted leading-relaxed">
-            Create custom text overlays with full control over font, size, color, position, and styling.
+            Create custom text overlays with full control over font, size, color, position, and
+            styling.
           </p>
         </div>
       </div>
@@ -64,18 +75,28 @@ const TextTab = () => {
       {/* Captions & Transcription Section */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 mb-2">
-          <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+          <svg
+            className="w-4 h-4 text-accent"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+            />
           </svg>
           <h4 className="text-xs font-bold text-text-primary">Captions & Transcription</h4>
         </div>
 
         {/* Status Card */}
-        <div className={`rounded-lg p-3 border ${
-          hasTranscript 
-            ? 'bg-accent/10 border-accent/30' 
-            : 'bg-bg-elevated border-border-primary'
-        }`}>
+        <div
+          className={`rounded-lg p-3 border ${
+            hasTranscript ? 'bg-accent/10 border-accent/30' : 'bg-bg-elevated border-border-primary'
+          }`}
+        >
           <div className="flex items-center gap-2 mb-2">
             {hasTranscript ? (
               <>
@@ -95,8 +116,7 @@ const TextTab = () => {
           <p className="text-xs text-text-muted leading-relaxed">
             {hasTranscript
               ? 'Your transcript is ready for editing. Open the right panel to edit by text or manage captions.'
-              : 'Generate captions to create a transcript, then edit your video by selecting words to delete.'
-            }
+              : 'Generate captions to create a transcript, then edit your video by selecting words to delete.'}
           </p>
         </div>
 
@@ -107,7 +127,12 @@ const TextTab = () => {
             className="w-full bg-bg-elevated hover:bg-bg-surface text-text-primary border border-border-primary hover:border-accent px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+              />
             </svg>
             Open Captions Panel
             <span className="ml-auto text-xs text-text-muted">Alt+1</span>
@@ -119,7 +144,12 @@ const TextTab = () => {
               className="w-full bg-bg-elevated hover:bg-bg-surface text-text-primary border border-border-primary hover:border-accent px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
               </svg>
               Open Text Editor
               <span className="ml-auto text-xs text-text-muted">Alt+2</span>

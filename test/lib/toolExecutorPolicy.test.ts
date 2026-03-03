@@ -98,9 +98,7 @@ describe('ToolExecutor planning guard + policy execution', () => {
 
   it('delete_clips reports deleted and missing IDs at execution time', async () => {
     const results = await ToolExecutor.executeWithPolicy(
-      [
-        { name: 'delete_clips', args: { clip_ids: ['clip-1', 'missing-clip'] } },
-      ],
+      [{ name: 'delete_clips', args: { clip_ids: ['clip-1', 'missing-clip'] } }],
       {
         mode: 'strict_sequential',
         stopOnFailure: true,
@@ -118,9 +116,7 @@ describe('ToolExecutor planning guard + policy execution', () => {
     const hooks: string[] = [];
 
     await ToolExecutor.executeWithPolicy(
-      [
-        { name: 'get_timeline_info', args: {} },
-      ],
+      [{ name: 'get_timeline_info', args: {} }],
       {
         mode: 'strict_sequential',
         stopOnFailure: true,

@@ -10,7 +10,7 @@
  * No cached tokens — Bedrock doesn't have a context caching equivalent.
  */
 
-const STORAGE_KEY_DAILY = "qc_token_daily";
+const STORAGE_KEY_DAILY = 'qc_token_daily';
 
 export interface TokenUsageRecord {
   inputTokens: number;
@@ -32,7 +32,7 @@ let _session: TokenUsageRecord = {
 };
 
 function getTodayKey(): string {
-  return new Date().toISOString().split("T")[0];
+  return new Date().toISOString().split('T')[0];
 }
 
 function loadDailyRecord(): DailyTokenRecord {
@@ -94,8 +94,7 @@ export function recordUsage(metadata: {
 }): void {
   const input = metadata.inputTokens ?? metadata.promptTokenCount ?? 0;
   const output = metadata.outputTokens ?? metadata.candidatesTokenCount ?? 0;
-  const total =
-    metadata.totalTokens ?? metadata.totalTokenCount ?? input + output;
+  const total = metadata.totalTokens ?? metadata.totalTokenCount ?? input + output;
 
   // Update session totals
   _session.inputTokens += input;

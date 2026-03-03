@@ -1,6 +1,6 @@
 /**
  * Plan Compiler - Deterministic layer between LLM output and execution
- * 
+ *
  * Converts high-level LLM intentions (with aliases) into validated executable operations (with UUIDs).
  * This layer ensures:
  * - Alias → UUID mapping
@@ -142,7 +142,7 @@ function compileOperation(
   }
 
   if (boundsResult.warnings.length > 0) {
-    warnings.push(...boundsResult.warnings.map(w => `Op ${index + 1}: ${w}`));
+    warnings.push(...boundsResult.warnings.map((w) => `Op ${index + 1}: ${w}`));
   }
 
   // Create compiled operation
@@ -177,7 +177,7 @@ function validateAndNormalizeBounds(
 
   // split_clip: validate time_in_clip
   if (toolName === 'split_clip' && args.clip_id) {
-    const clip = snapshot.timeline.clips.find(c => c.id === args.clip_id);
+    const clip = snapshot.timeline.clips.find((c) => c.id === args.clip_id);
     if (!clip) {
       return {
         valid: false,
@@ -202,7 +202,7 @@ function validateAndNormalizeBounds(
 
   // update_clip_bounds: validate and normalize new_start/new_end
   if (toolName === 'update_clip_bounds' && args.clip_id) {
-    const clip = snapshot.timeline.clips.find(c => c.id === args.clip_id);
+    const clip = snapshot.timeline.clips.find((c) => c.id === args.clip_id);
     if (!clip) {
       return {
         valid: false,
@@ -355,15 +355,20 @@ Please generate a corrected plan that:
 If you cannot generate valid operations, call get_timeline_info first to inspect the current state.`;
 }
 
-export function validatePlannerOutputContract(
-  contract: PlannerOutputContract,
-): { valid: boolean; errors: string[] } {
+export function validatePlannerOutputContract(contract: PlannerOutputContract): {
+  valid: boolean;
+  errors: string[];
+} {
   const errors: string[] = [];
   if (!contract || typeof contract !== 'object') {
     return { valid: false, errors: ['Planner contract payload is missing'] };
   }
 
-  if (!contract.understanding || typeof contract.understanding.goal !== 'string' || contract.understanding.goal.trim().length === 0) {
+  if (
+    !contract.understanding ||
+    typeof contract.understanding.goal !== 'string' ||
+    contract.understanding.goal.trim().length === 0
+  ) {
     errors.push('Missing understanding.goal');
   }
   if (!Array.isArray(contract.understanding?.constraints)) {

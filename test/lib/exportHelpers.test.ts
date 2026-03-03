@@ -93,7 +93,7 @@ describe('exportHelpers', () => {
 
     it('should return true for single clip', () => {
       const clips = [createMockClip({ duration: 5 })];
-      
+
       // Single clip has no gaps
       const result = validateTimelineContinuity(clips);
       expect(result).toBe(true);
@@ -149,10 +149,7 @@ describe('exportHelpers', () => {
     });
 
     it('should reject merging locked clips', () => {
-      const clips = [
-        createMockClip({ id: '1', locked: true }),
-        createMockClip({ id: '2' }),
-      ];
+      const clips = [createMockClip({ id: '1', locked: true }), createMockClip({ id: '2' })];
 
       const result = canMergeClips(clips);
       expect(result.valid).toBe(false);

@@ -10,12 +10,12 @@ interface CollapsibleSectionProps {
   storageKey?: string;
 }
 
-const CollapsibleSection = ({ 
-  title, 
-  defaultOpen = true, 
+const CollapsibleSection = ({
+  title,
+  defaultOpen = true,
   badge,
   children,
-  storageKey 
+  storageKey,
 }: CollapsibleSectionProps) => {
   const [isOpen, setIsOpen] = useState(() => {
     if (storageKey) {
@@ -38,41 +38,37 @@ const CollapsibleSection = ({
         className="w-full px-4 py-3 flex items-center justify-between hover:bg-bg-surface transition-colors group"
       >
         <div className="flex items-center gap-2">
-          <svg 
+          <svg
             className={`w-4 h-4 text-text-muted transition-transform ${isOpen ? 'rotate-90' : ''}`}
-            fill="none" 
-            stroke="currentColor" 
+            fill="none"
+            stroke="currentColor"
             viewBox="0 0 24 24"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
           </svg>
-          <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">
-            {title}
-          </h3>
+          <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">{title}</h3>
           {badge !== undefined && (
             <span className="px-1.5 py-0.5 text-[10px] font-bold bg-accent/20 text-accent rounded">
               {badge}
             </span>
           )}
         </div>
-        <svg 
+        <svg
           className="w-3.5 h-3.5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity"
-          fill="none" 
-          stroke="currentColor" 
+          fill="none"
+          stroke="currentColor"
           viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      
-      <div 
+
+      <div
         className={`overflow-hidden transition-all duration-200 ${
           isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
         }`}
       >
-        <div className="pb-3">
-          {children}
-        </div>
+        <div className="pb-3">{children}</div>
       </div>
     </div>
   );

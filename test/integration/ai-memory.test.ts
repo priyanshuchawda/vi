@@ -40,15 +40,15 @@ integrationDescribe('AI Memory Service Integration', () => {
         },
         memorySaveMarkdown: async () => {
           // Mock markdown save (not needed for this test)
-        }
-      }
+        },
+      },
     } as any;
 
     // Clear existing memory before test
     if (fs.existsSync(MEMORY_FILE)) {
       fs.unlinkSync(MEMORY_FILE);
     }
-    
+
     // Clear zustand store state
     useAiMemoryStore.setState({ entries: [], isAnalyzing: false, analyzingCount: 0 });
   });
@@ -64,7 +64,7 @@ integrationDescribe('AI Memory Service Integration', () => {
 
   it('should queue video for analysis', () => {
     const store = useAiMemoryStore.getState();
-    
+
     testEntryId = queueMediaAnalysis({
       filePath: TEST_VIDEO_PATH,
       fileName: 'videoplayback.mp4',
@@ -77,7 +77,7 @@ integrationDescribe('AI Memory Service Integration', () => {
     expect(testEntryId).toBeDefined();
     expect(testEntryId).toMatch(/^[0-9a-f-]+$/); // UUID format
 
-    const entry = store.entries.find(e => e.id === testEntryId);
+    const entry = store.entries.find((e) => e.id === testEntryId);
     expect(entry).toBeDefined();
     expect(entry?.fileName).toBe('videoplayback.mp4');
     expect(entry?.status).toMatch(/pending|analyzing/);
@@ -86,7 +86,7 @@ integrationDescribe('AI Memory Service Integration', () => {
   it('should complete analysis within reasonable time', async () => {
     const MAX_WAIT_MS = 120_000; // 2 minutes
     const POLL_INTERVAL_MS = 2_000;
-    
+
     let elapsed = 0;
     let entry;
 
@@ -95,8 +95,8 @@ integrationDescribe('AI Memory Service Integration', () => {
     while (elapsed < MAX_WAIT_MS) {
       // Get fresh state on each iteration
       const currentState = useAiMemoryStore.getState();
-      entry = currentState.entries.find(e => e.id === testEntryId);
-      
+      entry = currentState.entries.find((e) => e.id === testEntryId);
+
       if (entry?.status === 'completed') {
         console.log(`✅ Analysis completed in ${(elapsed / 1000).toFixed(1)}s`);
         break;
@@ -106,7 +106,7 @@ integrationDescribe('AI Memory Service Integration', () => {
         throw new Error(`Analysis failed: ${entry.error}`);
       }
 
-      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       elapsed += POLL_INTERVAL_MS;
 
       console.log(`⏳ Status: ${entry?.status} (${(elapsed / 1000).toFixed(0)}s elapsed)`);
@@ -114,7 +114,7 @@ integrationDescribe('AI Memory Service Integration', () => {
 
     // Final check with fresh state
     const finalState = useAiMemoryStore.getState();
-    entry = finalState.entries.find(e => e.id === testEntryId);
+    entry = finalState.entries.find((e) => e.id === testEntryId);
 
     expect(entry?.status).toBe('completed');
     expect(entry?.analysis).toBeDefined();
@@ -123,7 +123,7 @@ integrationDescribe('AI Memory Service Integration', () => {
 
   it('should have valid analysis data', () => {
     const store = useAiMemoryStore.getState();
-    const entry = store.entries.find(e => e.id === testEntryId);
+    const entry = store.entries.find((e) => e.id === testEntryId);
 
     expect(entry).toBeDefined();
     expect(entry?.summary).toBeDefined();
@@ -142,12 +142,12 @@ integrationDescribe('AI Memory Service Integration', () => {
 
   it('should save memory to disk', async () => {
     const store = useAiMemoryStore.getState();
-    
+
     // Trigger save
     store.saveToDisk();
 
     // Wait a bit for async save
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // Check file exists
     expect(fs.existsSync(MEMORY_FILE)).toBe(true);

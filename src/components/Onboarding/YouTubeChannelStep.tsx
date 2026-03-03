@@ -23,12 +23,12 @@ export function YouTubeChannelStep({ onSubmit, onSkip, error }: YouTubeChannelSt
       /youtube\.com\/c\/[\w-]+/,
       /youtube\.com\/user\/[\w-]+/,
     ];
-    return patterns.some(pattern => pattern.test(url));
+    return patterns.some((pattern) => pattern.test(url));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!url.trim()) {
       return;
     }
@@ -46,11 +46,10 @@ export function YouTubeChannelStep({ onSubmit, onSkip, error }: YouTubeChannelSt
   return (
     <div className="youtube-step">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-white mb-2">
-          Do you have a YouTube channel?
-        </h2>
+        <h2 className="text-2xl font-bold text-white mb-2">Do you have a YouTube channel?</h2>
         <p className="text-gray-400">
-          We'll analyze your content and provide personalized editing tips and insights to help you grow.
+          We'll analyze your content and provide personalized editing tips and insights to help you
+          grow.
         </p>
       </div>
 
@@ -67,22 +66,14 @@ export function YouTubeChannelStep({ onSubmit, onSkip, error }: YouTubeChannelSt
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://youtube.com/@yourchannel"
             className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 ${
-              !isValid 
-                ? 'border-red-500 focus:ring-red-500' 
-                : 'border-gray-600 focus:ring-blue-500'
+              !isValid ? 'border-red-500 focus:ring-red-500' : 'border-gray-600 focus:ring-blue-500'
             }`}
             disabled={isValidating}
           />
           {!isValid && (
-            <p className="mt-2 text-sm text-red-400">
-              Please enter a valid YouTube channel URL
-            </p>
+            <p className="mt-2 text-sm text-red-400">Please enter a valid YouTube channel URL</p>
           )}
-          {error && (
-            <p className="mt-2 text-sm text-red-400">
-               {error}
-            </p>
-          )}
+          {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
         </div>
 
         {/* Example formats */}
@@ -120,8 +111,20 @@ export function YouTubeChannelStep({ onSubmit, onSkip, error }: YouTubeChannelSt
             {isValidating ? (
               <span className="flex items-center justify-center gap-2">
                 <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
                 </svg>
                 Analyzing...
               </span>

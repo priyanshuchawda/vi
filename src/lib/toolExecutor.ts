@@ -1,16 +1,16 @@
-import { useProjectStore } from "../stores/useProjectStore";
-import { useAiMemoryStore } from "../stores/useAiMemoryStore";
-import type { FunctionCall, ToolResult } from "./videoEditingTools";
-import { isReadOnlyTool, isToolAllowedInMode, type RuntimeToolMode } from "./toolCapabilityMatrix";
-import { retrieveRelevantMemory } from "./memoryRetrieval";
+import { useProjectStore } from '../stores/useProjectStore';
+import { useAiMemoryStore } from '../stores/useAiMemoryStore';
+import type { FunctionCall, ToolResult } from './videoEditingTools';
+import { isReadOnlyTool, isToolAllowedInMode, type RuntimeToolMode } from './toolCapabilityMatrix';
+import { retrieveRelevantMemory } from './memoryRetrieval';
 
 type ToolErrorCategory =
-  | "plan_error"
-  | "validation_error"
-  | "execution_error"
-  | "media_limit"
-  | "tool_missing"
-  | "constraint_violation";
+  | 'plan_error'
+  | 'validation_error'
+  | 'execution_error'
+  | 'media_limit'
+  | 'tool_missing'
+  | 'constraint_violation';
 
 interface ValidationResult {
   valid: boolean;
@@ -29,12 +29,12 @@ interface PreflightIssue {
 }
 
 interface ExecutionPolicy {
-  mode?: "strict_sequential" | "hybrid";
+  mode?: 'strict_sequential' | 'hybrid';
   maxReadOnlyBatchSize?: number;
   stopOnFailure?: boolean;
 }
 
-type ToolLifecycleState = "pending" | "running" | "completed" | "error";
+type ToolLifecycleState = 'pending' | 'running' | 'completed' | 'error';
 
 interface ToolExecutionLifecycleEvent {
   call: FunctionCall;
@@ -44,7 +44,7 @@ interface ToolExecutionLifecycleEvent {
   result?: ToolResult;
 }
 
-type ToolExecutionHookName = "tool.execute.before" | "tool.execute.after";
+type ToolExecutionHookName = 'tool.execute.before' | 'tool.execute.after';
 
 interface ToolExecutionHookEvent {
   call: FunctionCall;
@@ -91,7 +91,7 @@ export class ToolExecutor {
     if (!Number.isFinite(start) || !Number.isFinite(end)) {
       return {
         valid: false,
-        error: "new_start/new_end must be finite numbers",
+        error: 'new_start/new_end must be finite numbers',
         start: clip.start,
         end: clip.end,
         adjusted: false,
@@ -129,7 +129,8 @@ export class ToolExecutor {
       } else {
         return {
           valid: false,
-          error: "Resulting clip bounds are invalid after normalization (start must be less than end)",
+          error:
+            'Resulting clip bounds are invalid after normalization (start must be less than end)',
           start,
           end,
           adjusted: notes.length > 0,
@@ -154,7 +155,7 @@ export class ToolExecutor {
     const state = useProjectStore.getState();
 
     switch (call.name) {
-      case "split_clip": {
+      case 'split_clip': {
         const { clip_id, time_in_clip } = call.args;
         const clip = state.clips.find((c) => c.id === clip_id);
         if (!clip)
@@ -171,163 +172,154 @@ export class ToolExecutor {
         return { valid: true };
       }
 
-      case "set_clip_volume": {
+      case 'set_clip_volume': {
         const { volume, clip_ids } = call.args;
         if (volume < 0 || volume > 1) {
           return {
             valid: false,
-            error: "Volume must be between 0.0 (silent) and 1.0 (full volume)",
+            error: 'Volume must be between 0.0 (silent) and 1.0 (full volume)',
           };
         }
         if (!Array.isArray(clip_ids) || clip_ids.length === 0) {
-          return { valid: false, error: "Must provide at least one clip ID" };
+          return { valid: false, error: 'Must provide at least one clip ID' };
         }
         // Check clips exist (unless "all")
-        if (!clip_ids.includes("all")) {
-          const missing = clip_ids.filter(
-            (id: string) => !state.clips.find((c) => c.id === id),
-          );
+        if (!clip_ids.includes('all')) {
+          const missing = clip_ids.filter((id: string) => !state.clips.find((c) => c.id === id));
           if (missing.length > 0) {
             return {
               valid: false,
-              error: `Clips not found: ${missing.join(", ")}`,
+              error: `Clips not found: ${missing.join(', ')}`,
             };
           }
         }
         return { valid: true };
       }
 
-      case "delete_clips": {
+      case 'delete_clips': {
         const { clip_ids } = call.args;
         if (!Array.isArray(clip_ids) || clip_ids.length === 0) {
           return {
             valid: false,
-            error: "Must provide at least one clip ID to delete",
+            error: 'Must provide at least one clip ID to delete',
           };
         }
         return { valid: true };
       }
 
-      case "move_clip": {
+      case 'move_clip': {
         const { clip_id, start_time } = call.args;
         const clip = state.clips.find((c) => c.id === clip_id);
         if (!clip)
           return {
             valid: false,
             error: `Clip with ID "${clip_id}" not found`,
-            errorType: "validation_error",
-            recoveryHint: "Call get_timeline_info first to get current clip IDs, then retry with a valid clip_id.",
+            errorType: 'validation_error',
+            recoveryHint:
+              'Call get_timeline_info first to get current clip IDs, then retry with a valid clip_id.',
           };
         if (start_time < 0) {
           return {
             valid: false,
-            error: "Start time cannot be negative",
-            errorType: "constraint_violation",
-            recoveryHint: "Use start_time >= 0.",
+            error: 'Start time cannot be negative',
+            errorType: 'constraint_violation',
+            recoveryHint: 'Use start_time >= 0.',
           };
         }
         return { valid: true };
       }
 
-      case "merge_clips": {
+      case 'merge_clips': {
         const { clip_ids } = call.args;
         if (!Array.isArray(clip_ids) || clip_ids.length < 2) {
           return {
             valid: false,
-            error: "Must provide at least 2 clip IDs to merge",
+            error: 'Must provide at least 2 clip IDs to merge',
           };
         }
-        const missing = clip_ids.filter(
-          (id: string) => !state.clips.find((c) => c.id === id),
-        );
+        const missing = clip_ids.filter((id: string) => !state.clips.find((c) => c.id === id));
         if (missing.length > 0) {
           return {
             valid: false,
-            error: `Clips not found: ${missing.join(", ")}`,
+            error: `Clips not found: ${missing.join(', ')}`,
           };
         }
         return { valid: true };
       }
 
-      case "toggle_clip_mute": {
+      case 'toggle_clip_mute': {
         const { clip_ids } = call.args;
         if (!Array.isArray(clip_ids) || clip_ids.length === 0) {
-          return { valid: false, error: "Must provide at least one clip ID" };
+          return { valid: false, error: 'Must provide at least one clip ID' };
         }
-        const missing = clip_ids.filter(
-          (id: string) => !state.clips.find((c) => c.id === id),
-        );
+        const missing = clip_ids.filter((id: string) => !state.clips.find((c) => c.id === id));
         if (missing.length > 0) {
           return {
             valid: false,
-            error: `Clips not found: ${missing.join(", ")}`,
+            error: `Clips not found: ${missing.join(', ')}`,
           };
         }
         return { valid: true };
       }
 
-      case "select_clips": {
+      case 'select_clips': {
         const { clip_ids } = call.args;
         if (!Array.isArray(clip_ids) || clip_ids.length === 0) {
-          return { valid: false, error: "Must provide at least one clip ID" };
+          return { valid: false, error: 'Must provide at least one clip ID' };
         }
         // "all" is allowed
-        if (!clip_ids.includes("all")) {
-          const missing = clip_ids.filter(
-            (id: string) => !state.clips.find((c) => c.id === id),
-          );
+        if (!clip_ids.includes('all')) {
+          const missing = clip_ids.filter((id: string) => !state.clips.find((c) => c.id === id));
           if (missing.length > 0) {
             return {
               valid: false,
-              error: `Clips not found: ${missing.join(", ")}`,
+              error: `Clips not found: ${missing.join(', ')}`,
             };
           }
         }
         return { valid: true };
       }
 
-      case "copy_clips": {
+      case 'copy_clips': {
         const { clip_ids } = call.args;
         if (!Array.isArray(clip_ids) || clip_ids.length === 0) {
           return {
             valid: false,
-            error: "Must provide at least one clip ID to copy",
+            error: 'Must provide at least one clip ID to copy',
           };
         }
-        const missing = clip_ids.filter(
-          (id: string) => !state.clips.find((c) => c.id === id),
-        );
+        const missing = clip_ids.filter((id: string) => !state.clips.find((c) => c.id === id));
         if (missing.length > 0) {
           return {
             valid: false,
-            error: `Clips not found: ${missing.join(", ")}`,
+            error: `Clips not found: ${missing.join(', ')}`,
           };
         }
         return { valid: true };
       }
 
-      case "undo_action": {
+      case 'undo_action': {
         if (!state.canUndo()) {
-          return { valid: false, error: "Nothing to undo" };
+          return { valid: false, error: 'Nothing to undo' };
         }
         return { valid: true };
       }
 
-      case "redo_action": {
+      case 'redo_action': {
         if (!state.canRedo()) {
-          return { valid: false, error: "Nothing to redo" };
+          return { valid: false, error: 'Nothing to redo' };
         }
         return { valid: true };
       }
 
-      case "set_playhead_position": {
+      case 'set_playhead_position': {
         const { time } = call.args;
         if (time < 0) {
           return {
             valid: false,
-            error: "Time cannot be negative",
-            errorType: "constraint_violation",
-            recoveryHint: "Use time >= 0.",
+            error: 'Time cannot be negative',
+            errorType: 'constraint_violation',
+            recoveryHint: 'Use time >= 0.',
           };
         }
         const totalDuration = state.getTotalDuration();
@@ -335,22 +327,22 @@ export class ToolExecutor {
           return {
             valid: false,
             error: `Time ${time.toFixed(1)}s exceeds timeline duration ${totalDuration.toFixed(1)}s`,
-            errorType: "constraint_violation",
+            errorType: 'constraint_violation',
             recoveryHint: `Use a time between 0 and ${totalDuration.toFixed(1)}s.`,
           };
         }
         return { valid: true };
       }
 
-      case "update_clip_bounds": {
+      case 'update_clip_bounds': {
         const { clip_id, new_start, new_end } = call.args;
         const clip = state.clips.find((c) => c.id === clip_id);
         if (!clip)
           return {
             valid: false,
             error: `Clip with ID "${clip_id}" not found`,
-            errorType: "validation_error",
-            recoveryHint: "Call get_timeline_info first and use a valid clip_id.",
+            errorType: 'validation_error',
+            recoveryHint: 'Call get_timeline_info first and use a valid clip_id.',
           };
 
         const normalized = this.normalizeClipBounds(clip, new_start, new_end);
@@ -358,8 +350,8 @@ export class ToolExecutor {
           return {
             valid: false,
             error: normalized.error,
-            errorType: "constraint_violation",
-            recoveryHint: "Adjust new_start/new_end to a valid source range.",
+            errorType: 'constraint_violation',
+            recoveryHint: 'Adjust new_start/new_end to a valid source range.',
           };
         }
 
@@ -372,31 +364,30 @@ export class ToolExecutor {
         };
       }
 
-      case "get_clip_details": {
+      case 'get_clip_details': {
         const { clip_id } = call.args;
         const clip = state.clips.find((c) => c.id === clip_id);
-        if (!clip)
-          return { valid: false, error: `Clip with ID "${clip_id}" not found` };
+        if (!clip) return { valid: false, error: `Clip with ID "${clip_id}" not found` };
         return { valid: true };
       }
 
       // ==================== SUBTITLE VALIDATION ====================
 
-      case "add_subtitle": {
+      case 'add_subtitle': {
         const { text, start_time, end_time } = call.args;
         if (!text || text.trim().length === 0) {
-          return { valid: false, error: "Subtitle text cannot be empty" };
+          return { valid: false, error: 'Subtitle text cannot be empty' };
         }
         if (start_time < 0) {
-          return { valid: false, error: "Start time cannot be negative" };
+          return { valid: false, error: 'Start time cannot be negative' };
         }
         if (end_time <= start_time) {
-          return { valid: false, error: "End time must be after start time" };
+          return { valid: false, error: 'End time must be after start time' };
         }
         return { valid: true };
       }
 
-      case "update_subtitle": {
+      case 'update_subtitle': {
         const { index, start_time, end_time } = call.args;
         if (index < 1 || index > state.subtitles.length) {
           return {
@@ -405,19 +396,15 @@ export class ToolExecutor {
           };
         }
         if (start_time !== undefined && start_time < 0) {
-          return { valid: false, error: "Start time cannot be negative" };
+          return { valid: false, error: 'Start time cannot be negative' };
         }
-        if (
-          start_time !== undefined &&
-          end_time !== undefined &&
-          end_time <= start_time
-        ) {
-          return { valid: false, error: "End time must be after start time" };
+        if (start_time !== undefined && end_time !== undefined && end_time <= start_time) {
+          return { valid: false, error: 'End time must be after start time' };
         }
         return { valid: true };
       }
 
-      case "delete_subtitle": {
+      case 'delete_subtitle': {
         const { index } = call.args;
         if (index < 1 || index > state.subtitles.length) {
           return {
@@ -430,11 +417,11 @@ export class ToolExecutor {
 
       // ==================== TRANSCRIPTION VALIDATION ====================
 
-      case "transcribe_clip": {
+      case 'transcribe_clip': {
         const { clip_id } = call.args;
-        if (clip_id === "active") {
+        if (clip_id === 'active') {
           if (!state.activeClipId) {
-            return { valid: false, error: "No clip is currently selected" };
+            return { valid: false, error: 'No clip is currently selected' };
           }
         } else {
           const clip = state.clips.find((c) => c.id === clip_id);
@@ -448,19 +435,19 @@ export class ToolExecutor {
         return { valid: true };
       }
 
-      case "apply_transcript_edits": {
+      case 'apply_transcript_edits': {
         const { deletion_ranges } = call.args;
         if (!Array.isArray(deletion_ranges) || deletion_ranges.length === 0) {
           return {
             valid: false,
-            error: "Must provide at least one deletion range",
+            error: 'Must provide at least one deletion range',
           };
         }
         for (const range of deletion_ranges) {
           if (range.start < 0 || range.end <= range.start) {
             return {
               valid: false,
-              error: "Invalid deletion range: end must be after start",
+              error: 'Invalid deletion range: end must be after start',
             };
           }
         }
@@ -469,26 +456,21 @@ export class ToolExecutor {
 
       // ==================== PROJECT MANAGEMENT VALIDATION ====================
 
-      case "set_export_settings": {
+      case 'set_export_settings': {
         const { format, resolution } = call.args;
-        const validFormats = ["mp4", "mov", "avi", "webm"];
-        const validResolutions = [
-          "1920x1080",
-          "1280x720",
-          "854x480",
-          "original",
-        ];
+        const validFormats = ['mp4', 'mov', 'avi', 'webm'];
+        const validResolutions = ['1920x1080', '1280x720', '854x480', 'original'];
 
         if (format && !validFormats.includes(format)) {
           return {
             valid: false,
-            error: `Invalid format. Valid options: ${validFormats.join(", ")}`,
+            error: `Invalid format. Valid options: ${validFormats.join(', ')}`,
           };
         }
         if (resolution && !validResolutions.includes(resolution)) {
           return {
             valid: false,
-            error: `Invalid resolution. Valid options: ${validResolutions.join(", ")}`,
+            error: `Invalid resolution. Valid options: ${validResolutions.join(', ')}`,
           };
         }
         return { valid: true };
@@ -496,15 +478,15 @@ export class ToolExecutor {
 
       // ==================== SEARCH & ANALYSIS VALIDATION ====================
 
-      case "search_clips_by_content": {
+      case 'search_clips_by_content': {
         const { query } = call.args;
         if (!query || query.trim().length === 0) {
-          return { valid: false, error: "Search query cannot be empty" };
+          return { valid: false, error: 'Search query cannot be empty' };
         }
         return { valid: true };
       }
 
-      case "get_clip_analysis": {
+      case 'get_clip_analysis': {
         const { clip_id } = call.args;
         const clip = state.clips.find((c) => c.id === clip_id);
         if (!clip) {
@@ -513,54 +495,50 @@ export class ToolExecutor {
         return { valid: true };
       }
 
-      case "ask_clarification": {
+      case 'ask_clarification': {
         const { question, options } = call.args;
-        if (typeof question !== "string" || question.trim().length === 0) {
-          return { valid: false, error: "question is required" };
+        if (typeof question !== 'string' || question.trim().length === 0) {
+          return { valid: false, error: 'question is required' };
         }
         if (!Array.isArray(options) || options.length < 2) {
-          return { valid: false, error: "options must include at least two choices" };
+          return { valid: false, error: 'options must include at least two choices' };
         }
         return { valid: true };
       }
 
-      case "get_timeline_info":
-      case "paste_clips":
-      case "update_subtitle_style":
-      case "get_subtitles":
-      case "clear_all_subtitles":
-      case "transcribe_timeline":
-      case "get_transcription":
-      case "save_project":
-      case "get_project_info":
-      case "get_all_media_analysis":
-      case "find_highlights":
-      case "generate_chapters":
+      case 'get_timeline_info':
+      case 'paste_clips':
+      case 'update_subtitle_style':
+      case 'get_subtitles':
+      case 'clear_all_subtitles':
+      case 'transcribe_timeline':
+      case 'get_transcription':
+      case 'save_project':
+      case 'get_project_info':
+      case 'get_all_media_analysis':
+      case 'find_highlights':
+      case 'generate_chapters':
         // No validation needed for these
         return { valid: true };
 
-      case "set_clip_speed": {
+      case 'set_clip_speed': {
         const { clip_id, speed } = call.args;
-        if (!clip_id) return { valid: false, error: "clip_id is required" };
-        if (typeof speed !== "number" || speed < 0.25 || speed > 8.0) {
+        if (!clip_id) return { valid: false, error: 'clip_id is required' };
+        if (typeof speed !== 'number' || speed < 0.25 || speed > 8.0) {
           return {
             valid: false,
-            error: "speed must be a number between 0.25 and 8.0",
+            error: 'speed must be a number between 0.25 and 8.0',
           };
         }
-        const clip = useProjectStore
-          .getState()
-          .clips.find((c) => c.id === clip_id);
+        const clip = useProjectStore.getState().clips.find((c) => c.id === clip_id);
         if (!clip) return { valid: false, error: `Clip ${clip_id} not found` };
         return { valid: true };
       }
 
-      case "apply_clip_effect": {
+      case 'apply_clip_effect': {
         const { clip_id } = call.args;
-        if (!clip_id) return { valid: false, error: "clip_id is required" };
-        const clip = useProjectStore
-          .getState()
-          .clips.find((c) => c.id === clip_id);
+        if (!clip_id) return { valid: false, error: 'clip_id is required' };
+        const clip = useProjectStore.getState().clips.find((c) => c.id === clip_id);
         if (!clip) return { valid: false, error: `Clip ${clip_id} not found` };
         return { valid: true };
       }
@@ -569,8 +547,8 @@ export class ToolExecutor {
         return {
           valid: false,
           error: `Unknown function: ${call.name}`,
-          errorType: "tool_missing",
-          recoveryHint: "Use only supported tools from toolConfig.",
+          errorType: 'tool_missing',
+          recoveryHint: 'Use only supported tools from toolConfig.',
         };
     }
   }
@@ -583,7 +561,7 @@ export class ToolExecutor {
 
     try {
       switch (call.name) {
-        case "get_timeline_info": {
+        case 'get_timeline_info': {
           const clips = store.clips.map((c) => ({
             id: c.id,
             name: c.name,
@@ -616,16 +594,14 @@ export class ToolExecutor {
           };
         }
 
-        case "ask_clarification": {
-          const question = String(call.args?.question || "Need clarification");
-          const options = Array.isArray(call.args?.options)
-            ? call.args.options
-            : [];
+        case 'ask_clarification': {
+          const question = String(call.args?.question || 'Need clarification');
+          const options = Array.isArray(call.args?.options) ? call.args.options : [];
           return {
             name: call.name,
             result: {
               success: true,
-              message: "Clarification requested",
+              message: 'Clarification requested',
               data: {
                 question,
                 options,
@@ -635,7 +611,7 @@ export class ToolExecutor {
           };
         }
 
-        case "split_clip": {
+        case 'split_clip': {
           const { clip_id, time_in_clip } = call.args;
           const clip = store.clips.find((c) => c.id === clip_id);
           if (!clip) throw new Error(`Clip ${clip_id} not found`);
@@ -651,7 +627,7 @@ export class ToolExecutor {
           };
         }
 
-        case "delete_clips": {
+        case 'delete_clips': {
           const { clip_ids } = call.args;
           const requestedIds: string[] = Array.isArray(clip_ids) ? clip_ids : [];
           const deletedIds: string[] = [];
@@ -679,14 +655,14 @@ export class ToolExecutor {
             result: {
               success,
               message: success
-                ? `Deleted ${deletedCount}/${requestedCount} clip(s): ${deletedNames.join(", ")}${wasPartial ? ` (missing: ${missingIds.join(", ")})` : ""}`
-                : `No clips were deleted. Missing clip IDs: ${missingIds.join(", ")}`,
+                ? `Deleted ${deletedCount}/${requestedCount} clip(s): ${deletedNames.join(', ')}${wasPartial ? ` (missing: ${missingIds.join(', ')})` : ''}`
+                : `No clips were deleted. Missing clip IDs: ${missingIds.join(', ')}`,
               ...(success
                 ? {}
                 : {
                     error: `No matching clips found for requested IDs`,
-                    errorType: "validation_error",
-                    recoveryHint: "Call get_timeline_info to refresh clip IDs, then retry.",
+                    errorType: 'validation_error',
+                    recoveryHint: 'Call get_timeline_info to refresh clip IDs, then retry.',
                   }),
               data: {
                 requested_count: requestedCount,
@@ -698,7 +674,7 @@ export class ToolExecutor {
           };
         }
 
-        case "move_clip": {
+        case 'move_clip': {
           const { clip_id, start_time, track_index } = call.args;
           const clip = store.clips.find((c) => c.id === clip_id);
           if (!clip) throw new Error(`Clip ${clip_id} not found`);
@@ -709,12 +685,12 @@ export class ToolExecutor {
             name: call.name,
             result: {
               success: true,
-              message: `Moved "${clip.name}" to ${start_time.toFixed(1)}s${track_index !== undefined ? ` on track ${track_index}` : ""}`,
+              message: `Moved "${clip.name}" to ${start_time.toFixed(1)}s${track_index !== undefined ? ` on track ${track_index}` : ''}`,
             },
           };
         }
 
-        case "merge_clips": {
+        case 'merge_clips': {
           const { clip_ids } = call.args;
           const clipNames = clip_ids.map(
             (id: string) => store.clips.find((c) => c.id === id)?.name || id,
@@ -729,12 +705,12 @@ export class ToolExecutor {
             name: call.name,
             result: {
               success: true,
-              message: `Merged ${clip_ids.length} clips: ${clipNames.join(", ")}`,
+              message: `Merged ${clip_ids.length} clips: ${clipNames.join(', ')}`,
             },
           };
         }
 
-        case "copy_clips": {
+        case 'copy_clips': {
           const { clip_ids } = call.args;
           // Select clips first
           store.selectClips(clip_ids);
@@ -750,7 +726,7 @@ export class ToolExecutor {
           };
         }
 
-        case "paste_clips": {
+        case 'paste_clips': {
           store.pasteClips();
           const copiedCount = store.copiedClips.length;
 
@@ -763,13 +739,11 @@ export class ToolExecutor {
           };
         }
 
-        case "set_clip_volume": {
+        case 'set_clip_volume': {
           const { clip_ids, volume } = call.args;
 
           // Handle "all" keyword
-          const targetIds = clip_ids.includes("all")
-            ? store.clips.map((c) => c.id)
-            : clip_ids;
+          const targetIds = clip_ids.includes('all') ? store.clips.map((c) => c.id) : clip_ids;
 
           targetIds.forEach((id: string) => store.setClipVolume(id, volume));
 
@@ -783,7 +757,7 @@ export class ToolExecutor {
           };
         }
 
-        case "toggle_clip_mute": {
+        case 'toggle_clip_mute': {
           const { clip_ids } = call.args;
           clip_ids.forEach((id: string) => store.toggleClipMute(id));
 
@@ -796,11 +770,9 @@ export class ToolExecutor {
           };
         }
 
-        case "select_clips": {
+        case 'select_clips': {
           const { clip_ids } = call.args;
-          const targetIds = clip_ids.includes("all")
-            ? store.clips.map((c) => c.id)
-            : clip_ids;
+          const targetIds = clip_ids.includes('all') ? store.clips.map((c) => c.id) : clip_ids;
 
           store.selectClips(targetIds);
 
@@ -813,33 +785,33 @@ export class ToolExecutor {
           };
         }
 
-        case "undo_action": {
-          if (!store.canUndo()) throw new Error("Nothing to undo");
+        case 'undo_action': {
+          if (!store.canUndo()) throw new Error('Nothing to undo');
           store.undo();
 
           return {
             name: call.name,
             result: {
               success: true,
-              message: "Undid last action",
+              message: 'Undid last action',
             },
           };
         }
 
-        case "redo_action": {
-          if (!store.canRedo()) throw new Error("Nothing to redo");
+        case 'redo_action': {
+          if (!store.canRedo()) throw new Error('Nothing to redo');
           store.redo();
 
           return {
             name: call.name,
             result: {
               success: true,
-              message: "Redid last action",
+              message: 'Redid last action',
             },
           };
         }
 
-        case "set_playhead_position": {
+        case 'set_playhead_position': {
           const { time } = call.args;
           store.setCurrentTime(time);
 
@@ -852,7 +824,7 @@ export class ToolExecutor {
           };
         }
 
-        case "update_clip_bounds": {
+        case 'update_clip_bounds': {
           const { clip_id, new_start, new_end } = call.args;
           const clip = store.clips.find((c) => c.id === clip_id);
           if (!clip) throw new Error(`Clip ${clip_id} not found`);
@@ -860,8 +832,7 @@ export class ToolExecutor {
           const normalized = this.normalizeClipBounds(clip, new_start, new_end);
           if (!normalized.valid) {
             throw new Error(
-              normalized.error ||
-                `Failed to normalize clip bounds for "${clip.name}"`,
+              normalized.error || `Failed to normalize clip bounds for "${clip.name}"`,
             );
           }
 
@@ -874,8 +845,8 @@ export class ToolExecutor {
           store.updateClip(clip_id, updates);
 
           const adjustmentSuffix = normalized.adjusted
-            ? ` (auto-adjusted: ${normalized.adjustmentNotes.join("; ")})`
-            : "";
+            ? ` (auto-adjusted: ${normalized.adjustmentNotes.join('; ')})`
+            : '';
 
           return {
             name: call.name,
@@ -886,7 +857,7 @@ export class ToolExecutor {
           };
         }
 
-        case "get_clip_details": {
+        case 'get_clip_details': {
           const { clip_id } = call.args;
           const clip = store.clips.find((c) => c.id === clip_id);
           if (!clip) throw new Error(`Clip ${clip_id} not found`);
@@ -919,7 +890,7 @@ export class ToolExecutor {
 
         // ==================== SUBTITLE EXECUTION ====================
 
-        case "add_subtitle": {
+        case 'add_subtitle': {
           const { text, start_time, end_time } = call.args;
           const newSubtitle = {
             index: store.subtitles.length + 1,
@@ -940,7 +911,7 @@ export class ToolExecutor {
           };
         }
 
-        case "update_subtitle": {
+        case 'update_subtitle': {
           const { index, text, start_time, end_time } = call.args;
           const subtitles = [...store.subtitles];
           const subtitle = subtitles[index - 1];
@@ -961,7 +932,7 @@ export class ToolExecutor {
           };
         }
 
-        case "delete_subtitle": {
+        case 'delete_subtitle': {
           const { index } = call.args;
           const subtitles = store.subtitles.filter((_, i) => i !== index - 1);
 
@@ -981,16 +952,14 @@ export class ToolExecutor {
           };
         }
 
-        case "update_subtitle_style": {
-          const { font_size, font_family, color, background_color, position } =
-            call.args;
+        case 'update_subtitle_style': {
+          const { font_size, font_family, color, background_color, position } = call.args;
           const updates: any = {};
 
           if (font_size !== undefined) updates.fontSize = font_size;
           if (font_family !== undefined) updates.fontFamily = font_family;
           if (color !== undefined) updates.color = color;
-          if (background_color !== undefined)
-            updates.backgroundColor = background_color;
+          if (background_color !== undefined) updates.backgroundColor = background_color;
           if (position !== undefined) updates.position = position;
 
           store.updateSubtitleStyle(updates);
@@ -999,13 +968,13 @@ export class ToolExecutor {
             name: call.name,
             result: {
               success: true,
-              message: "Updated subtitle styling",
+              message: 'Updated subtitle styling',
               data: { updates },
             },
           };
         }
 
-        case "get_subtitles": {
+        case 'get_subtitles': {
           return {
             name: call.name,
             result: {
@@ -1019,7 +988,7 @@ export class ToolExecutor {
           };
         }
 
-        case "clear_all_subtitles": {
+        case 'clear_all_subtitles': {
           const count = store.subtitles.length;
           store.clearSubtitles();
 
@@ -1034,15 +1003,15 @@ export class ToolExecutor {
 
         // ==================== TRANSCRIPTION EXECUTION ====================
 
-        case "transcribe_clip": {
+        case 'transcribe_clip': {
           const { clip_id } = call.args;
-          const targetId = clip_id === "active" ? store.activeClipId : clip_id;
+          const targetId = clip_id === 'active' ? store.activeClipId : clip_id;
           const clip = store.clips.find((c) => c.id === targetId);
 
-          if (!clip) throw new Error("Clip not found");
+          if (!clip) throw new Error('Clip not found');
 
           // Trigger transcription asynchronously
-          if (clip_id === "active") {
+          if (clip_id === 'active') {
             store.transcribeCurrentClip();
           } else {
             store.transcribeFile(clip.path);
@@ -1058,19 +1027,19 @@ export class ToolExecutor {
           };
         }
 
-        case "transcribe_timeline": {
+        case 'transcribe_timeline': {
           store.transcribeTimeline();
 
           return {
             name: call.name,
             result: {
               success: true,
-              message: "Started transcribing timeline...",
+              message: 'Started transcribing timeline...',
             },
           };
         }
 
-        case "get_transcription": {
+        case 'get_transcription': {
           const transcription = store.transcription;
 
           if (!transcription) {
@@ -1078,7 +1047,7 @@ export class ToolExecutor {
               name: call.name,
               result: {
                 success: true,
-                message: "No transcription available",
+                message: 'No transcription available',
                 data: { transcription: null },
               },
             };
@@ -1088,7 +1057,7 @@ export class ToolExecutor {
             name: call.name,
             result: {
               success: true,
-              message: "Retrieved transcription",
+              message: 'Retrieved transcription',
               data: {
                 text: transcription.text,
                 segments: transcription.segments,
@@ -1098,12 +1067,12 @@ export class ToolExecutor {
           };
         }
 
-        case "apply_transcript_edits": {
+        case 'apply_transcript_edits': {
           const { deletion_ranges } = call.args;
 
           // This is async but we'll fire and forget
           store.applyTranscriptEdits(deletion_ranges).catch((err) => {
-            console.error("Error applying transcript edits:", err);
+            console.error('Error applying transcript edits:', err);
           });
 
           return {
@@ -1118,17 +1087,17 @@ export class ToolExecutor {
 
         // ==================== PROJECT MANAGEMENT EXECUTION ====================
 
-        case "save_project": {
+        case 'save_project': {
           // Trigger save asynchronously
           store.saveProject().catch((err) => {
-            console.error("Error saving project:", err);
+            console.error('Error saving project:', err);
           });
 
           return {
             name: call.name,
             result: {
               success: true,
-              message: "Saving project...",
+              message: 'Saving project...',
               data: {
                 projectPath: store.projectPath,
                 hasUnsavedChanges: store.hasUnsavedChanges,
@@ -1137,7 +1106,7 @@ export class ToolExecutor {
           };
         }
 
-        case "set_export_settings": {
+        case 'set_export_settings': {
           const { format, resolution } = call.args;
           const updates: string[] = [];
 
@@ -1154,7 +1123,7 @@ export class ToolExecutor {
             name: call.name,
             result: {
               success: true,
-              message: `Updated export settings (${updates.join(", ")})`,
+              message: `Updated export settings (${updates.join(', ')})`,
               data: {
                 format: store.exportFormat,
                 resolution: store.exportResolution,
@@ -1163,12 +1132,12 @@ export class ToolExecutor {
           };
         }
 
-        case "get_project_info": {
+        case 'get_project_info': {
           return {
             name: call.name,
             result: {
               success: true,
-              message: "Retrieved project information",
+              message: 'Retrieved project information',
               data: {
                 projectPath: store.projectPath,
                 projectId: store.projectId,
@@ -1187,12 +1156,12 @@ export class ToolExecutor {
 
         // ==================== SEARCH & ANALYSIS EXECUTION ====================
 
-        case "search_clips_by_content": {
+        case 'search_clips_by_content': {
           const { query } = call.args;
           const memoryStore = useAiMemoryStore.getState();
           const completedEntries = memoryStore.getCompletedEntries();
           const matchingEntries = retrieveRelevantMemory({
-            query: String(query || ""),
+            query: String(query || ''),
             entries: completedEntries,
             maxEntries: 10,
             maxScenesPerEntry: 2,
@@ -1221,7 +1190,7 @@ export class ToolExecutor {
           };
         }
 
-        case "get_clip_analysis": {
+        case 'get_clip_analysis': {
           const { clip_id } = call.args;
           const memoryStore = useAiMemoryStore.getState();
           const analysis = memoryStore.getEntryByClipId(clip_id);
@@ -1231,7 +1200,7 @@ export class ToolExecutor {
               name: call.name,
               result: {
                 success: true,
-                message: "No AI analysis available for this clip",
+                message: 'No AI analysis available for this clip',
                 data: { analysis: null },
               },
             };
@@ -1254,7 +1223,7 @@ export class ToolExecutor {
           };
         }
 
-        case "get_all_media_analysis": {
+        case 'get_all_media_analysis': {
           const memoryStore = useAiMemoryStore.getState();
           const context = memoryStore.getMemoryContext();
 
@@ -1277,7 +1246,7 @@ export class ToolExecutor {
           };
         }
 
-        case "set_clip_speed": {
+        case 'set_clip_speed': {
           const { clip_id, speed } = call.args;
           const clip = store.clips.find((c) => c.id === clip_id);
           const oldSpeed = clip?.speed ?? 1;
@@ -1292,23 +1261,20 @@ export class ToolExecutor {
           };
         }
 
-        case "apply_clip_effect": {
-          const { clip_id, brightness, contrast, saturation, gamma } =
-            call.args;
+        case 'apply_clip_effect': {
+          const { clip_id, brightness, contrast, saturation, gamma } = call.args;
           const clip = store.clips.find((c) => c.id === clip_id);
           const newEffects: any = {};
           if (brightness !== undefined)
             newEffects.brightness = Math.max(-1, Math.min(1, brightness));
-          if (contrast !== undefined)
-            newEffects.contrast = Math.max(0, Math.min(3, contrast));
+          if (contrast !== undefined) newEffects.contrast = Math.max(0, Math.min(3, contrast));
           if (saturation !== undefined)
             newEffects.saturation = Math.max(0, Math.min(3, saturation));
-          if (gamma !== undefined)
-            newEffects.gamma = Math.max(0.1, Math.min(10, gamma));
+          if (gamma !== undefined) newEffects.gamma = Math.max(0.1, Math.min(10, gamma));
           store.setClipEffects(clip_id, newEffects);
           const parts = Object.entries(newEffects)
             .map(([k, v]) => `${k}=${v}`)
-            .join(", ");
+            .join(', ');
           return {
             name: call.name,
             result: {
@@ -1319,8 +1285,8 @@ export class ToolExecutor {
           };
         }
 
-        case "find_highlights": {
-          const { criteria = "exciting moments", max_results = 5 } = call.args;
+        case 'find_highlights': {
+          const { criteria = 'exciting moments', max_results = 5 } = call.args;
           const memoryStore = useAiMemoryStore.getState();
           const entries = memoryStore.entries ?? [];
           const clips = store.clips;
@@ -1328,21 +1294,19 @@ export class ToolExecutor {
           // Score each entry against criteria keywords
           const keywords = criteria.toLowerCase().split(/\s+/);
           const scored = entries
-            .filter((e: any) => e.status === "completed")
+            .filter((e: any) => e.status === 'completed')
             .map((entry: any) => {
               const haystack = [
-                entry.summary ?? "",
+                entry.summary ?? '',
                 ...(entry.tags ?? []),
-                entry.analysis?.audioInfo?.mood ?? "",
-                entry.analysis?.audioInfo?.speechContent ?? "",
+                entry.analysis?.audioInfo?.mood ?? '',
+                entry.analysis?.audioInfo?.speechContent ?? '',
                 ...(entry.analysis?.visualInfo?.subjects ?? []),
-                entry.analysis?.visualInfo?.style ?? "",
+                entry.analysis?.visualInfo?.style ?? '',
               ]
-                .join(" ")
+                .join(' ')
                 .toLowerCase();
-              const score = keywords.filter((kw: string) =>
-                haystack.includes(kw),
-              ).length;
+              const score = keywords.filter((kw: string) => haystack.includes(kw)).length;
               return { entry, score };
             })
             .filter(({ score }: any) => score > 0)
@@ -1368,8 +1332,7 @@ export class ToolExecutor {
               summary: entry.summary,
               tags: entry.tags?.slice(0, 5),
               timelineStart: clip?.startTime ?? 0,
-              duration:
-                clip?.duration ?? entry.analysis?.metadata?.duration ?? 0,
+              duration: clip?.duration ?? entry.analysis?.metadata?.duration ?? 0,
             };
           });
 
@@ -1383,8 +1346,8 @@ export class ToolExecutor {
           };
         }
 
-        case "generate_chapters": {
-          const { add_as = "subtitles", min_chapter_duration = 30 } = call.args;
+        case 'generate_chapters': {
+          const { add_as = 'subtitles', min_chapter_duration = 30 } = call.args;
           const transcription = store.transcription;
           const memoryStore = useAiMemoryStore.getState();
           const entries = memoryStore.entries ?? [];
@@ -1395,9 +1358,9 @@ export class ToolExecutor {
               result: {
                 success: false,
                 message:
-                  "No transcription or media analysis available. Please transcribe the timeline first.",
-                errorType: "constraint_violation",
-                recoveryHint: "Run transcribe_timeline or import analyzed media, then retry.",
+                  'No transcription or media analysis available. Please transcribe the timeline first.',
+                errorType: 'constraint_violation',
+                recoveryHint: 'Run transcribe_timeline or import analyzed media, then retry.',
               },
             };
           }
@@ -1425,14 +1388,15 @@ export class ToolExecutor {
               result: {
                 success: false,
                 message:
-                  "Could not generate chapters — transcript too short or no content breaks found.",
-                errorType: "execution_error",
-                recoveryHint: "Try a smaller min_chapter_duration or transcribe richer content first.",
+                  'Could not generate chapters — transcript too short or no content breaks found.',
+                errorType: 'execution_error',
+                recoveryHint:
+                  'Try a smaller min_chapter_duration or transcribe richer content first.',
               },
             };
           }
 
-          if (add_as === "subtitles") {
+          if (add_as === 'subtitles') {
             const existingSubs = store.subtitles;
             const newSubs = chapters.map((ch, i) => ({
               id: `chapter-${Date.now()}-${i}`,
@@ -1446,18 +1410,18 @@ export class ToolExecutor {
             // Add text overlay clips at chapter positions
             chapters.forEach((ch) => {
               store.addClip({
-                path: "",
+                path: '',
                 name: `Chapter: ${ch.title}`,
-                mediaType: "text",
+                mediaType: 'text',
                 startTime: ch.time,
                 duration: 3,
                 sourceDuration: 3,
                 textProperties: {
                   text: `Chapter: ${ch.title}`,
                   fontSize: 28,
-                  color: "#FFFFFF",
-                  position: "top",
-                  align: "center",
+                  color: '#FFFFFF',
+                  position: 'top',
+                  align: 'center',
                   bold: true,
                 } as any,
               } as any);
@@ -1482,10 +1446,10 @@ export class ToolExecutor {
         name: call.name,
         result: {
           success: false,
-          message: "Execution failed",
-          error: error instanceof Error ? error.message : "Unknown error",
-          errorType: "execution_error",
-          recoveryHint: "Inspect tool arguments and current timeline state, then retry.",
+          message: 'Execution failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          errorType: 'execution_error',
+          recoveryHint: 'Inspect tool arguments and current timeline state, then retry.',
         },
       };
     }
@@ -1499,12 +1463,12 @@ export class ToolExecutor {
       name: call.name,
       result: {
         success: false,
-        message: "Validation failed",
+        message: 'Validation failed',
         error: validation.error,
-        errorType: validation.errorType || "validation_error",
+        errorType: validation.errorType || 'validation_error',
         recoveryHint:
           validation.recoveryHint ||
-          "Re-check IDs, required args, and numeric ranges before retrying.",
+          'Re-check IDs, required args, and numeric ranges before retrying.',
         adjustments: validation.adjustments,
       },
     };
@@ -1517,36 +1481,34 @@ export class ToolExecutor {
       result: {
         ...result.result,
         success: Boolean(result.result.success),
-        message: result.result.message || (result.result.success ? "Completed" : "Execution failed"),
+        message:
+          result.result.message || (result.result.success ? 'Completed' : 'Execution failed'),
       },
     };
 
     if (!normalized.result.success) {
-      normalized.result.errorType = normalized.result.errorType || "execution_error";
+      normalized.result.errorType = normalized.result.errorType || 'execution_error';
       normalized.result.recoveryHint =
         normalized.result.recoveryHint ||
-        "Inspect tool arguments and current timeline state, then retry.";
-      normalized.result.error = normalized.result.error || "Unknown error";
+        'Inspect tool arguments and current timeline state, then retry.';
+      normalized.result.error = normalized.result.error || 'Unknown error';
     }
 
     return normalized;
   }
 
-  private static buildModeDeniedResult(
-    call: FunctionCall,
-    mode: RuntimeToolMode,
-  ): ToolResult {
+  private static buildModeDeniedResult(call: FunctionCall, mode: RuntimeToolMode): ToolResult {
     return {
       name: call.name,
       result: {
         success: false,
-        message: "Mode policy blocked tool execution",
-        errorType: "constraint_violation",
+        message: 'Mode policy blocked tool execution',
+        errorType: 'constraint_violation',
         error: `Tool "${call.name}" is not allowed in "${mode}" mode.`,
         recoveryHint:
-          mode === "ask" || mode === "plan"
-            ? "Switch to edit mode (or request execution) before mutating timeline state."
-            : "Retry with a tool allowed by current mode policy.",
+          mode === 'ask' || mode === 'plan'
+            ? 'Switch to edit mode (or request execution) before mutating timeline state.'
+            : 'Retry with a tool allowed by current mode policy.',
       },
     };
   }
@@ -1557,32 +1519,29 @@ export class ToolExecutor {
     total: number,
     context?: ExecutionLifecycleContext,
   ): Promise<ToolResult> {
-    context?.onLifecycle?.({ call, index, total, state: "pending" });
+    context?.onLifecycle?.({ call, index, total, state: 'pending' });
     context?.onHook?.({
       call,
       index,
       total,
-      event: "tool.execute.before",
+      event: 'tool.execute.before',
     });
 
     const mode = context?.mode;
     if (mode && !isToolAllowedInMode(call.name, mode)) {
-      const denied = this.normalizeToolResult(
-        call,
-        this.buildModeDeniedResult(call, mode),
-      );
+      const denied = this.normalizeToolResult(call, this.buildModeDeniedResult(call, mode));
       context?.onLifecycle?.({
         call,
         index,
         total,
-        state: "error",
+        state: 'error',
         result: denied,
       });
       context?.onHook?.({
         call,
         index,
         total,
-        event: "tool.execute.after",
+        event: 'tool.execute.after',
         result: denied,
       });
       return denied;
@@ -1598,34 +1557,34 @@ export class ToolExecutor {
         call,
         index,
         total,
-        state: "error",
+        state: 'error',
         result: failed,
       });
       context?.onHook?.({
         call,
         index,
         total,
-        event: "tool.execute.after",
+        event: 'tool.execute.after',
         result: failed,
       });
       return failed;
     }
 
-    context?.onLifecycle?.({ call, index, total, state: "running" });
+    context?.onLifecycle?.({ call, index, total, state: 'running' });
 
     const result = this.normalizeToolResult(call, this.executeSingle(call));
     context?.onLifecycle?.({
       call,
       index,
       total,
-      state: result.result.success ? "completed" : "error",
+      state: result.result.success ? 'completed' : 'error',
       result,
     });
     context?.onHook?.({
       call,
       index,
       total,
-      event: "tool.execute.after",
+      event: 'tool.execute.after',
       result,
     });
     return result;
@@ -1653,16 +1612,14 @@ export class ToolExecutor {
         issues.push({
           index,
           name: call.name,
-          message: validation.error || "Validation failed",
-          errorType: validation.errorType || "validation_error",
+          message: validation.error || 'Validation failed',
+          errorType: validation.errorType || 'validation_error',
           recoveryHint: validation.recoveryHint,
         });
       }
 
       if (validation.adjustments && validation.adjustments.length > 0) {
-        corrections.push(
-          `${call.name}: ${validation.adjustments.join("; ")}`,
-        );
+        corrections.push(`${call.name}: ${validation.adjustments.join('; ')}`);
       }
 
       normalizedCalls.push(call);
@@ -1682,14 +1639,11 @@ export class ToolExecutor {
     onProgress?: (index: number, total: number, result: ToolResult) => void,
     lifecycle?: ExecutionLifecycleContext,
   ): Promise<ToolResult[]> {
-    const mode = policy.mode || "strict_sequential";
-    const maxReadOnlyBatchSize = Math.max(
-      1,
-      Math.min(3, policy.maxReadOnlyBatchSize || 3),
-    );
+    const mode = policy.mode || 'strict_sequential';
+    const maxReadOnlyBatchSize = Math.max(1, Math.min(3, policy.maxReadOnlyBatchSize || 3));
     const stopOnFailure = policy.stopOnFailure ?? true;
 
-    if (mode !== "hybrid") {
+    if (mode !== 'hybrid') {
       return this.executeAll(calls, onProgress, lifecycle);
     }
 
@@ -1768,12 +1722,7 @@ export class ToolExecutor {
 
     for (let i = 0; i < calls.length; i++) {
       const call = calls[i];
-      const result = await this.executeToolCallWithLifecycle(
-        call,
-        i + 1,
-        calls.length,
-        lifecycle,
-      );
+      const result = await this.executeToolCallWithLifecycle(call, i + 1, calls.length, lifecycle);
       results.push(result);
 
       // Progress callback

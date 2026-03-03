@@ -34,7 +34,7 @@ if (app.isPackaged) {
   let binaryName = 'ffmpeg';
   let probeName = 'ffprobe';
 
-   if (platform === 'darwin') {
+  if (platform === 'darwin') {
     platformFolder = 'ffmpeg-mac';
   } else if (platform === 'win32') {
     platformFolder = 'ffmpeg-win';
@@ -43,7 +43,7 @@ if (app.isPackaged) {
   } else if (platform === 'linux') {
     platformFolder = 'ffmpeg-linux';
   }
-  
+
   ffmpegPath = path.join(app.getAppPath(), 'resources', platformFolder, binaryName);
   ffprobePath = path.join(app.getAppPath(), 'resources', platformFolder, probeName);
 }
@@ -67,7 +67,7 @@ if (fs.existsSync(ffprobePath)) {
 
 export const generateThumbnail = async (filePath: string): Promise<string> => {
   const cache = getCacheManager();
-  
+
   // Check cache first
   const cached = cache.getThumbnail(filePath);
   if (cached) {
@@ -86,7 +86,7 @@ export const generateThumbnail = async (filePath: string): Promise<string> => {
         timemarks: ['1'], // Take screenshot at 1 second
         folder: tempDir,
         filename: filename,
-        size: '320x180' // Standard 16:9 thumbnail size
+        size: '320x180', // Standard 16:9 thumbnail size
       })
       .on('end', () => {
         try {
@@ -110,7 +110,7 @@ export const generateThumbnail = async (filePath: string): Promise<string> => {
 
 export const generateWaveform = async (filePath: string): Promise<string> => {
   const cache = getCacheManager();
-  
+
   // Check cache first
   const cached = cache.getWaveform(filePath);
   if (cached) {
@@ -125,7 +125,7 @@ export const generateWaveform = async (filePath: string): Promise<string> => {
 
     ffmpeg(filePath)
       .complexFilter([
-        'aformat=channel_layouts=mono,showwavespic=s=2048x240:colors=#0ea5e9,scale=2048:120,pad=2048:120:0:(oh-ih)/2:color=black@0[outv]'
+        'aformat=channel_layouts=mono,showwavespic=s=2048x240:colors=#0ea5e9,scale=2048:120,pad=2048:120:0:(oh-ih)/2:color=black@0[outv]',
       ])
       .outputOptions(['-map [outv]', '-f image2', '-vframes 1'])
       .output(outputPath)
@@ -146,7 +146,7 @@ export const generateWaveform = async (filePath: string): Promise<string> => {
         console.error('Waveform generation failed:', err);
         // Resolve with empty string or handle error gracefully so it doesn't crash the app
         // Just resolve null or empty string to indicate no waveform
-        resolve(''); 
+        resolve('');
       })
       .run();
   });
@@ -166,7 +166,7 @@ export const convertImageToVideo = (imagePath: string, duration: number): Promis
       .outputOptions([
         '-pix_fmt yuv420p',
         '-t ' + duration,
-        '-vf scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black'
+        '-vf scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black',
       ])
       .output(outputPath)
       .on('start', (cmd) => console.log('Image to video conversion command:', cmd))
@@ -183,13 +183,13 @@ export const convertImageToVideo = (imagePath: string, duration: number): Promis
 };
 
 export const exportVideo = async (
-  clips: any[], 
-  eventSender: Electron.WebContents, 
-  outputPath: string, 
+  clips: any[],
+  eventSender: Electron.WebContents,
+  outputPath: string,
   format: string = 'mp4',
   resolution?: string, // e.g., '1920x1080', '1280x720', '854x480'
   subtitles?: any[], // Subtitle entries
-  subtitleStyle?: any // Subtitle styling
+  subtitleStyle?: any, // Subtitle styling
 ) => {
   return new Promise<boolean>(async (resolve, reject) => {
     // Separate text clips from media clips, and sort media clips by their timeline startTime
@@ -205,7 +205,11 @@ export const exportVideo = async (
     };
 
     // Helper: Convert image to video segment with proper duration
-    const convertImageSegment = async (imagePath: string, duration: number, outputPath: string): Promise<void> => {
+    const convertImageSegment = async (
+      imagePath: string,
+      duration: number,
+      outputPath: string,
+    ): Promise<void> => {
       return new Promise((resolve, reject) => {
         ffmpeg(imagePath)
           .loop(duration)
@@ -215,7 +219,7 @@ export const exportVideo = async (
           .outputOptions([
             '-pix_fmt yuv420p',
             '-t ' + duration,
-            '-vf scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black'
+            '-vf scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black',
           ])
           .output(outputPath)
           .on('end', () => resolve())
@@ -235,10 +239,10 @@ export const exportVideo = async (
         parts.push(`setpts=${(1 / speed).toFixed(6)}*PTS`);
       }
       // eq filter for brightness/contrast/saturation/gamma
-      const br = fx.brightness ?? 0;   // -1 to 1, default 0
-      const co = fx.contrast ?? 1;     // 0 to 3,  default 1
-      const sa = fx.saturation ?? 1;   // 0 to 3,  default 1
-      const ga = fx.gamma ?? 1;        // 0.1–10,  default 1
+      const br = fx.brightness ?? 0; // -1 to 1, default 0
+      const co = fx.contrast ?? 1; // 0 to 3,  default 1
+      const sa = fx.saturation ?? 1; // 0 to 3,  default 1
+      const ga = fx.gamma ?? 1; // 0.1–10,  default 1
       if (br !== 0 || co !== 1 || sa !== 1 || ga !== 1) {
         parts.push(`eq=brightness=${br}:contrast=${co}:saturation=${sa}:gamma=${ga}`);
       }
@@ -266,37 +270,37 @@ export const exportVideo = async (
     // Helper: Generate drawtext filters for text clips
     const generateTextFilters = (textClips: any[]) => {
       if (textClips.length === 0) return '';
-      
+
       const filters: string[] = [];
-      
+
       textClips.forEach((clip: any) => {
         const props = clip.textProperties;
         if (!props) return;
-        
+
         // Escape text for FFmpeg (replace single quotes and special chars)
         const escapedText = props.text
           .replace(/\\/g, '\\\\\\\\')
           .replace(/'/g, "\\\\'")
           .replace(/:/g, '\\:')
           .replace(/\n/g, '\\n');
-        
+
         // Calculate position
         let x = 'w/2';
         let y = 'h/2';
-        
+
         if (props.position === 'top') {
           y = 'h*0.1';
         } else if (props.position === 'bottom') {
           y = 'h*0.9';
         }
-        
+
         // Text alignment
         if (props.align === 'left') {
           x = 'w*0.1';
         } else if (props.align === 'right') {
           x = 'w*0.9';
         }
-        
+
         // Build drawtext filter
         let drawtextFilter = `drawtext=text='${escapedText}'`;
         drawtextFilter += `:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf`;
@@ -304,27 +308,27 @@ export const exportVideo = async (
         drawtextFilter += `:fontcolor=${props.color}`;
         drawtextFilter += `:x=${x}-text_w/2`;
         drawtextFilter += `:y=${y}-text_h/2`;
-        
+
         if (props.bold) {
           drawtextFilter += `:font=bold`;
         }
-        
+
         if (props.backgroundColor) {
           drawtextFilter += `:box=1:boxcolor=${props.backgroundColor}:boxborderw=10`;
         }
-        
+
         if (props.outline) {
           drawtextFilter += `:borderw=2:bordercolor=${props.outlineColor || '#000000'}`;
         }
-        
+
         // Time-based enable (when to show the text)
         const startTime = clip.startTime;
         const endTime = clip.startTime + clip.duration;
         drawtextFilter += `:enable='between(t,${startTime},${endTime})'`;
-        
+
         filters.push(drawtextFilter);
       });
-      
+
       return filters.join(',');
     };
 
@@ -337,26 +341,28 @@ export const exportVideo = async (
           volume: clip.volume ?? 1,
           muted: clip.muted ?? false,
           mediaType: clip.mediaType,
-          duration: seg.duration || (seg.sourceEnd - seg.sourceStart),
+          duration: seg.duration || seg.sourceEnd - seg.sourceStart,
           fadeIn: clip.fadeIn ?? 0,
           fadeOut: clip.fadeOut ?? 0,
           speed: clip.speed ?? 1,
           effects: clip.effects ?? null,
         }));
       }
-      return [{
-        path: clip.path,
-        start: clip.start,
-        end: clip.end,
-        volume: clip.volume ?? 1,
-        muted: clip.muted ?? false,
-        mediaType: clip.mediaType,
-        duration: clip.duration || (clip.end - clip.start),
-        fadeIn: clip.fadeIn ?? 0,
-        fadeOut: clip.fadeOut ?? 0,
-        speed: clip.speed ?? 1,
-        effects: clip.effects ?? null,
-      }];
+      return [
+        {
+          path: clip.path,
+          start: clip.start,
+          end: clip.end,
+          volume: clip.volume ?? 1,
+          muted: clip.muted ?? false,
+          mediaType: clip.mediaType,
+          duration: clip.duration || clip.end - clip.start,
+          fadeIn: clip.fadeIn ?? 0,
+          fadeOut: clip.fadeOut ?? 0,
+          speed: clip.speed ?? 1,
+          effects: clip.effects ?? null,
+        },
+      ];
     });
 
     if (segments.length === 0) {
@@ -371,7 +377,7 @@ export const exportVideo = async (
       let subtitleFilePath: string | null = null;
       if (subtitles && subtitles.length > 0) {
         subtitleFilePath = path.join(tempDir, `subtitles_${Date.now()}.srt`);
-        
+
         // Generate SRT content
         const srtContent = subtitles
           .map((sub: any) => {
@@ -382,11 +388,11 @@ export const exportVideo = async (
               const millis = Math.floor((seconds % 1) * 1000);
               return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${millis.toString().padStart(3, '0')}`;
             };
-            
+
             return `${sub.index}\n${formatTime(sub.startTime)} --> ${formatTime(sub.endTime)}\n${sub.text}\n`;
           })
           .join('\n');
-        
+
         fs.writeFileSync(subtitleFilePath, srtContent, 'utf-8');
         tempFiles.push(subtitleFilePath);
         console.log('Generated subtitle file:', subtitleFilePath);
@@ -411,12 +417,7 @@ export const exportVideo = async (
 
       // Add each segment as a separate input with input options to trim
       segments.forEach((seg: any) => {
-        command
-          .input(seg.path)
-          .inputOptions([
-            `-ss ${seg.start}`,
-            `-t ${seg.end - seg.start}`
-          ]);
+        command.input(seg.path).inputOptions([`-ss ${seg.start}`, `-t ${seg.end - seg.start}`]);
       });
 
       console.log('Export segments:', segments);
@@ -428,7 +429,7 @@ export const exportVideo = async (
         avi: { video: 'mpeg4', audio: 'mp3', options: ['-q:v 5'] },
         webm: { video: 'libvpx-vp9', audio: 'libopus', options: ['-crf 30', '-b:v 2M'] },
       };
-      
+
       const config = formatConfig[format] || formatConfig.mp4;
 
       // Detect stream types from first segment
@@ -450,24 +451,40 @@ export const exportVideo = async (
       // SMART STREAM COPYING: Check if we can copy instead of re-encode
       let canUseStreamCopy = false;
       // Disable stream copy if there are text overlays or subtitles (we need to re-encode to burn text)
-      if (segments.length === 1 && !resolution && segments[0].volume === 1 && !segments[0].muted && textClips.length === 0 && !subtitleFilePath && (segments[0].speed ?? 1) === 1 && !segments[0].effects) {
+      if (
+        segments.length === 1 &&
+        !resolution &&
+        segments[0].volume === 1 &&
+        !segments[0].muted &&
+        textClips.length === 0 &&
+        !subtitleFilePath &&
+        (segments[0].speed ?? 1) === 1 &&
+        !segments[0].effects
+      ) {
         // Check if we're exporting the full clip without cuts
         await new Promise<void>((resolveCheck) => {
           ffmpeg.ffprobe(segments[0].path, (err: any, metadata: any) => {
             if (!err && metadata) {
               const videoDuration = metadata.format.duration;
               const segmentDuration = segments[0].end - segments[0].start;
-              const isFullClip = segments[0].start === 0 && Math.abs(videoDuration - segmentDuration) < 0.1;
-              
+              const isFullClip =
+                segments[0].start === 0 && Math.abs(videoDuration - segmentDuration) < 0.1;
+
               // Check codec compatibility
               const videoStream = metadata.streams.find((s: any) => s.codec_type === 'video');
               const audioStream = metadata.streams.find((s: any) => s.codec_type === 'audio');
-              
-              const isCompatibleCodec = 
-                (format === 'mp4' && videoStream?.codec_name === 'h264' && audioStream?.codec_name === 'aac') ||
-                (format === 'mov' && videoStream?.codec_name === 'h264' && audioStream?.codec_name === 'aac') ||
-                (format === 'webm' && videoStream?.codec_name === 'vp9' && audioStream?.codec_name === 'opus');
-              
+
+              const isCompatibleCodec =
+                (format === 'mp4' &&
+                  videoStream?.codec_name === 'h264' &&
+                  audioStream?.codec_name === 'aac') ||
+                (format === 'mov' &&
+                  videoStream?.codec_name === 'h264' &&
+                  audioStream?.codec_name === 'aac') ||
+                (format === 'webm' &&
+                  videoStream?.codec_name === 'vp9' &&
+                  audioStream?.codec_name === 'opus');
+
               if (isFullClip && isCompatibleCodec) {
                 canUseStreamCopy = true;
                 console.log(' Using stream copy (no re-encoding needed)');
@@ -492,10 +509,7 @@ export const exportVideo = async (
         // Single segment - check if we can use stream copy
         if (canUseStreamCopy) {
           // Use stream copy - ultra-fast, no re-encoding
-          command
-            .videoCodec('copy')
-            .audioCodec('copy')
-            .output(outputPath);
+          command.videoCodec('copy').audioCodec('copy').output(outputPath);
         } else {
           // Need to re-encode
           if (hasVideoStream) {
@@ -503,7 +517,7 @@ export const exportVideo = async (
             if (resolution) {
               command.size(resolution);
             }
-            
+
             // Build video filters
             const videoFilters = [];
 
@@ -518,14 +532,16 @@ export const exportVideo = async (
                 videoFilters.push(textFilter);
               }
             }
-            
+
             // Apply subtitles if any
             if (subtitleFilePath) {
               // Escape path for FFmpeg
               const escapedSubPath = subtitleFilePath.replace(/\\/g, '/').replace(/:/g, '\\:');
-              videoFilters.push(`subtitles='${escapedSubPath}':force_style='FontSize=${subtitleStyle?.fontSize || 24},PrimaryColour=&H${subtitleStyle?.color?.replace('#', '') || 'FFFFFF'},Alignment=${subtitleStyle?.position === 'top' ? '8' : '2'}'`);
+              videoFilters.push(
+                `subtitles='${escapedSubPath}':force_style='FontSize=${subtitleStyle?.fontSize || 24},PrimaryColour=&H${subtitleStyle?.color?.replace('#', '') || 'FFFFFF'},Alignment=${subtitleStyle?.position === 'top' ? '8' : '2'}'`,
+              );
             }
-            
+
             if (videoFilters.length > 0) {
               command.videoFilters(videoFilters.join(','));
             }
@@ -554,9 +570,7 @@ export const exportVideo = async (
               command.audioFilters(audioFilterParts.join(','));
             }
           }
-          command
-            .outputOptions(config.options.filter(Boolean))
-            .output(outputPath);
+          command.outputOptions(config.options.filter(Boolean)).output(outputPath);
         }
       } else {
         // Multiple segments - concatenate with normalization
@@ -601,7 +615,7 @@ export const exportVideo = async (
             parts.push('aresample=48000', 'aformat=sample_rates=48000:channel_layouts=stereo');
             filterSteps.push(`[${index}:a]${parts.join(',')}[a${index}]`);
           }
-          
+
           if (hasVideoStream && hasAudioStream) {
             normalizedStreams.push(`[v${index}][a${index}]`);
           } else if (hasVideoStream) {
@@ -615,13 +629,13 @@ export const exportVideo = async (
         const concatParams = [];
         if (hasVideoStream) concatParams.push('v=1');
         if (hasAudioStream) concatParams.push('a=1');
-        
+
         const outputMaps = [];
         if (hasVideoStream) outputMaps.push('[outv]');
         if (hasAudioStream) outputMaps.push('[outa]');
-        
+
         filterSteps.push(
-          `${normalizedStreams.join('')}concat=n=${segments.length}:${concatParams.join(':')}${outputMaps.join('')}`
+          `${normalizedStreams.join('')}concat=n=${segments.length}:${concatParams.join(':')}${outputMaps.join('')}`,
         );
 
         // Apply text overlays after concatenation
@@ -642,7 +656,9 @@ export const exportVideo = async (
         if (subtitleFilePath && hasVideoStream) {
           const currentOutput = textClips.length > 0 ? '[outv_text]' : '[outv]';
           const escapedSubPath = subtitleFilePath.replace(/\\/g, '/').replace(/:/g, '\\:');
-          filterSteps.push(`${currentOutput}subtitles='${escapedSubPath}':force_style='FontSize=${subtitleStyle?.fontSize || 24},PrimaryColour=&H${subtitleStyle?.color?.replace('#', '') || 'FFFFFF'},Alignment=${subtitleStyle?.position === 'top' ? '8' : '2'}'[outv_final]`);
+          filterSteps.push(
+            `${currentOutput}subtitles='${escapedSubPath}':force_style='FontSize=${subtitleStyle?.fontSize || 24},PrimaryColour=&H${subtitleStyle?.color?.replace('#', '') || 'FFFFFF'},Alignment=${subtitleStyle?.position === 'top' ? '8' : '2'}'[outv_final]`,
+          );
           // Update output maps
           const outvIndex = outputMaps.indexOf(currentOutput);
           if (outvIndex !== -1) {
@@ -653,7 +669,7 @@ export const exportVideo = async (
         console.log('Concat filter with normalization:', filterSteps);
 
         command.complexFilter(filterSteps);
-        
+
         if (hasVideoStream) {
           // Determine final video map based on what filters were applied
           let videoMap = '[outv]';
@@ -669,10 +685,8 @@ export const exportVideo = async (
           command.outputOptions(['-map [outa]']);
           command.audioCodec(config.audio).audioBitrate('192k');
         }
-        
-        command
-          .outputOptions(config.options.filter(Boolean))
-          .output(outputPath);
+
+        command.outputOptions(config.options.filter(Boolean)).output(outputPath);
       }
 
       command
@@ -686,7 +700,7 @@ export const exportVideo = async (
         })
         .on('end', () => {
           // Clean up temp files
-          tempFiles.forEach(file => {
+          tempFiles.forEach((file) => {
             try {
               fs.unlinkSync(file);
             } catch (err) {
@@ -698,7 +712,7 @@ export const exportVideo = async (
         .on('error', (err: Error) => {
           console.error('FFmpeg error:', err);
           // Clean up temp files on error
-          tempFiles.forEach(file => {
+          tempFiles.forEach((file) => {
             try {
               fs.unlinkSync(file);
             } catch {
@@ -710,7 +724,7 @@ export const exportVideo = async (
         .run();
     } catch (error) {
       // Clean up temp files on error
-      tempFiles.forEach(file => {
+      tempFiles.forEach((file) => {
         try {
           fs.unlinkSync(file);
         } catch {

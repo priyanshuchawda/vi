@@ -7,7 +7,7 @@
  * This saves ~50% of API calls by skipping the planning step for non-editing messages.
  */
 
-export type MessageIntent = "edit" | "chat";
+export type MessageIntent = 'edit' | 'chat';
 export interface IntentContext {
   hasPendingPlan?: boolean;
   hasRecentEditingContext?: boolean;
@@ -16,52 +16,52 @@ export interface IntentContext {
 // Editing action keywords — if ANY of these appear, route to planning
 const EDIT_KEYWORDS = [
   // Clip manipulation
-  "split",
-  "trim",
-  "cut",
-  "crop",
-  "delete",
-  "remove",
-  "move",
-  "merge",
-  "combine",
-  "join",
-  "duplicate",
-  "copy",
-  "paste",
-  "reorder",
+  'split',
+  'trim',
+  'cut',
+  'crop',
+  'delete',
+  'remove',
+  'move',
+  'merge',
+  'combine',
+  'join',
+  'duplicate',
+  'copy',
+  'paste',
+  'reorder',
   // Audio
-  "volume",
-  "mute",
-  "unmute",
-  "silence",
-  "audio",
-  "loud",
-  "quiet",
+  'volume',
+  'mute',
+  'unmute',
+  'silence',
+  'audio',
+  'loud',
+  'quiet',
   // Speed / Effects
-  "speed",
-  "slow",
-  "fast",
-  "reverse",
-  "effect",
-  "filter",
-  "fade",
+  'speed',
+  'slow',
+  'fast',
+  'reverse',
+  'effect',
+  'filter',
+  'fade',
   // Timeline
-  "playhead",
-  "timeline",
-  "undo",
-  "redo",
+  'playhead',
+  'timeline',
+  'undo',
+  'redo',
   // Export / Save
-  "export",
-  "render",
-  "save project",
+  'export',
+  'render',
+  'save project',
   // Transcription / Captions
-  "transcribe",
-  "caption",
-  "subtitle",
+  'transcribe',
+  'caption',
+  'subtitle',
   // Direct tool references
-  "clip",
-  "track",
+  'clip',
+  'track',
 ];
 
 // Patterns that strongly indicate editing intent
@@ -105,10 +105,7 @@ export function classifyIntent(message: string): MessageIntent {
   return classifyIntentWithContext(message, {});
 }
 
-export function classifyIntentWithContext(
-  message: string,
-  context: IntentContext,
-): MessageIntent {
+export function classifyIntentWithContext(message: string, context: IntentContext): MessageIntent {
   const lower = message.toLowerCase().trim();
   const hasExecutionContext = Boolean(context.hasPendingPlan || context.hasRecentEditingContext);
 
@@ -116,47 +113,49 @@ export function classifyIntentWithContext(
   // Short confirmations only route to edit when there is pending editing context.
   for (const pattern of EXECUTION_CONFIRM_PATTERNS) {
     if (pattern.test(lower)) {
-      if (hasExecutionContext) return "edit";
-      if (/\b(do it|go ahead|execute|apply (it|that)|proceed|make it|start editing)\b/i.test(lower)) {
-        return "edit";
+      if (hasExecutionContext) return 'edit';
+      if (
+        /\b(do it|go ahead|execute|apply (it|that)|proceed|make it|start editing)\b/i.test(lower)
+      ) {
+        return 'edit';
       }
-      return "chat";
+      return 'chat';
     }
   }
 
   // Short greetings are always chat
   if (lower.length < 15) {
     const isGreeting = CHAT_OVERRIDE_PATTERNS[0].test(lower);
-    if (isGreeting) return "chat";
+    if (isGreeting) return 'chat';
   }
 
   // Check for chat-override patterns first
   for (const pattern of CHAT_OVERRIDE_PATTERNS) {
     if (pattern.test(lower)) {
-      return "chat";
+      return 'chat';
     }
   }
 
   // Check for strong edit patterns (regex)
   for (const pattern of EDIT_PATTERNS) {
     if (pattern.test(lower)) {
-      return "edit";
+      return 'edit';
     }
   }
 
   // Check for edit keywords (word boundary matching)
   for (const keyword of EDIT_KEYWORDS) {
     // Use word boundary for single words, includes for multi-word
-    if (keyword.includes(" ")) {
-      if (lower.includes(keyword)) return "edit";
+    if (keyword.includes(' ')) {
+      if (lower.includes(keyword)) return 'edit';
     } else {
-      const regex = new RegExp(`\\b${keyword}\\b`, "i");
-      if (regex.test(lower)) return "edit";
+      const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+      if (regex.test(lower)) return 'edit';
     }
   }
 
   // Default: chat (cheaper — false negatives are cheap)
-  return "chat";
+  return 'chat';
 }
 
 /**
@@ -169,14 +168,11 @@ export interface ContextFlags {
   includeChannel: boolean;
 }
 
-export function detectContextNeeds(
-  message: string,
-  intent: MessageIntent,
-): ContextFlags {
+export function detectContextNeeds(message: string, intent: MessageIntent): ContextFlags {
   const lower = message.toLowerCase();
 
   // For editing intent, always include timeline + memory
-  if (intent === "edit") {
+  if (intent === 'edit') {
     return {
       includeTimeline: true,
       includeMemory: true,
@@ -186,14 +182,8 @@ export function detectContextNeeds(
 
   // For chat intent, selectively include
   return {
-    includeTimeline:
-      /\b(timeline|clip|track|duration|playhead|project)\b/i.test(lower),
-    includeMemory:
-      /\b(video|image|photo|media|file|content|scene|analyze|memory)\b/i.test(
-        lower,
-      ),
-    includeChannel: /\b(channel|youtube|subscriber|upload|growth)\b/i.test(
-      lower,
-    ),
+    includeTimeline: /\b(timeline|clip|track|duration|playhead|project)\b/i.test(lower),
+    includeMemory: /\b(video|image|photo|media|file|content|scene|analyze|memory)\b/i.test(lower),
+    includeChannel: /\b(channel|youtube|subscriber|upload|growth)\b/i.test(lower),
   };
 }

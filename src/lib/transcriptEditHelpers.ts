@@ -17,16 +17,16 @@ export function snapToFrame(time: number, frameRate: number): number {
 export function detectSilenceRegion(
   time: number,
   words: Array<{ start: number; end: number; word: string }>,
-  threshold: number = 0.1
+  threshold: number = 0.1,
 ): { start: number; end: number } | null {
   // Find words around this time
-  const beforeWord = words.filter(w => w.end <= time).pop();
-  const afterWord = words.find(w => w.start >= time);
+  const beforeWord = words.filter((w) => w.end <= time).pop();
+  const afterWord = words.find((w) => w.start >= time);
 
   if (!beforeWord || !afterWord) return null;
 
   const gap = afterWord.start - beforeWord.end;
-  
+
   // If there's a significant gap, return it as silence region
   if (gap >= threshold) {
     return {
@@ -44,10 +44,10 @@ export function detectSilenceRegion(
 export function alignToSilence(
   cutTime: number,
   words: Array<{ start: number; end: number; word: string }>,
-  maxDistance: number = 0.2
+  maxDistance: number = 0.2,
 ): number {
   const silenceRegion = detectSilenceRegion(cutTime, words);
-  
+
   if (!silenceRegion) return cutTime;
 
   const silenceCenter = (silenceRegion.start + silenceRegion.end) / 2;
@@ -66,7 +66,7 @@ export function alignToSilence(
  */
 export function mergeCloseRanges(
   ranges: Array<{ start: number; end: number }>,
-  tolerance: number = 0.3
+  tolerance: number = 0.3,
 ): Array<{ start: number; end: number }> {
   if (ranges.length === 0) return [];
 
@@ -79,7 +79,7 @@ export function mergeCloseRanges(
 
     // Check if current range is close enough to merge
     const gap = current.start - lastMerged.end;
-    
+
     if (gap <= tolerance) {
       // Merge by extending the end time
       lastMerged.end = Math.max(lastMerged.end, current.end);
@@ -104,10 +104,10 @@ export function prepareCutRanges(
     snapToFrames: boolean;
     frameRate: number;
   },
-  words?: Array<{ start: number; end: number; word: string }>
+  words?: Array<{ start: number; end: number; word: string }>,
 ): Array<{ start: number; end: number }> {
   // Apply padding
-  let paddedRanges = ranges.map(range => ({
+  let paddedRanges = ranges.map((range) => ({
     start: Math.max(0, range.start - settings.cutPadding),
     end: range.end + settings.cutPadding,
   }));
@@ -117,7 +117,7 @@ export function prepareCutRanges(
 
   // Align to silence if enabled and words available
   if (settings.snapToSilence && words) {
-    paddedRanges = paddedRanges.map(range => {
+    paddedRanges = paddedRanges.map((range) => {
       const newStart = alignToSilence(range.start, words, 0.15);
       const newEnd = alignToSilence(range.end, words, 0.15);
       return { start: newStart, end: newEnd };
@@ -126,7 +126,7 @@ export function prepareCutRanges(
 
   // Snap to frame boundaries if enabled
   if (settings.snapToFrames) {
-    paddedRanges = paddedRanges.map(range => ({
+    paddedRanges = paddedRanges.map((range) => ({
       start: snapToFrame(range.start, settings.frameRate),
       end: snapToFrame(range.end, settings.frameRate),
     }));
@@ -138,14 +138,11 @@ export function prepareCutRanges(
 /**
  * Calculate optimal crossfade duration based on cut context
  */
-export function calculateCrossfadeDuration(
-  baseDuration: number,
-  cutDuration: number
-): number {
+export function calculateCrossfadeDuration(baseDuration: number, cutDuration: number): number {
   // For very short segments after cut, use shorter crossfade
   if (cutDuration < 0.1) {
     return Math.min(baseDuration, cutDuration * 0.3);
   }
-  
+
   return baseDuration;
 }

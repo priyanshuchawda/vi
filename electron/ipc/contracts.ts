@@ -1,70 +1,70 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const IPC_CHANNELS = {
-  ping: "ping",
+  ping: 'ping',
   dialog: {
-    openFile: "dialog:openFile",
-    saveFile: "dialog:saveFile",
+    openFile: 'dialog:openFile',
+    saveFile: 'dialog:saveFile',
   },
   media: {
-    getMetadata: "media:getMetadata",
-    getThumbnail: "media:getThumbnail",
-    getWaveform: "media:getWaveform",
-    exportVideo: "media:exportVideo",
-    exportProgress: "export:progress",
+    getMetadata: 'media:getMetadata',
+    getThumbnail: 'media:getThumbnail',
+    getWaveform: 'media:getWaveform',
+    exportVideo: 'media:exportVideo',
+    exportProgress: 'export:progress',
   },
   project: {
-    saveProject: "project:saveProject",
-    writeProjectFile: "project:writeProjectFile",
-    loadProject: "project:loadProject",
-    readProjectFile: "project:readProjectFile",
+    saveProject: 'project:saveProject',
+    writeProjectFile: 'project:writeProjectFile',
+    loadProject: 'project:loadProject',
+    readProjectFile: 'project:readProjectFile',
   },
   file: {
-    readTextFile: "file:readTextFile",
-    readFileAsBase64: "file:readFileAsBase64",
-    getFileSize: "file:getFileSize",
+    readTextFile: 'file:readTextFile',
+    readFileAsBase64: 'file:readFileAsBase64',
+    getFileSize: 'file:getFileSize',
   },
   transcription: {
-    transcribeVideo: "transcription:transcribeVideo",
-    transcribeTimeline: "transcription:transcribeTimeline",
-    progress: "transcription:progress",
+    transcribeVideo: 'transcription:transcribeVideo',
+    transcribeTimeline: 'transcription:transcribeTimeline',
+    progress: 'transcription:progress',
   },
   analysis: {
-    analyzeChannel: "analysis:analyzeChannel",
-    getUserAnalysis: "analysis:getUserAnalysis",
-    linkToUser: "analysis:linkToUser",
+    analyzeChannel: 'analysis:analyzeChannel',
+    getUserAnalysis: 'analysis:getUserAnalysis',
+    linkToUser: 'analysis:linkToUser',
   },
   memory: {
-    save: "memory:save",
-    load: "memory:load",
-    saveAnalysisMarkdown: "memory:saveAnalysisMarkdown",
-    getDir: "memory:getDir",
-    readMemoryFiles: "read-memory-files",
+    save: 'memory:save',
+    load: 'memory:load',
+    saveAnalysisMarkdown: 'memory:saveAnalysisMarkdown',
+    getDir: 'memory:getDir',
+    readMemoryFiles: 'read-memory-files',
   },
   bedrock: {
-    converse: "bedrock:converse",
+    converse: 'bedrock:converse',
   },
   youtube: {
-    isAuthenticated: "youtube:isAuthenticated",
-    authenticate: "youtube:authenticate",
-    logout: "youtube:logout",
-    uploadVideo: "youtube:uploadVideo",
-    uploadProgress: "youtube:uploadProgress",
+    isAuthenticated: 'youtube:isAuthenticated',
+    authenticate: 'youtube:authenticate',
+    logout: 'youtube:logout',
+    uploadVideo: 'youtube:uploadVideo',
+    uploadProgress: 'youtube:uploadProgress',
   },
   window: {
-    close: "window:close",
+    close: 'window:close',
   },
   update: {
-    check: "update:check",
-    download: "update:download",
-    install: "update:install",
-    status: "update:status",
+    check: 'update:check',
+    download: 'update:download',
+    install: 'update:install',
+    status: 'update:status',
   },
 } as const;
 
 export const nonEmptyStringSchema = z.string().trim().min(1);
 export const filePathSchema = nonEmptyStringSchema;
-export const saveFormatSchema = z.enum(["mp4", "mov", "avi", "webm"]);
+export const saveFormatSchema = z.enum(['mp4', 'mov', 'avi', 'webm']);
 
 export const projectWriteSchema = z.object({
   filePath: filePathSchema,
@@ -134,10 +134,10 @@ export const memoryMarkdownEntrySchema = z.object({
 
 export const youtubeUploadMetadataSchema = z.object({
   title: nonEmptyStringSchema,
-  description: z.string().optional().default(""),
+  description: z.string().optional().default(''),
   tags: z.array(z.string()).optional(),
   categoryId: z.string().optional(),
-  privacyStatus: z.enum(["public", "private", "unlisted"]),
+  privacyStatus: z.enum(['public', 'private', 'unlisted']),
   madeForKids: z.boolean().optional(),
 });
 
@@ -149,9 +149,9 @@ export const youtubeUploadRequestSchema = z.object({
 export const bedrockConverseInputSchema = z.record(z.string(), z.unknown());
 
 export type IpcInvokeContract = {
-  "ping": { args: []; result: string };
-  "dialog:openFile": { args: []; result: string[] };
-  "media:getMetadata": {
+  ping: { args: []; result: string };
+  'dialog:openFile': { args: []; result: string[] };
+  'media:getMetadata': {
     args: [filePath: string];
     result: {
       duration: number;
@@ -163,69 +163,75 @@ export type IpcInvokeContract = {
       isImage?: boolean;
     };
   };
-  "media:getThumbnail": { args: [filePath: string]; result: string | null };
-  "media:getWaveform": { args: [filePath: string]; result: string | null };
-  "dialog:saveFile": { args: [format?: string]; result: string | null };
-  "media:exportVideo": { args: [payload: z.infer<typeof exportVideoRequestSchema>]; result: boolean };
-  "project:saveProject": { args: []; result: string | null };
-  "project:loadProject": { args: []; result: string | null };
-  "project:writeProjectFile": {
+  'media:getThumbnail': { args: [filePath: string]; result: string | null };
+  'media:getWaveform': { args: [filePath: string]; result: string | null };
+  'dialog:saveFile': { args: [format?: string]; result: string | null };
+  'media:exportVideo': {
+    args: [payload: z.infer<typeof exportVideoRequestSchema>];
+    result: boolean;
+  };
+  'project:saveProject': { args: []; result: string | null };
+  'project:loadProject': { args: []; result: string | null };
+  'project:writeProjectFile': {
     args: [payload: z.infer<typeof projectWriteSchema>];
     result: { success: boolean; error?: string };
   };
-  "project:readProjectFile": {
+  'project:readProjectFile': {
     args: [filePath: string];
     result: { success: boolean; data?: unknown; error?: string };
   };
-  "file:readTextFile": {
+  'file:readTextFile': {
     args: [filePath: string];
     result: { success: boolean; data?: string; error?: string };
   };
-  "transcription:transcribeVideo": {
+  'transcription:transcribeVideo': {
     args: [videoPath: string];
     result: { success: boolean; result?: unknown; error?: string };
   };
-  "transcription:transcribeTimeline": {
+  'transcription:transcribeTimeline': {
     args: [clips: Array<z.infer<typeof timelineClipSchema>>];
     result: { success: boolean; result?: unknown; error?: string };
   };
-  "analysis:analyzeChannel": { args: [channelUrl: string]; result: unknown };
-  "analysis:getUserAnalysis": {
+  'analysis:analyzeChannel': { args: [channelUrl: string]; result: unknown };
+  'analysis:getUserAnalysis': {
     args: [userId: string];
     result: { success: boolean; data?: unknown; error?: string };
   };
-  "analysis:linkToUser": { args: [userId: string, channelUrl: string]; result: { success: boolean } };
-  "file:readFileAsBase64": { args: [filePath: string]; result: string };
-  "file:getFileSize": { args: [filePath: string]; result: number };
-  "memory:save": {
+  'analysis:linkToUser': {
+    args: [userId: string, channelUrl: string];
+    result: { success: boolean };
+  };
+  'file:readFileAsBase64': { args: [filePath: string]; result: string };
+  'file:getFileSize': { args: [filePath: string]; result: number };
+  'memory:save': {
     args: [payload: z.infer<typeof memoryStateSchema>];
     result: { success: boolean; path?: string; error?: string };
   };
-  "memory:load": {
+  'memory:load': {
     args: [projectId?: string];
     result: { success: boolean; data?: unknown; error?: string };
   };
-  "memory:saveAnalysisMarkdown": {
+  'memory:saveAnalysisMarkdown': {
     args: [entry: z.infer<typeof memoryMarkdownEntrySchema>, projectId?: string];
     result: { success: boolean; path?: string; error?: string };
   };
-  "memory:getDir": { args: []; result: { dir: string; index: string; analyses: string } };
-  "bedrock:converse": { args: [input: Record<string, unknown>]; result: unknown };
-  "youtube:isAuthenticated": { args: []; result: boolean };
-  "youtube:authenticate": { args: []; result: boolean };
-  "youtube:logout": { args: []; result: boolean };
-  "youtube:uploadVideo": {
+  'memory:getDir': { args: []; result: { dir: string; index: string; analyses: string } };
+  'bedrock:converse': { args: [input: Record<string, unknown>]; result: unknown };
+  'youtube:isAuthenticated': { args: []; result: boolean };
+  'youtube:authenticate': { args: []; result: boolean };
+  'youtube:logout': { args: []; result: boolean };
+  'youtube:uploadVideo': {
     args: [payload: z.infer<typeof youtubeUploadRequestSchema>];
     result: { success: boolean; videoId?: string; error?: string };
   };
-  "window:close": { args: []; result: void };
-  "update:check": {
+  'window:close': { args: []; result: void };
+  'update:check': {
     args: [];
     result: { enabled: boolean; started: boolean; error?: string };
   };
-  "update:download": {
+  'update:download': {
     args: [];
     result: { enabled: boolean; started: boolean; error?: string };
   };
-  "update:install": { args: []; result: { enabled: boolean; started: boolean } };
+  'update:install': { args: []; result: { enabled: boolean; started: boolean } };
 };

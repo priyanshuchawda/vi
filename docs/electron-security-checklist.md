@@ -14,7 +14,8 @@ This checklist captures QuickCut's enforced Electron security posture.
 - All `window.open` attempts are intercepted via `setWindowOpenHandler`.
 - New windows are denied by default.
 - External links are opened only when URL matches allowlist and uses `https`.
-- Main window navigation is blocked when target origin differs from current app origin.
+- Main window navigation is blocked when target origin differs from current app
+  origin.
 
 ## External URL Allowlist
 
@@ -28,8 +29,10 @@ Any non-allowlisted URL is blocked and logged.
 
 ## Permission Handling
 
-- Runtime permission requests are denied by default using `session.defaultSession.setPermissionRequestHandler`.
-- Features requiring a permission must be explicitly reviewed and allowlisted in code.
+- Runtime permission requests are denied by default using
+  `session.defaultSession.setPermissionRequestHandler`.
+- Features requiring a permission must be explicitly reviewed and allowlisted in
+  code.
 
 ## CSP Strategy
 

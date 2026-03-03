@@ -1,20 +1,20 @@
-import fs from "fs/promises";
-import path from "path";
-import { config as loadEnv } from "dotenv";
-import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
+import fs from 'fs/promises';
+import path from 'path';
+import { config as loadEnv } from 'dotenv';
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 
-loadEnv({ path: path.resolve(process.cwd(), ".env") });
+loadEnv({ path: path.resolve(process.cwd(), '.env') });
 
-const CASES_PATH = path.resolve(process.cwd(), "test/ai-eval/cases.json");
-const OUTPUT_DIR = path.resolve(process.cwd(), "test-output/ai-evals");
-const VIDEO_TEST_DIR = path.resolve(process.cwd(), "video_test");
+const CASES_PATH = path.resolve(process.cwd(), 'test/ai-eval/cases.json');
+const OUTPUT_DIR = path.resolve(process.cwd(), 'test-output/ai-evals');
+const VIDEO_TEST_DIR = path.resolve(process.cwd(), 'video_test');
 
 function parseArgs(argv) {
-  const args = { caseId: "", model: process.env.BEDROCK_MODEL_ID || "amazon.nova-lite-v1:0" };
+  const args = { caseId: '', model: process.env.BEDROCK_MODEL_ID || 'amazon.nova-lite-v1:0' };
   for (let i = 2; i < argv.length; i++) {
     const token = argv[i];
-    if (token === "--case" && argv[i + 1]) args.caseId = argv[++i];
-    else if (token === "--model" && argv[i + 1]) args.model = argv[++i];
+    if (token === '--case' && argv[i + 1]) args.caseId = argv[++i];
+    else if (token === '--model' && argv[i + 1]) args.model = argv[++i];
   }
   return args;
 }
@@ -24,7 +24,7 @@ function buildDescriptorBlock(files) {
     const sizeMb = (f.size / (1024 * 1024)).toFixed(2);
     return `${idx + 1}. ${f.kind} | ${f.name} | ${sizeMb}MB`;
   });
-  return `[Media Descriptors]\n${rows.join("\n")}`;
+  return `[Media Descriptors]\n${rows.join('\n')}`;
 }
 
 async function statMediaFiles() {
@@ -35,38 +35,34 @@ async function statMediaFiles() {
     const stat = await fs.stat(full);
     if (!stat.isFile()) continue;
     const lower = name.toLowerCase();
-    if (lower.endsWith(".jpeg") || lower.endsWith(".jpg")) {
-      selected.push({ kind: "IMAGE", name, path: full, size: stat.size });
-    } else if (lower.endsWith(".mp4") || lower.endsWith(".mov")) {
-      selected.push({ kind: "VIDEO", name, path: full, size: stat.size });
+    if (lower.endsWith('.jpeg') || lower.endsWith('.jpg')) {
+      selected.push({ kind: 'IMAGE', name, path: full, size: stat.size });
+    } else if (lower.endsWith('.mp4') || lower.endsWith('.mov')) {
+      selected.push({ kind: 'VIDEO', name, path: full, size: stat.size });
     }
   }
   return selected;
 }
 
 async function readSmallImageBytes(files) {
-  const image = files
-    .filter((f) => f.kind === "IMAGE")
-    .sort((a, b) => a.size - b.size)[0];
+  const image = files.filter((f) => f.kind === 'IMAGE').sort((a, b) => a.size - b.size)[0];
   if (!image) return null;
   const bytes = await fs.readFile(image.path);
   return {
     bytes: new Uint8Array(bytes),
     name: image.name,
-    format: image.name.toLowerCase().endsWith(".png") ? "png" : "jpeg",
+    format: image.name.toLowerCase().endsWith('.png') ? 'png' : 'jpeg',
   };
 }
 
 async function readSmallVideoBytes(files) {
-  const video = files
-    .filter((f) => f.kind === "VIDEO")
-    .sort((a, b) => a.size - b.size)[0];
+  const video = files.filter((f) => f.kind === 'VIDEO').sort((a, b) => a.size - b.size)[0];
   if (!video) return null;
   const bytes = await fs.readFile(video.path);
   return {
     bytes: new Uint8Array(bytes),
     name: video.name,
-    format: "mp4",
+    format: 'mp4',
   };
 }
 
@@ -84,8 +80,8 @@ function extractJsonObject(text) {
   try {
     return JSON.parse(text);
   } catch {
-    const first = text.indexOf("{");
-    const last = text.lastIndexOf("}");
+    const first = text.indexOf('{');
+    const last = text.lastIndexOf('}');
     if (first >= 0 && last > first) {
       try {
         return JSON.parse(text.slice(first, last + 1));
@@ -97,18 +93,22 @@ function extractJsonObject(text) {
   }
 }
 
-function validateJsonContract(payload, contract, rawText = "") {
-  if (!payload || typeof payload !== "object") {
-    return { valid: false, reasons: ["not_an_object"] };
+function validateJsonContract(payload, contract, rawText = '') {
+  if (!payload || typeof payload !== 'object') {
+    return { valid: false, reasons: ['not_an_object'] };
   }
   const reasons = [];
-  const normalizedRaw = String(rawText || "").trim();
+  const normalizedRaw = String(rawText || '').trim();
   const hasFence = /```/.test(normalizedRaw);
-  if (hasFence) reasons.push("markdown_fence_present");
+  if (hasFence) reasons.push('markdown_fence_present');
   for (const key of contract.requiredKeys || []) {
     if (!(key in payload)) reasons.push(`missing:${key}`);
   }
-  if (Array.isArray(contract.allowedModes) && payload.mode && !contract.allowedModes.includes(payload.mode)) {
+  if (
+    Array.isArray(contract.allowedModes) &&
+    payload.mode &&
+    !contract.allowedModes.includes(payload.mode)
+  ) {
     reasons.push(`invalid_mode:${payload.mode}`);
   }
   if (Array.isArray(contract.allowedExecutionRecommendations) && payload.execution_recommendation) {
@@ -116,14 +116,14 @@ function validateJsonContract(payload, contract, rawText = "") {
       reasons.push(`invalid_execution_recommendation:${payload.execution_recommendation}`);
     }
   }
-  if (typeof contract.minOperations === "number") {
+  if (typeof contract.minOperations === 'number') {
     const count = Array.isArray(payload.operations) ? payload.operations.length : 0;
     if (count < contract.minOperations) reasons.push(`operations_too_few:${count}`);
   }
   if (Array.isArray(contract.requiredOperationNames)) {
     const names = new Set(
       Array.isArray(payload.operations)
-        ? payload.operations.map((op) => String(op?.name || "").toLowerCase())
+        ? payload.operations.map((op) => String(op?.name || '').toLowerCase())
         : [],
     );
     for (const required of contract.requiredOperationNames) {
@@ -135,20 +135,27 @@ function validateJsonContract(payload, contract, rawText = "") {
   if (Array.isArray(contract.allowedOperationNames)) {
     const invalidNames = Array.isArray(payload.operations)
       ? payload.operations
-          .map((op) => String(op?.name || "").toLowerCase())
-          .filter((name) => name && !contract.allowedOperationNames.map((x) => String(x).toLowerCase()).includes(name))
+          .map((op) => String(op?.name || '').toLowerCase())
+          .filter(
+            (name) =>
+              name &&
+              !contract.allowedOperationNames.map((x) => String(x).toLowerCase()).includes(name),
+          )
       : [];
     if (invalidNames.length > 0) {
-      reasons.push(`invalid_operation_names:${invalidNames.join("|")}`);
+      reasons.push(`invalid_operation_names:${invalidNames.join('|')}`);
     }
   }
-  if ("confidence" in payload && (typeof payload.confidence !== "number" || payload.confidence < 0 || payload.confidence > 1)) {
-    reasons.push("invalid_confidence_type_or_range");
-  } else if (typeof payload.confidence === "number") {
-    if (typeof contract.minConfidence === "number" && payload.confidence < contract.minConfidence) {
+  if (
+    'confidence' in payload &&
+    (typeof payload.confidence !== 'number' || payload.confidence < 0 || payload.confidence > 1)
+  ) {
+    reasons.push('invalid_confidence_type_or_range');
+  } else if (typeof payload.confidence === 'number') {
+    if (typeof contract.minConfidence === 'number' && payload.confidence < contract.minConfidence) {
       reasons.push(`confidence_below_min:${payload.confidence}`);
     }
-    if (typeof contract.maxConfidence === "number" && payload.confidence > contract.maxConfidence) {
+    if (typeof contract.maxConfidence === 'number' && payload.confidence > contract.maxConfidence) {
       reasons.push(`confidence_above_max:${payload.confidence}`);
     }
   }
@@ -179,7 +186,7 @@ Rules:
 }
 
 function buildCaseSpecificJsonPrompt(selectedCase, userPrompt) {
-  if (selectedCase.id === "descriptor_01_workspace") {
+  if (selectedCase.id === 'descriptor_01_workspace') {
     return `${userPrompt}
 
 Return JSON only with this shape:
@@ -196,7 +203,7 @@ Rules:
 - Prefer narrative relevance, not file size.
 - Keep concise and execution-oriented.`;
   }
-  if (selectedCase.id === "exec_01_modify_plan_readiness") {
+  if (selectedCase.id === 'exec_01_modify_plan_readiness') {
     return `${userPrompt}
 
 Return JSON only with this shape:
@@ -218,7 +225,7 @@ Rules:
 - Keep operations executable and ordered.
 - If ambiguity remains, set needs_clarification true.`;
   }
-  if (selectedCase.id === "intent_02_script_plus_edit_parse") {
+  if (selectedCase.id === 'intent_02_script_plus_edit_parse') {
     return `${userPrompt}
 
 Return JSON only with this shape:
@@ -244,7 +251,7 @@ Rules:
 }
 
 function buildCaseSpecificPlainPrompt(selectedCase, userPrompt) {
-  if (selectedCase.id === "clarify_01_missing_style_reference") {
+  if (selectedCase.id === 'clarify_01_missing_style_reference') {
     return `${userPrompt}
 
 Return exactly:
@@ -258,7 +265,7 @@ Rules:
 - exactly 3 options
 - concise`;
   }
-  if (selectedCase.id === "clarify_02_missing_segment_reference") {
+  if (selectedCase.id === 'clarify_02_missing_segment_reference') {
     return `${userPrompt}
 
 Return exactly:
@@ -278,16 +285,16 @@ Rules:
 function buildRepairPrompt(selectedCase, originalPrompt, previousOutput, failures) {
   const contract = selectedCase?.jsonContract
     ? `Contract:\n${JSON.stringify(selectedCase.jsonContract, null, 2)}`
-    : "";
+    : '';
   const caseSpecific =
-    selectedCase?.id === "exec_01_modify_plan_readiness"
+    selectedCase?.id === 'exec_01_modify_plan_readiness'
       ? `Extra requirements:
 - execution_recommendation must be one of: auto_execute, preview_required, clarify_required
 - include at least 2 ordered operations
 - for this prompt, mode should stay "modify"
 - if timestamps are not explicit, needs_clarification should usually be true`
-      : "";
-  return `Your previous output failed validation: ${failures.join(", ")}.
+      : '';
+  return `Your previous output failed validation: ${failures.join(', ')}.
 Original task: ${originalPrompt}
 ${contract}
 ${caseSpecific}
@@ -304,19 +311,19 @@ Hard format rules:
 async function run() {
   const args = parseArgs(process.argv);
   if (!args.caseId) {
-    throw new Error("Usage: node scripts/ai-eval/run-bedrock-eval.mjs --case <case_id>");
+    throw new Error('Usage: node scripts/ai-eval/run-bedrock-eval.mjs --case <case_id>');
   }
 
-  const region = process.env.AWS_REGION || "us-east-1";
+  const region = process.env.AWS_REGION || 'us-east-1';
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
   const sessionToken = process.env.AWS_SESSION_TOKEN;
 
   if (!accessKeyId || !secretAccessKey) {
-    throw new Error("Missing AWS credentials in .env");
+    throw new Error('Missing AWS credentials in .env');
   }
 
-  const allCases = JSON.parse(await fs.readFile(CASES_PATH, "utf-8"));
+  const allCases = JSON.parse(await fs.readFile(CASES_PATH, 'utf-8'));
   const selectedCase = allCases.find((c) => c.id === args.caseId);
   if (!selectedCase) {
     throw new Error(`Case not found: ${args.caseId}`);
@@ -328,21 +335,22 @@ async function run() {
   const videoBytes = await readSmallVideoBytes(mediaFiles);
 
   const systemText =
-    "You are QuickCut AI assistant. Stay in-product, concise, and execution-oriented. Do not reference external software workflows. " +
-    "Execution policy: for mutating edits, use preview_required when confidence < 0.85; use auto_execute only when confidence >= 0.85 and ambiguity is low; use clarify_required when ambiguity remains.";
+    'You are QuickCut AI assistant. Stay in-product, concise, and execution-oriented. Do not reference external software workflows. ' +
+    'Execution policy: for mutating edits, use preview_required when confidence < 0.85; use auto_execute only when confidence >= 0.85 and ambiguity is low; use clarify_required when ambiguity remains.';
   const userBlocks = [];
 
-  const descriptorExtraContext = Array.isArray(selectedCase.descriptorContext) && selectedCase.descriptorContext.length > 0
-    ? `\n[Descriptor Notes]\n${selectedCase.descriptorContext.map((line, i) => `${i + 1}. ${line}`).join("\n")}\n`
-    : "";
+  const descriptorExtraContext =
+    Array.isArray(selectedCase.descriptorContext) && selectedCase.descriptorContext.length > 0
+      ? `\n[Descriptor Notes]\n${selectedCase.descriptorContext.map((line, i) => `${i + 1}. ${line}`).join('\n')}\n`
+      : '';
 
   const basePrompt = selectedCase.expectJson
     ? buildCaseSpecificJsonPrompt(selectedCase, selectedCase.prompt)
     : buildCaseSpecificPlainPrompt(selectedCase, selectedCase.prompt);
 
-  if (selectedCase.mode === "descriptor") {
+  if (selectedCase.mode === 'descriptor') {
     userBlocks.push({ text: `${descriptorText}${descriptorExtraContext}\n${basePrompt}` });
-  } else if (selectedCase.mode === "inline_image" && imageBytes) {
+  } else if (selectedCase.mode === 'inline_image' && imageBytes) {
     userBlocks.push({
       image: {
         format: imageBytes.format,
@@ -350,7 +358,7 @@ async function run() {
       },
     });
     userBlocks.push({ text: basePrompt });
-  } else if (selectedCase.mode === "inline_video" && videoBytes) {
+  } else if (selectedCase.mode === 'inline_video' && videoBytes) {
     userBlocks.push({
       video: {
         format: videoBytes.format,
@@ -374,7 +382,7 @@ async function run() {
   const command = new ConverseCommand({
     modelId: args.model,
     system: [{ text: systemText }],
-    messages: [{ role: "user", content: userBlocks }],
+    messages: [{ role: 'user', content: userBlocks }],
     inferenceConfig: {
       maxTokens: selectedCase.maxTokens || 180,
       temperature: selectedCase.temperature ?? 0.1,
@@ -383,8 +391,8 @@ async function run() {
 
   const response = await client.send(command);
   let text = (response.output?.message?.content || [])
-    .map((part) => part.text || "")
-    .join("\n")
+    .map((part) => part.text || '')
+    .join('\n')
     .trim();
   let finalUsage = response.usage || null;
   let formatNormalized = false;
@@ -400,10 +408,15 @@ async function run() {
         system: [{ text: systemText }],
         messages: [
           {
-            role: "user",
+            role: 'user',
             content: [
               {
-                text: buildRepairPrompt(selectedCase, selectedCase.prompt, text, contractValidation.reasons),
+                text: buildRepairPrompt(
+                  selectedCase,
+                  selectedCase.prompt,
+                  text,
+                  contractValidation.reasons,
+                ),
               },
             ],
           },
@@ -415,8 +428,8 @@ async function run() {
       }),
     );
     const repairedText = (repair.output?.message?.content || [])
-      .map((part) => part.text || "")
-      .join("\n")
+      .map((part) => part.text || '')
+      .join('\n')
       .trim();
     if (repairedText) text = repairedText;
     const mergedUsage = {
@@ -432,7 +445,7 @@ async function run() {
   if (
     selectedCase.expectJson &&
     !contractValidation.valid &&
-    contractValidation.reasons?.every((reason) => reason === "markdown_fence_present") &&
+    contractValidation.reasons?.every((reason) => reason === 'markdown_fence_present') &&
     jsonPayload
   ) {
     text = JSON.stringify(jsonPayload, null, 2);
@@ -454,22 +467,23 @@ async function run() {
   };
 
   await fs.mkdir(OUTPUT_DIR, { recursive: true });
-  const outputPath = path.join(
-    OUTPUT_DIR,
-    `${selectedCase.id}-${Date.now()}.json`,
-  );
-  await fs.writeFile(outputPath, JSON.stringify(result, null, 2), "utf-8");
+  const outputPath = path.join(OUTPUT_DIR, `${selectedCase.id}-${Date.now()}.json`);
+  await fs.writeFile(outputPath, JSON.stringify(result, null, 2), 'utf-8');
 
   console.log(`Case: ${selectedCase.id}`);
   console.log(`Mode: ${selectedCase.mode}`);
   console.log(`Usage: ${JSON.stringify(finalUsage || {})}`);
-  console.log(`Keyword score: ${score.score.toFixed(2)} | hits: ${score.hits.join(", ") || "none"}`);
+  console.log(
+    `Keyword score: ${score.score.toFixed(2)} | hits: ${score.hits.join(', ') || 'none'}`,
+  );
   if (selectedCase.expectJson) {
-    console.log(`Contract valid: ${contractValidation.valid ? "yes" : "no"}${contractValidation.reasons?.length ? ` | ${contractValidation.reasons.join(", ")}` : ""}`);
+    console.log(
+      `Contract valid: ${contractValidation.valid ? 'yes' : 'no'}${contractValidation.reasons?.length ? ` | ${contractValidation.reasons.join(', ')}` : ''}`,
+    );
   }
-  console.log("--- OUTPUT ---");
-  console.log(text || "[empty]");
-  console.log("--- SAVED ---");
+  console.log('--- OUTPUT ---');
+  console.log(text || '[empty]');
+  console.log('--- SAVED ---');
   console.log(outputPath);
 }
 

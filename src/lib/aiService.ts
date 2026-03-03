@@ -29,7 +29,7 @@ import { estimateTurnCost, evaluateBudgetPolicy, trimHistoryToLimit } from './co
 import { buildSemanticCacheKey, getCached, hashString, setCached } from './requestCache';
 import { estimateBedrockRequestTokens, evaluateTokenGuard } from './bedrockTokenEstimator';
 import { maskToolOutputsInHistory } from './toolOutputMaskingService';
-import { routeBedrockModel } from './modelRoutingPolicy';
+import { recordRoutingModelOutcome, routeBedrockModel } from './modelRoutingPolicy';
 import { recordAssistantResponse } from './aiTelemetry';
 import {
   buildAIProjectSnapshot,
@@ -388,6 +388,7 @@ export async function summarizeHistory(history: AIChatMessage[]): Promise<AIChat
       ],
       inferenceConfig: { maxTokens: 2048, temperature: 0.3 },
     });
+    recordRoutingModelOutcome(summaryModel, 'success');
 
     const summaryText = response.output?.message?.content?.[0]?.text || '';
     if (!summaryText) {
@@ -417,6 +418,7 @@ export async function summarizeHistory(history: AIChatMessage[]): Promise<AIChat
       ],
       inferenceConfig: { maxTokens: 1536, temperature: 0.2 },
     });
+    recordRoutingModelOutcome(summaryModel, 'success');
     const verifiedSummary = verifyResponse.output?.message?.content?.[0]?.text || summaryText;
     const condensed = buildCondensedHistory(verifiedSummary);
     const originalEstimate = estimateBedrockRequestTokens({
@@ -437,6 +439,8 @@ export async function summarizeHistory(history: AIChatMessage[]): Promise<AIChat
     console.log(' Conversation condensed to verified summary.');
     return condensed;
   } catch (err) {
+    const summaryModel = routeBedrockModel({ intent: 'compression' }).modelId;
+    recordRoutingModelOutcome(summaryModel, 'failure');
     summarizeFailureStreak += 1;
     console.error('Failed to summarize history, using original:', err);
     return history;
@@ -593,10 +597,10 @@ export async function sendMessageWithHistory(
       message,
       hasAttachments: Boolean(attachments && attachments.length > 0),
       degraded: preflight.degraded || budgetDecision.shouldDegrade,
-    }).modelId;
+    });
     const cacheKey = buildSemanticCacheKey({
       intent: 'chat',
-      modelId: selectedModel,
+      modelId: selectedModel.modelId,
       message,
       historyHash: historyFingerprint(optimizedHistory),
       snapshotHash: hashString(dynamicContext),
@@ -670,11 +674,12 @@ export async function sendMessageWithHistory(
 
     await waitForSlot();
     const response = await converseBedrock({
-      modelId: selectedModel,
+      modelId: selectedModel.modelId,
       messages: messages as any,
       system: [{ text: STATIC_SYSTEM_INSTRUCTION_NO_TOOLS }],
       inferenceConfig: { maxTokens: CHAT_MAX_TOKENS, temperature: 0.2 },
     });
+    recordRoutingModelOutcome(selectedModel.modelId, 'success');
 
     // Record token usage
     if (response.usage) {
@@ -692,6 +697,12 @@ export async function sendMessageWithHistory(
 
     return responseText;
   } catch (error) {
+    const failedModel = routeBedrockModel({
+      intent: 'chat',
+      message,
+      hasAttachments: Boolean(attachments && attachments.length > 0),
+    }).modelId;
+    recordRoutingModelOutcome(failedModel, 'failure');
     console.error('Bedrock API error:', error);
     if (error instanceof Error) {
       throw new Error(`Bedrock API error: ${error.message}`);
@@ -838,11 +849,11 @@ export async function* sendMessageWithHistoryStream(
       message,
       hasAttachments: mediaParts.length > 0,
       degraded: preflight.degraded || budgetDecision.shouldDegrade,
-    }).modelId;
+    });
     const streamCacheKey = cacheableChat
       ? buildSemanticCacheKey({
           intent: 'chat',
-          modelId: selectedModel,
+          modelId: selectedModel.modelId,
           message,
           historyHash: historyFingerprint(optimizedHistory),
           snapshotHash: hashString(dynamicContext),
@@ -921,7 +932,7 @@ export async function* sendMessageWithHistoryStream(
 
     // Build the command — conditionally include tools
     const commandInput: Record<string, unknown> = {
-      modelId: selectedModel,
+      modelId: selectedModel.modelId,
       messages: messages as any,
       system: [{ text: systemText }],
       inferenceConfig: {
@@ -937,6 +948,7 @@ export async function* sendMessageWithHistoryStream(
     }
 
     const response = await converseBedrock(commandInput as any);
+    recordRoutingModelOutcome(selectedModel.modelId, 'success');
     throwIfAborted(abortSignal);
 
     // Check if response contains tool use requests
@@ -991,6 +1003,14 @@ export async function* sendMessageWithHistoryStream(
       };
     }
   } catch (error) {
+    if (!(error instanceof Error && error.message === 'Request cancelled')) {
+      const failedRoute = routeBedrockModel({
+        intent: options?.includeTools ? 'plan' : 'chat',
+        message,
+        hasAttachments: Boolean(attachments && attachments.length > 0),
+      });
+      recordRoutingModelOutcome(failedRoute.modelId, 'failure');
+    }
     console.error('Bedrock API error:', error);
     if (error instanceof Error) {
       throw new Error(`Bedrock API error: ${error.message}`);
@@ -1138,8 +1158,9 @@ export async function* sendToolResultsToAI(
     await waitForSlot();
     throwIfAborted(abortSignal);
 
+    const followupModel = routeBedrockModel({ intent: 'tool_followup' });
     const response = await converseBedrock({
-      modelId: routeBedrockModel({ intent: 'tool_followup' }).modelId,
+      modelId: followupModel.modelId,
       messages: messages as any,
       system: [{ text: STATIC_SYSTEM_INSTRUCTION_WITH_TOOLS }],
       // Required by Bedrock when conversation includes toolUse/toolResult blocks.
@@ -1149,6 +1170,7 @@ export async function* sendToolResultsToAI(
         temperature: 0.2,
       },
     });
+    recordRoutingModelOutcome(followupModel.modelId, 'success');
     throwIfAborted(abortSignal);
 
     // Yield text response
@@ -1176,6 +1198,8 @@ export async function* sendToolResultsToAI(
       };
     }
   } catch (error) {
+    const failedModel = routeBedrockModel({ intent: 'tool_followup' }).modelId;
+    recordRoutingModelOutcome(failedModel, 'failure');
     console.error('Bedrock API error:', error);
     if (error instanceof Error) {
       throw new Error(`Bedrock API error: ${error.message}`);

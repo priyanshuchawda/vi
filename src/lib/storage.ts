@@ -3,6 +3,7 @@ const PREFIX = 'qc_';
 export const storageKeys = {
   activeSidebarTab: `${PREFIX}active_sidebar_tab_v1`,
   uiCollapse: (section: string) => `${PREFIX}collapse_${section}`,
+  modelRoutingState: `${PREFIX}model_routing_state_v1`,
 } as const;
 
 export function getStoredString(key: string): string | null {

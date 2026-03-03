@@ -35,6 +35,8 @@ import {
 } from "./services/youtubeAuthService.js";
 import { uploadVideo } from "./services/youtubeUploadService.js";
 import { setupAutoUpdates } from "./services/updateService.js";
+import { captureMainException, initMainObservability } from "./services/observabilityService.js";
+import { log } from "./utils/logger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,6 +58,7 @@ protocol.registerSchemesAsPrivileged([
 
 // Load environment variables from .env file
 config({ path: path.join(__dirname, "../.env") });
+initMainObservability();
 
 // API Keys from environment variables
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || "";
@@ -65,13 +68,12 @@ const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || "";
 const BEDROCK_MODEL_ID =
   process.env.BEDROCK_MODEL_ID || "amazon.nova-lite-v1:0";
 
-console.log("[Main] API Keys loaded:");
-console.log(`  - YouTube API Key: ${YOUTUBE_API_KEY ? "Set" : "Missing"}`);
-console.log(`  - AWS Region: ${AWS_REGION}`);
-console.log(`  - AWS Access Key: ${AWS_ACCESS_KEY_ID ? "Set" : "Missing"}`);
-console.log(
-  `  - AWS Secret Key: ${AWS_SECRET_ACCESS_KEY ? "Set" : "Missing"}`,
-);
+log("info", "API keys loaded", {
+  youtubeApiKey: YOUTUBE_API_KEY ? "Set" : "Missing",
+  awsRegion: AWS_REGION,
+  awsAccessKey: AWS_ACCESS_KEY_ID ? "Set" : "Missing",
+  awsSecretKey: AWS_SECRET_ACCESS_KEY ? "Set" : "Missing",
+});
 
 // Initialize analysis service
 let analysisService: ChannelAnalysisService | null = null;
@@ -84,7 +86,7 @@ if (YOUTUBE_API_KEY && AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
     AWS_SECRET_ACCESS_KEY,
     BEDROCK_MODEL_ID,
   );
-  console.log("[Main] Channel analysis service initialized (Bedrock)");
+  log("info", "Channel analysis service initialized (Bedrock)");
   bedrockGatewayClient = new BedrockRuntimeClient({
     region: AWS_REGION,
     credentials: {
@@ -96,7 +98,7 @@ if (YOUTUBE_API_KEY && AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
     },
   });
 } else {
-  console.warn("[Main] Missing API keys - channel analysis disabled");
+  log("warn", "Missing API keys - channel analysis disabled");
 }
 
 // Set the application name for the menu bar
@@ -175,7 +177,21 @@ function createWindow() {
       mainWindow.destroy();
     }
   });
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    captureMainException(new Error("Renderer process exited unexpectedly"), {
+      reason: details.reason,
+      exitCode: details.exitCode,
+    });
+  });
 }
+
+process.on("uncaughtException", (error) => {
+  captureMainException(error, { origin: "process:uncaughtException" });
+});
+
+process.on("unhandledRejection", (reason) => {
+  captureMainException(reason, { origin: "process:unhandledRejection" });
+});
 
 ipcMain.handle(IPC_CHANNELS.ping, async () => "pong");
 

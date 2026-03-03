@@ -143,6 +143,11 @@ GitHub Actions workflows:
 - Startup and interaction performance budgets are documented in:
   [docs/performance-budget.md](./docs/performance-budget.md)
 
+## Observability
+
+- Error tracking, structured logging, and privacy telemetry boundaries are documented in:
+  [docs/observability-and-telemetry.md](./docs/observability-and-telemetry.md)
+
 ## Notes on Tests
 
 Some integration tests depend on local test media files and may fail if those assets are not present in your environment. Unit tests run independently.

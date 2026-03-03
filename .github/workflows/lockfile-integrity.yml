@@ -1,0 +1,35 @@
+name: Lockfile Integrity
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/lockfile-integrity.yml
+  push:
+    branches:
+      - main
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/lockfile-integrity.yml
+
+jobs:
+  verify-lockfile:
+    name: Verify package-lock is in sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify lockfile sync
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          git diff --exit-code package-lock.json

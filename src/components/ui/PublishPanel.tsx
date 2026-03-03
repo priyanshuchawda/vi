@@ -1,5 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
+import {
+  isYouTubeAvailable,
+  useYouTubeAuthStatus,
+  useYouTubeAuthenticate,
+  useYouTubeLogout,
+  useYouTubeUpload,
+} from '../../lib/youtubeQueries';
 
 interface UploadProgress {
   bytesUploaded: number;
@@ -13,12 +20,16 @@ interface UploadProgress {
 const PublishPanel = () => {
   const exportedVideoPath = useProjectStore((state) => state.exportedVideoPath);
   const setNotification = useProjectStore((state) => state.setNotification);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
-  const [isElectronAvailable, setIsElectronAvailable] = useState(false);
+  const isElectronAvailable = isYouTubeAvailable();
+  const authStatusQuery = useYouTubeAuthStatus();
+  const authenticateMutation = useYouTubeAuthenticate();
+  const logoutMutation = useYouTubeLogout();
+  const uploadMutation = useYouTubeUpload();
+  const isAuthenticated = authStatusQuery.data ?? false;
+  const isAuthenticating = authenticateMutation.isPending;
+  const isUploading = uploadMutation.isPending;
   
   // Form state
   const [title, setTitle] = useState('');
@@ -33,43 +44,15 @@ const PublishPanel = () => {
     return 'Unknown error';
   };
 
-  const checkAuthStatus = useCallback(async () => {
-    if (!window.electronAPI?.youtube) return;
-    
-    try {
-      const authenticated = await window.electronAPI.youtube.isAuthenticated();
-      setIsAuthenticated(authenticated);
-    } catch (error: unknown) {
-      setNotification({ 
-        type: 'error', 
-        message: `Auth check failed: ${getErrorMessage(error)}` 
-      });
-      setIsAuthenticated(false);
-    }
-  }, [setNotification]);
-
-  // Check Electron API and authentication status on mount
-  useEffect(() => {
-    const checkElectronAndAuth = async () => {
-      const available = !!(window.electronAPI?.youtube);
-      setIsElectronAvailable(available);
-      if (available) {
-        await checkAuthStatus();
-      }
-    };
-    checkElectronAndAuth();
-  }, [checkAuthStatus]);
-
   const handleAuthenticate = async () => {
-    if (!window.electronAPI?.youtube) {
+    if (!isElectronAvailable) {
       setNotification({ type: 'error', message: 'YouTube upload is not available' });
       return;
     }
 
-    setIsAuthenticating(true);
     try {
-      const success = await window.electronAPI.youtube.authenticate();
-      setIsAuthenticated(success);
+      const success = await authenticateMutation.mutateAsync();
+      await authStatusQuery.refetch();
       if (success) {
         setNotification({ type: 'success', message: 'Successfully authenticated with YouTube!' });
       } else {
@@ -80,17 +63,15 @@ const PublishPanel = () => {
         type: 'error', 
         message: `Authentication failed: ${getErrorMessage(error)}` 
       });
-    } finally {
-      setIsAuthenticating(false);
     }
   };
 
   const handleLogout = async () => {
-    if (!window.electronAPI?.youtube) return;
+    if (!isElectronAvailable) return;
 
     try {
-      await window.electronAPI.youtube.logout();
-      setIsAuthenticated(false);
+      await logoutMutation.mutateAsync();
+      await authStatusQuery.refetch();
       setNotification({ type: 'success', message: 'Logged out successfully' });
     } catch (error: unknown) {
       setNotification({ 
@@ -111,12 +92,11 @@ const PublishPanel = () => {
       return;
     }
 
-    if (!window.electronAPI?.youtube) {
+    if (!isElectronAvailable) {
       setNotification({ type: 'error', message: 'YouTube upload is not available' });
       return;
     }
 
-    setIsUploading(true);
     setUploadProgress(null);
     setVideoUrl('');
 
@@ -130,13 +110,13 @@ const PublishPanel = () => {
     };
 
     try {
-      const result = await window.electronAPI.youtube.uploadVideo(
-        exportedVideoPath,
+      const result = await uploadMutation.mutateAsync({
+        filePath: exportedVideoPath,
         metadata,
-        (progress: UploadProgress) => {
+        onProgress: (progress: UploadProgress) => {
           setUploadProgress(progress);
-        }
-      );
+        },
+      });
 
       if (result.videoId) {
         const url = `https://www.youtube.com/watch?v=${result.videoId}`;
@@ -159,7 +139,7 @@ const PublishPanel = () => {
         error: errorMessage,
       });
     } finally {
-      setIsUploading(false);
+      // no-op: mutation controls pending state
     }
   };
 

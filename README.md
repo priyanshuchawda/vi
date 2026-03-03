@@ -153,6 +153,11 @@ GitHub Actions workflows:
 - Storage decision matrix and future SQLite migration notes are documented in:
   [docs/storage-strategy.md](./docs/storage-strategy.md)
 
+## Electron Security
+
+- Residual Electron security checklist and enforced controls are documented in:
+  [docs/electron-security-checklist.md](./docs/electron-security-checklist.md)
+
 ## Notes on Tests
 
 Some integration tests depend on local test media files and may fail if those assets are not present in your environment. Unit tests run independently.

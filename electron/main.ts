@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, nativeImage, protocol, net } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, nativeImage, protocol, net, session, shell } from "electron";
 import path from "path";
 import fs from "fs/promises";
 import { fileURLToPath, pathToFileURL } from "url";
@@ -37,6 +37,12 @@ import { uploadVideo } from "./services/youtubeUploadService.js";
 import { setupAutoUpdates } from "./services/updateService.js";
 import { captureMainException, initMainObservability } from "./services/observabilityService.js";
 import { log } from "./utils/logger.js";
+import {
+  isAllowedExternalUrl,
+  packagedCspPolicy,
+  shouldAllowPermissionRequest,
+  shouldBlockNavigation,
+} from "./security/policy.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -175,6 +181,25 @@ function createWindow() {
   mainWindow.on("close", () => {
     if (mainWindow) {
       mainWindow.destroy();
+    }
+  });
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isAllowedExternalUrl(url)) {
+      void shell.openExternal(url);
+    } else {
+      log("warn", "Blocked external window open", { url });
+    }
+    return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    const currentUrl = mainWindow?.webContents.getURL() || "";
+    if (shouldBlockNavigation(currentUrl, url)) {
+      event.preventDefault();
+      if (isAllowedExternalUrl(url)) {
+        void shell.openExternal(url);
+      } else {
+        log("warn", "Blocked navigation attempt", { url });
+      }
     }
   });
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
@@ -839,6 +864,20 @@ ipcMain.handle(IPC_CHANNELS.youtube.uploadVideo, async (_event, rawPayload) => {
 });
 
 app.whenReady().then(() => {
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    callback(shouldAllowPermissionRequest(webContents, permission));
+  });
+  if (app.isPackaged) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          "Content-Security-Policy": [packagedCspPolicy()],
+        },
+      });
+    });
+  }
+
   registerMediaProtocol();
   createWindow();
   if (mainWindow) {

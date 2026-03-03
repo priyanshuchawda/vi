@@ -60,8 +60,13 @@ import {
   type CompilationError,
 } from './planCompiler';
 import { buildFallbackExecutionPlan, shouldUseFallback } from './fallbackPlanGenerator';
-import { recordPlanningAttempt, recordExecutionAttempt } from './aiTelemetry';
+import {
+  recordPlanningAttempt,
+  recordExecutionAttempt,
+  recordContextLimitApplied,
+} from './aiTelemetry';
 import { formatRetrievedMemoryContext, retrieveRelevantMemory } from './memoryRetrieval';
+import { getContextBudgetProfile } from './contextBudgetPolicy';
 
 const DEFAULT_MAX_ROUNDS = 2;
 const ABSOLUTE_MAX_ROUNDS = 3;
@@ -348,6 +353,7 @@ export async function generateCompletePlan(
   const toolNames = toolSet
     .map((tool: any) => tool?.toolSpec?.name)
     .filter((name: string | undefined): name is string => Boolean(name));
+  const planContextBudget = getContextBudgetProfile('plan');
   const routingDecision = routeBedrockModel({
     intent: 'plan',
     message,
@@ -365,8 +371,14 @@ export async function generateCompletePlan(
     retrieveRelevantMemory({
       query: message,
       entries: useAiMemoryStore.getState().getCompletedEntries(),
-      maxEntries: 6,
-      maxScenesPerEntry: 2,
+      intent: 'plan',
+      maxEntries: planContextBudget.maxRetrievedEntries,
+      maxScenesPerEntry: planContextBudget.maxScenesPerEntry,
+      onLimitsApplied: (metrics) => {
+        recordContextLimitApplied({
+          droppedItems: metrics.droppedEntries + metrics.droppedScenes,
+        });
+      },
     }),
     message,
     1500,

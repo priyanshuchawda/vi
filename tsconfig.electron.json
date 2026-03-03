@@ -5,6 +5,8 @@
     "target": "ESNext",
     "outDir": "dist-electron",
     "strict": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

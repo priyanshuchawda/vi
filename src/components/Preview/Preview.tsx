@@ -143,6 +143,7 @@ const Preview = () => {
         }
       };
     }
+    return undefined;
   }, [isPlaying, totalDuration, setCurrentTime, setIsPlaying]); // Only re-run on play/pause or duration change (not currentTime!)
 
   // SYNC MEDIA ELEMENTS

@@ -171,6 +171,8 @@ GitHub Actions workflows:
 
 - Residual Electron security checklist and enforced controls are documented in:
   [docs/electron-security-checklist.md](./docs/electron-security-checklist.md)
+- Architecture dependency boundaries and cycle rules are documented in:
+  [docs/architecture-boundaries.md](./docs/architecture-boundaries.md)
 
 ## Testing Hardening
 
@@ -193,6 +195,11 @@ assets are not present in your environment. Unit tests run independently.
 
 Reading and following [CONTRIBUTING.md](./CONTRIBUTING.md) is mandatory for
 every PR.
+
+Community and support documents:
+
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
+- [SUPPORT.md](./SUPPORT.md)
 
 1. Create a branch from `main`
 2. Follow `CONTRIBUTING.md` rules (tests required for every change, checks must

@@ -91,6 +91,15 @@ export interface YouTubeVideo {
   };
 }
 
+export type UpdateStatusPayload =
+  | { status: 'disabled'; reason: string }
+  | { status: 'checking' }
+  | { status: 'available'; version: string; notes?: string }
+  | { status: 'not-available' }
+  | { status: 'downloading'; percent: number; transferred: number; total: number; bytesPerSecond: number }
+  | { status: 'downloaded'; version: string }
+  | { status: 'error'; message: string };
+
 export interface ExportProgressPayload {
   percent: number;
 }
@@ -159,6 +168,12 @@ export interface ElectronAPI {
       metadata: YouTubeVideoMetadata,
       onProgress?: (progress: YouTubeUploadProgress) => void
     ) => Promise<{ success: boolean; videoId?: string; error?: string }>;
+  };
+  updates: {
+    check: () => Promise<{ enabled: boolean; started: boolean; error?: string }>;
+    download: () => Promise<{ enabled: boolean; started: boolean; error?: string }>;
+    install: () => Promise<{ enabled: boolean; started: boolean }>;
+    onStatus: (callback: (status: UpdateStatusPayload) => void) => () => void;
   };
   // AI Memory — file-based persistence (project-specific)
   memorySave: (data: unknown) => Promise<{ success: boolean; path?: string; error?: string }>;

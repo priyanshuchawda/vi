@@ -16,6 +16,7 @@
     "dist:mac": "npm run build && electron-builder --mac --arm64 --x64",
     "dist:win": "npm run build && electron-builder --win --x64",
     "dist:linux": "npm run build && electron-builder --linux --x64",
+    "dist:publish": "npm run build && electron-builder --publish always",
     "test": "vitest run",
     "typecheck": "tsc -b --pretty false && tsc -p tsconfig.electron.json --pretty false --noEmit",
     "test:watch": "vitest",
@@ -58,6 +59,7 @@
     "concurrently": "^9.2.1",
     "electron": "^40.0.0",
     "electron-builder": "^26.4.0",
+    "electron-updater": "^6.7.0",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
@@ -80,7 +82,9 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
     },
     "win": {
       "target": "nsis",
@@ -95,6 +99,14 @@
     "files": [
       "dist-electron/**/*",
       "dist/**/*"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "priyanshuchawda",
+        "repo": "vi",
+        "releaseType": "draft"
+      }
     ],
     "extraResources": [
       {

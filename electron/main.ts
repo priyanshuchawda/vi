@@ -34,6 +34,7 @@ import {
   logout as youtubeLogout 
 } from "./services/youtubeAuthService.js";
 import { uploadVideo } from "./services/youtubeUploadService.js";
+import { setupAutoUpdates } from "./services/updateService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -102,6 +103,7 @@ if (YOUTUBE_API_KEY && AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
 app.setName("QuickCut");
 
 let mainWindow: BrowserWindow | null = null;
+let updateService: ReturnType<typeof setupAutoUpdates> | null = null;
 
 function registerMediaProtocol() {
   protocol.handle(APP_MEDIA_SCHEME, async (request) => {
@@ -823,10 +825,34 @@ ipcMain.handle(IPC_CHANNELS.youtube.uploadVideo, async (_event, rawPayload) => {
 app.whenReady().then(() => {
   registerMediaProtocol();
   createWindow();
+  if (mainWindow) {
+    updateService = setupAutoUpdates(mainWindow);
+  }
 
   // Handle window:close IPC from renderer (custom close button)
   ipcMain.handle(IPC_CHANNELS.window.close, () => {
     if (mainWindow) mainWindow.close();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.update.check, async () => {
+    if (!updateService) {
+      return { enabled: false, started: false, error: "Update service not initialized" };
+    }
+    return updateService.checkForUpdates();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.update.download, async () => {
+    if (!updateService) {
+      return { enabled: false, started: false, error: "Update service not initialized" };
+    }
+    return updateService.downloadUpdate();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.update.install, () => {
+    if (!updateService) {
+      return { enabled: false, started: false };
+    }
+    return updateService.installUpdate();
   });
 
   app.on("activate", () => {

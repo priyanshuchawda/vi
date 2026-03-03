@@ -4,8 +4,6 @@
 electron/ffmpeg/processor.ts
 electron/main.ts
 electron/services/cacheService.ts
-electron/services/channelAnalysisService.ts
-electron/services/youtubeAuthService.ts
 electron/services/youtubeService.ts
 electron/services/youtubeUploadService.ts
 src/components/Chat/ChatPanel.tsx

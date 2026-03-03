@@ -104,8 +104,12 @@ describe('ToolExecutor phase 3 macro tools', () => {
     );
 
     expect(results[0].result.success).toBe(true);
-    expect(results[0].result.data?.script_blocks?.length).toBeGreaterThanOrEqual(4);
+    const blocks = results[0].result.data?.script_blocks || [];
+    expect(blocks.length).toBeGreaterThanOrEqual(4);
     expect(results[0].result.data?.formatted_script).toContain('[00:00 - 00:');
+    const voiceovers = blocks.map((block: any) => block.voiceover);
+    const uniqueVoiceovers = new Set(voiceovers);
+    expect(uniqueVoiceovers.size).toBe(voiceovers.length);
   });
 
   it('applies script blocks as captions in a single macro call', async () => {
@@ -158,4 +162,3 @@ describe('ToolExecutor phase 3 macro tools', () => {
     expect(results[0].result.data?.fit_score).toBeLessThan(1);
   });
 });
-

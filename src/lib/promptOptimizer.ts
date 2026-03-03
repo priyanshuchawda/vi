@@ -58,8 +58,10 @@ Output format requirements:
    On-screen text: ...
 3) Keep each beat concise (max 14 words for on-screen text).
 4) Use only scenes/topics likely present in the attached timeline/media context.
-5) End with one strong winner line in the last beat.
-6) After the script, ask exactly one question: "Apply these as captions on timeline?"
+5) Avoid repeating the same sentence starter across beats.
+6) Each beat should feel distinct (hook, build, proof, win).
+7) End with one strong winner line in the last beat.
+8) After the script, ask exactly one question: "Apply these as captions on timeline?"
 
 Do not claim any timeline edit was executed in this response.`;
 }

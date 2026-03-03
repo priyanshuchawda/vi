@@ -248,6 +248,102 @@ export class ToolExecutor {
     return Array.from(bag);
   }
 
+  private static extractMemoryPhrases(limit: number): string[] {
+    const memory = useAiMemoryStore.getState().getCompletedEntries();
+    const phrases: string[] = [];
+    const seen = new Set<string>();
+
+    for (const entry of memory) {
+      const summary = String(entry.summary || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (summary) {
+        const parts = summary
+          .split(/[.!?]/)
+          .map((part) => part.trim())
+          .filter((part) => part.length >= 10 && part.length <= 90);
+        for (const part of parts) {
+          const key = part.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          phrases.push(part);
+          if (phrases.length >= limit) return phrases;
+        }
+      }
+    }
+
+    return phrases;
+  }
+
+  private static toPunchyCaption(input: string, fallback: string): string {
+    const cleaned = String(input || '')
+      .replace(/[^a-zA-Z0-9 ]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!cleaned) return fallback;
+    const words = cleaned.split(' ');
+    const deduped: string[] = [];
+    const seen = new Set<string>();
+    for (const word of words) {
+      const key = word.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(word);
+      if (deduped.length >= 3) break;
+    }
+    const text = deduped
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+    return text || fallback;
+  }
+
+  private static pickToneLexicon(tone: string): {
+    opening: string[];
+    middle: string[];
+    ending: string[];
+  } {
+    const lower = tone.toLowerCase();
+    if (/\b(cinematic|attractive|viral|high|hype|energetic)\b/.test(lower)) {
+      return {
+        opening: [
+          'A bold idea sparked the run',
+          'It started with one high-stakes challenge',
+          'One problem, one shot, one team',
+        ],
+        middle: [
+          'We iterated fast and sharpened every demo beat',
+          'Every feedback loop made the solution stronger',
+          'Pressure turned into precision execution',
+          'We kept pace while others slowed down',
+        ],
+        ending: [
+          'That momentum is exactly how we won',
+          'Result: judges nodding, team exploding, title secured',
+          'From build to victory, the finish was ours',
+        ],
+      };
+    }
+
+    return {
+      opening: [
+        'We began with a clear problem to solve',
+        'The challenge looked tough from minute one',
+        'We started by focusing on what matters most',
+      ],
+      middle: [
+        'Step by step, the product became more reliable',
+        'We improved each part with quick practical iterations',
+        'The demo improved with every small refinement',
+        'Team coordination kept the whole flow tight',
+      ],
+      ending: [
+        'That consistency is what secured the win',
+        'The final demo made the decision easy',
+        'In the end, execution made the difference',
+      ],
+    };
+  }
+
   private static formatSeconds(seconds: number): string {
     const safe = Math.max(0, Math.floor(seconds));
     const mm = Math.floor(safe / 60)
@@ -275,6 +371,7 @@ export class ToolExecutor {
       .map((clip) => clip.name)
       .filter(Boolean);
     const keywords = this.extractMemoryKeywords(10);
+    const memoryPhrases = this.extractMemoryPhrases(8);
     const objective = String(args.objective || 'how I won the hackathon').trim();
     const tone = String(args.tone || 'energetic').trim();
     const requestedDuration = Number(args.target_duration || 16);
@@ -288,6 +385,7 @@ export class ToolExecutor {
       Math.min(8, Number.isFinite(requestedBeatCount) ? requestedBeatCount : 6),
     );
     const beatDuration = targetDuration / beatCount;
+    const lexicon = this.pickToneLexicon(tone);
 
     const title = `Hackathon Win Intro (${targetDuration}s)`;
     const visualHints = clipNames.slice(0, beatCount);
@@ -304,24 +402,78 @@ export class ToolExecutor {
       voiceover: string;
       on_screen_text: string;
     }> = [];
+    const usedLines = new Set<string>();
+    const usedCaptions = new Set<string>();
+
+    const uniqueLine = (candidates: string[], fallback: string): string => {
+      for (const candidate of candidates) {
+        const key = candidate.toLowerCase();
+        if (!usedLines.has(key)) {
+          usedLines.add(key);
+          return candidate;
+        }
+      }
+      usedLines.add(fallback.toLowerCase());
+      return fallback;
+    };
+
+    const uniqueCaption = (candidate: string, fallback: string): string => {
+      const normalized = candidate.toLowerCase();
+      if (!usedCaptions.has(normalized)) {
+        usedCaptions.add(normalized);
+        return candidate;
+      }
+      let attempt = 2;
+      let next = `${candidate} ${attempt}`;
+      while (usedCaptions.has(next.toLowerCase()) && attempt < 10) {
+        attempt += 1;
+        next = `${candidate} ${attempt}`;
+      }
+      if (!usedCaptions.has(next.toLowerCase())) {
+        usedCaptions.add(next.toLowerCase());
+        return next;
+      }
+      usedCaptions.add(fallback.toLowerCase());
+      return fallback;
+    };
 
     for (let i = 0; i < beatCount; i++) {
       const start = Number((i * beatDuration).toFixed(2));
       const end = Number(((i + 1) * beatDuration).toFixed(2));
       const visual = visualHints[i] || fallbackHints[i] || `moment ${i + 1}`;
       const keyword = keywords[i] || keywords[0] || 'innovation';
+      const memoryPhrase = memoryPhrases[i] || '';
+      const opener = lexicon.opening[i % lexicon.opening.length];
+      const middle = lexicon.middle[i % lexicon.middle.length];
+      const ending = lexicon.ending[i % lexicon.ending.length];
+
       const voiceover =
         i === 0
-          ? `From idea to victory in one sprint: ${objective}.`
+          ? uniqueLine(
+              [`${opener}: ${objective}.`, `From concept to spotlight, this is ${objective}.`],
+              `From idea to victory: ${objective}.`,
+            )
           : i === beatCount - 1
-            ? `That is how we turned pressure into a winning finish.`
-            : `We pushed through ${visual}, focused on ${keyword}, and kept momentum high.`;
-      const onScreen =
+            ? uniqueLine(
+                [`${ending}.`, `Final frame: ${objective}, delivered with confidence.`],
+                `That is how we turned pressure into a winning finish.`,
+              )
+            : uniqueLine(
+                [
+                  `${middle} around ${visual}.`,
+                  `In ${visual}, ${memoryPhrase || `we focused on ${keyword} and executed cleanly`}.`,
+                  `Through ${visual}, ${keyword} became our edge.`,
+                ],
+                `We kept momentum through ${visual}.`,
+              );
+
+      const baseCaption =
         i === 0
           ? 'Hackathon Victory'
           : i === beatCount - 1
-            ? 'Built to Win'
-            : `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)} Energy`;
+            ? 'Built To Win'
+            : this.toPunchyCaption(`${keyword} ${visual}`, 'Winning Momentum');
+      const onScreen = uniqueCaption(baseCaption, `Beat ${i + 1}`);
 
       blocks.push({
         start_time: start,

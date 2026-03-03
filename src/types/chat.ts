@@ -1,5 +1,10 @@
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type ChatTurnMode = 'ask' | 'plan' | 'edit';
+export type AssistantArtifactType =
+  | 'script_draft'
+  | 'execution_plan'
+  | 'caption_plan'
+  | 'tool_execution_result';
 export type ChatTurnStatus =
   | 'idle'
   | 'planning'
@@ -69,6 +74,11 @@ export interface ChatMessage {
   metadata?: {
     context?: string;
     error?: boolean;
+    artifact?: {
+      type: AssistantArtifactType;
+      executable: boolean;
+      nextActions?: string[];
+    };
   };
   tokens?: TokenInfo;
   attachments?: MediaAttachment[];

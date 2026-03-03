@@ -1,6 +1,8 @@
 import { useRef, useEffect } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
+import { useShallow } from 'zustand/react/shallow';
 import { getActiveSubtitle } from '../../lib/srtParser';
+import { toMediaUrl } from '../../lib/mediaUrl';
 
 const formatTime = (seconds: number) => {
   const h = Math.floor(seconds / 3600);
@@ -21,7 +23,20 @@ const Preview = () => {
     getActiveClips,
     subtitles,
     subtitleStyle
-  } = useProjectStore();
+  } = useProjectStore(
+    useShallow((state) => ({
+      clips: state.clips,
+      isPlaying: state.isPlaying,
+      setIsPlaying: state.setIsPlaying,
+      currentTime: state.currentTime,
+      setCurrentTime: state.setCurrentTime,
+      getTotalDuration: state.getTotalDuration,
+      getClipAtTime: state.getClipAtTime,
+      getActiveClips: state.getActiveClips,
+      subtitles: state.subtitles,
+      subtitleStyle: state.subtitleStyle,
+    })),
+  );
 
   // Get the primary video clip at current playhead position (for display)
   const currentVideoClip = getClipAtTime(currentTime);
@@ -73,15 +88,24 @@ const Preview = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
   const isSeeking = useRef(false);
+  const currentTimeRef = useRef(currentTime);
+  const clipsLengthRef = useRef(clips.length);
 
   const animationFrameRef = useRef<number | null>(null);
 
+  useEffect(() => {
+    currentTimeRef.current = currentTime;
+  }, [currentTime]);
+
+  useEffect(() => {
+    clipsLengthRef.current = clips.length;
+  }, [clips.length]);
 
 
   // Sync Play/Pause and handle timeline playback
   useEffect(() => {
     if (isPlaying) {
-      if (clips.length === 0) {
+      if (clipsLengthRef.current === 0) {
         setIsPlaying(false);
         return;
       }
@@ -90,17 +114,20 @@ const Preview = () => {
       // Start playback loop
 
 
-      const startTime = Date.now();
-      const initialTime = currentTime;
+      let lastFrameTime = Date.now();
 
       const loop = () => {
-        const elapsed = (Date.now() - startTime) / 1000;
-        const newTime = initialTime + elapsed;
+        const now = Date.now();
+        const elapsed = (now - lastFrameTime) / 1000;
+        lastFrameTime = now;
+        const newTime = currentTimeRef.current + elapsed;
 
         if (newTime >= totalDuration) {
+          currentTimeRef.current = 0;
           setCurrentTime(0); // Loop back or stop
           setIsPlaying(false);
         } else {
+          currentTimeRef.current = newTime;
           setCurrentTime(newTime);
           animationFrameRef.current = requestAnimationFrame(loop);
         }
@@ -115,7 +142,7 @@ const Preview = () => {
         }
       };
     }
-  }, [isPlaying, totalDuration]); // Only re-run on play/pause or duration change (not currentTime!)
+  }, [isPlaying, totalDuration, setCurrentTime, setIsPlaying]); // Only re-run on play/pause or duration change (not currentTime!)
 
   // SYNC MEDIA ELEMENTS
   // This effect runs whenever currentTime changes to sync all media
@@ -256,7 +283,7 @@ const Preview = () => {
         {currentVideoClip && displayMediaType === 'video' && (
           <video
             ref={videoRef}
-            src={`file://${currentVideoClip.path}`}
+            src={toMediaUrl(currentVideoClip.path)}
             className="max-h-full max-w-full rounded-xl shadow-2xl ring-1 ring-white/10"
             onClick={togglePlay}
           />
@@ -265,7 +292,7 @@ const Preview = () => {
         {/* Image Display */}
         {currentVideoClip && displayMediaType === 'image' && (
           <img
-            src={`file://${currentVideoClip.path}`}
+            src={toMediaUrl(currentVideoClip.path)}
             alt={currentVideoClip.name}
             className="max-h-full max-w-full rounded-xl shadow-2xl object-contain cursor-pointer ring-1 ring-white/10"
             style={{ objectFit: 'contain' }}
@@ -293,7 +320,7 @@ const Preview = () => {
           <audio
             key={clip.id}
             ref={(el) => setAudioRef(clip.id, el)}
-            src={`file://${clip.path}`}
+            src={toMediaUrl(clip.path)}
             preload="auto"
           />
         ))}

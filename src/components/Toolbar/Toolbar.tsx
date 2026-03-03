@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
 import { useProfileStore } from '../../stores/useProfileStore';
 import { useChatStore } from '../../stores/useChatStore';
+import { useShallow } from 'zustand/react/shallow';
 import { ProfileModal } from '../ui/ProfileModal';
 
 interface ToolbarProps {
@@ -18,17 +19,41 @@ const Toolbar = ({
   isRightPanelOpen = false
 }: ToolbarProps = {}) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const { activeClipId, currentTime, removeClip, splitClip, clips, setNotification, selectedClipIds, mergeSelectedClips, copyClips, pasteClips, saveProject, loadProject, undo, redo, exportFormat, exportResolution, subtitles, subtitleStyle, setExportedVideoPath } = useProjectStore();
-  const { profile } = useProfileStore();
-  const { togglePanel, isOpen: isChatOpen } = useChatStore();
+  const { activeClipId, currentTime, removeClip, splitClip, clips, setNotification, selectedClipIds, mergeSelectedClips, copyClips, pasteClips, saveProject, loadProject, undo, redo, exportFormat, exportResolution, subtitles, subtitleStyle, setExportedVideoPath } = useProjectStore(
+    useShallow((state) => ({
+      activeClipId: state.activeClipId,
+      currentTime: state.currentTime,
+      removeClip: state.removeClip,
+      splitClip: state.splitClip,
+      clips: state.clips,
+      setNotification: state.setNotification,
+      selectedClipIds: state.selectedClipIds,
+      mergeSelectedClips: state.mergeSelectedClips,
+      copyClips: state.copyClips,
+      pasteClips: state.pasteClips,
+      saveProject: state.saveProject,
+      loadProject: state.loadProject,
+      undo: state.undo,
+      redo: state.redo,
+      exportFormat: state.exportFormat,
+      exportResolution: state.exportResolution,
+      subtitles: state.subtitles,
+      subtitleStyle: state.subtitleStyle,
+      setExportedVideoPath: state.setExportedVideoPath,
+    })),
+  );
+  const profile = useProfileStore((state) => state.profile);
+  const togglePanel = useChatStore((state) => state.togglePanel);
+  const isChatOpen = useChatStore((state) => state.isOpen);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [showFormatMenu, setShowFormatMenu] = useState(false);
   const [showResolutionMenu, setShowResolutionMenu] = useState(false);
 
   useEffect(() => {
+    let unsubscribeExportProgress: (() => void) | undefined;
     if (window.electronAPI && window.electronAPI.onExportProgress) {
-      window.electronAPI.onExportProgress((percent) => {
+      unsubscribeExportProgress = window.electronAPI.onExportProgress((percent) => {
         setExportProgress(percent);
       });
     }
@@ -63,7 +88,7 @@ const Toolbar = ({
       }
       if (e.key === 's' && !e.ctrlKey && activeClipId && !isExporting && !isTyping) {
         e.preventDefault();
-        handleSplit();
+        splitClip(activeClipId, currentTime);
       }
       if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
@@ -75,7 +100,7 @@ const Toolbar = ({
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && activeClipId && !isExporting && !isTyping) {
         e.preventDefault();
-        handleDelete();
+        removeClip(activeClipId);
       }
       if (e.key === 'm' && selectedClipIds.length >= 2 && !isExporting && !isTyping) {
         e.preventDefault();
@@ -101,24 +126,29 @@ const Toolbar = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => {
+      unsubscribeExportProgress?.();
       window.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [activeClipId, selectedClipIds, isExporting, undo, redo, showFormatMenu, showResolutionMenu]);
+  }, [
+    activeClipId,
+    copyClips,
+    currentTime,
+    isExporting,
+    loadProject,
+    mergeSelectedClips,
+    pasteClips,
+    redo,
+    removeClip,
+    saveProject,
+    selectedClipIds,
+    showFormatMenu,
+    showResolutionMenu,
+    splitClip,
+    undo,
+  ]);
 
-  const handleSplit = () => {
-    if (activeClipId) {
-      splitClip(activeClipId, currentTime);
-    }
-  };
-
-  const handleDelete = () => {
-    if (activeClipId) {
-      removeClip(activeClipId);
-    }
-  };
-
-  const runExport = async (clipsToExport: any[]) => {
+  const runExport = async (clipsToExport: typeof clips) => {
     const outputPath = await window.electronAPI.saveFile(exportFormat);
     if (outputPath) {
       setIsExporting(true);

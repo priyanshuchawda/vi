@@ -11,12 +11,32 @@ import { OnboardingWizard } from './components/Onboarding';
 import { useChatStore } from './stores/useChatStore';
 import { useOnboardingStore } from './stores/useOnboardingStore';
 import { useProfileStore } from './stores/useProfileStore';
+import { useShallow } from 'zustand/react/shallow';
 import type { ChannelAnalysisData } from './types/electron';
 
 function App() {
-  const { togglePanel, isOpen: isChatOpen, panelWidth, setPanelWidth } = useChatStore();
-  const { hasCompletedOnboarding, completeOnboarding, skipOnboarding } = useOnboardingStore();
-  const { profile, createProfile, setYouTubeChannel } = useProfileStore();
+  const { togglePanel, isOpen: isChatOpen, panelWidth, setPanelWidth } = useChatStore(
+    useShallow((state) => ({
+      togglePanel: state.togglePanel,
+      isOpen: state.isOpen,
+      panelWidth: state.panelWidth,
+      setPanelWidth: state.setPanelWidth,
+    })),
+  );
+  const { hasCompletedOnboarding, completeOnboarding, skipOnboarding } = useOnboardingStore(
+    useShallow((state) => ({
+      hasCompletedOnboarding: state.hasCompletedOnboarding,
+      completeOnboarding: state.completeOnboarding,
+      skipOnboarding: state.skipOnboarding,
+    })),
+  );
+  const { profile, createProfile, setYouTubeChannel } = useProfileStore(
+    useShallow((state) => ({
+      profile: state.profile,
+      createProfile: state.createProfile,
+      setYouTubeChannel: state.setYouTubeChannel,
+    })),
+  );
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
   const [isFilePanelOpen, setIsFilePanelOpen] = useState(true);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);

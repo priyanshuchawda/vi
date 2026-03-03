@@ -119,6 +119,7 @@ export async function authenticateUser(mainWindow: BrowserWindow): Promise<boole
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        sandbox: true,
       },
     });
 

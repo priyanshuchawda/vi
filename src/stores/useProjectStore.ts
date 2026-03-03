@@ -9,6 +9,8 @@ import {
 import type { ClipSegment } from '../lib/clipOperations';
 import type { SubtitleEntry } from '../lib/srtParser';
 import type { TranscriptionResult } from '../types/electron';
+import type { ChatMessage } from '../types/chat';
+import type { MediaAnalysisEntry } from '../types/aiMemory';
 import { srtTimeToSeconds } from '../lib/timecode';
 
 export interface TextProperties {
@@ -654,7 +656,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const result = await window.electronAPI.readProjectFile(filePath);
 
       if (result.success && result.data) {
-        const projectData = result.data;
+        type LoadedProjectData = {
+          projectId?: string;
+          clips?: Clip[];
+          activeClipId?: string | null;
+          selectedClipIds?: string[];
+          currentTime?: number;
+          turnAudits?: TurnAuditRecord[];
+          timelineVersion?: number;
+          subtitles?: SubtitleEntry[];
+          subtitleStyle?: ProjectState['subtitleStyle'];
+          memory?: MediaAnalysisEntry[];
+          chat?: {
+            messages?: ChatMessage[];
+            sessionTokens?: {
+              totalPromptTokens: number;
+              totalResponseTokens: number;
+              totalTokens: number;
+              totalCachedTokens: number;
+            };
+          };
+        };
+        const projectData = result.data as LoadedProjectData;
         // If old project doesn't have projectId, generate one
         const projectId = projectData.projectId || uuidv4();
         
@@ -674,6 +697,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             color: '#ffffff',
             backgroundColor: 'rgba(0, 0, 0, 0.7)',
             position: 'bottom',
+            displayMode: 'instant',
           },
           projectPath: filePath,
           projectId,
@@ -907,11 +931,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return;
     }
 
+    let unsubscribeProgress: (() => void) | undefined;
     try {
       set({ isTranscribing: true, transcriptionProgress: { status: 'Starting...', progress: 0 } });
 
       // Set up progress listener
-      window.electronAPI.onTranscriptionProgress((progress) => {
+      unsubscribeProgress = window.electronAPI.onTranscriptionProgress((progress) => {
         set({ transcriptionProgress: progress });
       });
 
@@ -982,6 +1007,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         transcriptionProgress: null,
         notification: { type: 'error', message: 'Transcription error' }
       });
+    } finally {
+      unsubscribeProgress?.();
     }
   },
   transcribeFile: async (path: string) => {
@@ -990,11 +1017,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return;
     }
 
+    let unsubscribeProgress: (() => void) | undefined;
     try {
       set({ isTranscribing: true, transcriptionProgress: { status: 'Starting...', progress: 0 } });
 
       // Set up progress listener
-      window.electronAPI.onTranscriptionProgress((progress) => {
+      unsubscribeProgress = window.electronAPI.onTranscriptionProgress((progress) => {
         set({ transcriptionProgress: progress });
       });
 
@@ -1085,6 +1113,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         transcriptionProgress: null,
         notification: { type: 'error', message: 'Transcription error' }
       });
+    } finally {
+      unsubscribeProgress?.();
     }
   },
   transcribeTimeline: async () => {
@@ -1100,11 +1130,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return;
     }
 
+    let unsubscribeProgress: (() => void) | undefined;
     try {
       set({ isTranscribing: true, transcriptionProgress: { status: 'Starting...', progress: 0 } });
 
       // Set up progress listener
-      window.electronAPI.onTranscriptionProgress((progress) => {
+      unsubscribeProgress = window.electronAPI.onTranscriptionProgress((progress) => {
         set({ transcriptionProgress: progress });
       });
 
@@ -1149,6 +1180,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         transcriptionProgress: null,
         notification: { type: 'error', message: 'Transcription error' }
       });
+    } finally {
+      unsubscribeProgress?.();
     }
   },
   clearTranscription: () => set({ transcription: null, hasUnsavedChanges: true }),

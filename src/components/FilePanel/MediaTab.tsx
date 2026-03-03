@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
 import { useAiMemoryStore } from '../../stores/useAiMemoryStore';
 import { queueMediaAnalysis } from '../../lib/aiMemoryService';
+import { toMediaUrl } from '../../lib/mediaUrl';
 import clsx from 'clsx';
 
 const MediaTab = () => {
@@ -65,7 +66,7 @@ const MediaTab = () => {
 
           // For images, store directly without conversion
           if (mediaType === 'image') {
-            thumbnail = `file://${path}`;
+            thumbnail = toMediaUrl(path);
             // Use the user-configured default image duration
             const imageDuration = defaultImageDuration;
             addClip({

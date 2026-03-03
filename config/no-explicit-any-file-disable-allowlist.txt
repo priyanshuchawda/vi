@@ -12,12 +12,9 @@ src/components/Chat/ChatPanel.tsx
 src/lib/aiMemoryService.ts
 src/lib/aiPlanningService.ts
 src/lib/aiService.ts
-src/lib/bedrockGateway.ts
 src/lib/captioningService.ts
 src/lib/planCompiler.ts
-src/lib/toolCapabilityMatrix.ts
 src/lib/toolExecutor.ts
-src/lib/toolOutputMaskingService.ts
 src/lib/videoEditingTools.ts
 src/stores/useChatStore.ts
 src/stores/useProjectStore.ts

@@ -9,4 +9,3 @@ src/lib/aiPlanningService.ts
 src/lib/aiService.ts
 src/lib/toolExecutor.ts
 src/lib/videoEditingTools.ts
-src/stores/useProjectStore.ts

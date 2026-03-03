@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { useAiMemoryStore } from './useAiMemoryStore';
@@ -80,7 +79,7 @@ export interface TurnAuditRecord {
   preSnapshotHash: string;
   postSnapshotHash: string;
   diffSummary: string[];
-  toolInputs: Array<{ name: string; args: Record<string, any> }>;
+  toolInputs: Array<{ name: string; args: Record<string, unknown> }>;
   toolResults: Array<{ name: string; success: boolean; message?: string; error?: string }>;
   failures: string[];
   retries: number;

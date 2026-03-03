@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertSecureWebPreferences,
+  isValidMediaProtocolPath,
   isAllowedExternalUrl,
   packagedCspPolicy,
   shouldAllowPermissionRequest,
@@ -31,5 +33,41 @@ describe('electron security policy', () => {
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain('connect-src');
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("media-src 'self' data: blob: app-media:");
+  });
+
+  it('asserts secure BrowserWindow web preferences', () => {
+    expect(() =>
+      assertSecureWebPreferences(
+        {
+          preload: '/abs/path/preload.js',
+          nodeIntegration: false,
+          contextIsolation: true,
+          webSecurity: true,
+          sandbox: true,
+        },
+        { packaged: true },
+      ),
+    ).not.toThrow();
+
+    expect(() =>
+      assertSecureWebPreferences(
+        {
+          preload: '/abs/path/preload.js',
+          nodeIntegration: true,
+          contextIsolation: true,
+          webSecurity: true,
+          sandbox: true,
+        },
+        { packaged: false },
+      ),
+    ).toThrow('nodeIntegration');
+  });
+
+  it('validates media protocol paths', () => {
+    expect(isValidMediaProtocolPath('/tmp/video.mp4')).toBe(true);
+    expect(isValidMediaProtocolPath('relative/path.mp4')).toBe(false);
+    expect(isValidMediaProtocolPath('/tmp/\0evil.mp4')).toBe(false);
   });
 });

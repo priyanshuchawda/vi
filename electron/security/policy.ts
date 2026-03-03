@@ -1,3 +1,4 @@
+import path from 'path';
 import type { WebContents } from 'electron';
 
 const ALLOWED_EXTERNAL_HOSTS = [
@@ -45,6 +46,47 @@ export function shouldAllowPermissionRequest(
   void webContents;
   void permission;
   return false;
+}
+
+export interface SecurityWebPreferences {
+  preload: string;
+  nodeIntegration: boolean;
+  contextIsolation: boolean;
+  webSecurity: boolean;
+  sandbox: boolean;
+}
+
+export function assertSecureWebPreferences(
+  prefs: SecurityWebPreferences,
+  options: { packaged: boolean },
+): void {
+  if (prefs.nodeIntegration) {
+    throw new Error('Security violation: nodeIntegration must be false');
+  }
+  if (!prefs.contextIsolation) {
+    throw new Error('Security violation: contextIsolation must be true');
+  }
+  if (!prefs.webSecurity) {
+    throw new Error('Security violation: webSecurity must be true');
+  }
+  if (!prefs.sandbox) {
+    throw new Error('Security violation: sandbox must be true');
+  }
+  if (!prefs.preload || !path.isAbsolute(prefs.preload)) {
+    throw new Error('Security violation: preload path must be an absolute path');
+  }
+
+  // In packaged builds, preload must point to compiled JS.
+  if (options.packaged && !prefs.preload.endsWith('.js')) {
+    throw new Error('Security violation: packaged preload must reference a .js file');
+  }
+}
+
+export function isValidMediaProtocolPath(rawPath: string): boolean {
+  if (!rawPath || rawPath.includes('\0')) {
+    return false;
+  }
+  return path.isAbsolute(rawPath);
 }
 
 export function packagedCspPolicy(): string {

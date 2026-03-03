@@ -42,6 +42,8 @@ import { setupAutoUpdates } from './services/updateService.js';
 import { captureMainException, initMainObservability } from './services/observabilityService.js';
 import { log } from './utils/logger.js';
 import {
+  assertSecureWebPreferences,
+  isValidMediaProtocolPath,
   isAllowedExternalUrl,
   packagedCspPolicy,
   shouldAllowPermissionRequest,
@@ -125,7 +127,7 @@ function registerMediaProtocol() {
       const decodedPath = decodeURIComponent(encodedPath);
       const parsedPath = filePathSchema.parse(decodedPath);
 
-      if (!path.isAbsolute(parsedPath)) {
+      if (!isValidMediaProtocolPath(parsedPath)) {
         return new Response('Path must be absolute', { status: 400 });
       }
 
@@ -138,18 +140,21 @@ function registerMediaProtocol() {
 }
 
 function createWindow() {
+  const secureWebPreferences = {
+    preload: path.join(__dirname, 'preload.js'),
+    nodeIntegration: false,
+    contextIsolation: true,
+    webSecurity: true,
+    sandbox: true,
+  } as const;
+  assertSecureWebPreferences(secureWebPreferences, { packaged: app.isPackaged });
+
   mainWindow = new BrowserWindow({
     title: 'QuickCut',
     icon: path.join(__dirname, app.isPackaged ? '../dist/logo.png' : '../public/logo.png'),
     width: 1200,
     height: 800,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false,
-      contextIsolation: true,
-      webSecurity: true,
-      sandbox: true,
-    },
+    webPreferences: secureWebPreferences,
   });
 
   const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:7377';

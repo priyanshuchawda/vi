@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Simple In-Memory Cache Manager
  * For storing analysis results and preventing redundant API calls
@@ -14,7 +13,7 @@ interface CacheEntry<T> {
 }
 
 export class CacheManager {
-  private cache: Map<string, CacheEntry<any>>;
+  private cache: Map<string, CacheEntry<unknown>>;
   private readonly cacheFilePath: string;
 
   constructor() {
@@ -34,7 +33,7 @@ export class CacheManager {
       }
 
       const raw = fs.readFileSync(this.cacheFilePath, 'utf-8');
-      const parsed = JSON.parse(raw) as Record<string, CacheEntry<any>>;
+      const parsed = JSON.parse(raw) as Record<string, CacheEntry<unknown>>;
       const now = Date.now();
 
       for (const [key, entry] of Object.entries(parsed)) {
@@ -50,7 +49,7 @@ export class CacheManager {
   private saveToDisk(): void {
     try {
       const now = Date.now();
-      const serializable: Record<string, CacheEntry<any>> = {};
+      const serializable: Record<string, CacheEntry<unknown>> = {};
 
       for (const [key, entry] of this.cache.entries()) {
         if (entry.expiresAt > now) {
@@ -169,35 +168,35 @@ export class AnalysisCacheService {
   /**
    * Get cached channel analysis
    */
-  getChannelAnalysis(channelId: string): any | null {
+  getChannelAnalysis(channelId: string): unknown | null {
     return this.cache.get(`analysis:${channelId}`);
   }
 
   /**
    * Cache channel analysis (7 days)
    */
-  setChannelAnalysis(channelId: string, analysis: any): boolean {
+  setChannelAnalysis(channelId: string, analysis: unknown): boolean {
     return this.cache.set(`analysis:${channelId}`, analysis, 604800); // 7 days
   }
 
   /**
    * Get cached channel metadata
    */
-  getChannelMetadata(channelId: string): any | null {
+  getChannelMetadata(channelId: string): unknown | null {
     return this.cache.get(`channel:${channelId}`);
   }
 
   /**
    * Cache channel metadata (7 days)
    */
-  setChannelMetadata(channelId: string, metadata: any): boolean {
+  setChannelMetadata(channelId: string, metadata: unknown): boolean {
     return this.cache.set(`channel:${channelId}`, metadata, 604800); // 7 days
   }
 
   /**
    * Get analysis by user ID
    */
-  getUserAnalysis(userId: string): any | null {
+  getUserAnalysis(userId: string): unknown | null {
     const channelId = this.cache.get<string>(`user:channel:${userId}`);
     if (!channelId) {
       return null;
@@ -220,7 +219,7 @@ export class AnalysisCacheService {
     status: {
       status: 'pending' | 'completed' | 'failed';
       progress: number;
-      result?: any;
+      result?: unknown;
       error?: string;
     },
   ): boolean {
@@ -230,7 +229,7 @@ export class AnalysisCacheService {
   /**
    * Get analysis job status
    */
-  getAnalysisStatus(analysisId: string): any | null {
+  getAnalysisStatus(analysisId: string): unknown | null {
     return this.cache.get(`analysis:status:${analysisId}`);
   }
 

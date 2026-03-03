@@ -3,7 +3,6 @@
 
 electron/ffmpeg/processor.ts
 electron/main.ts
-electron/services/cacheService.ts
 src/components/Chat/ChatPanel.tsx
 src/lib/aiPlanningService.ts
 src/lib/aiService.ts

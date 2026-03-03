@@ -32,6 +32,23 @@ export interface AnalysisResponse {
   error_code?: string;
 }
 
+type AnalysisPayload = NonNullable<AnalysisResponse['data']>;
+
+function isAnalysisPayload(value: unknown): value is AnalysisPayload {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const typed = value as { channel?: unknown; analysis?: unknown; meta?: unknown };
+  return (
+    typeof typed.channel === 'object' &&
+    typed.channel !== null &&
+    typeof typed.analysis === 'object' &&
+    typed.analysis !== null &&
+    typeof typed.meta === 'object' &&
+    typed.meta !== null
+  );
+}
+
 export class ChannelAnalysisService {
   private youtubeService: YouTubeService;
   private aiService: AIAnalysisService;
@@ -74,7 +91,7 @@ export class ChannelAnalysisService {
 
       // Step 2: Check cache first
       const cachedAnalysis = analysisCacheService.getChannelAnalysis(channelId);
-      if (cachedAnalysis) {
+      if (isAnalysisPayload(cachedAnalysis)) {
         console.log('[Analysis] Cache hit! Returning cached analysis');
         return {
           success: true,

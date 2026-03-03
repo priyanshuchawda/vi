@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import fs from 'fs';

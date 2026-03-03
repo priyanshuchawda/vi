@@ -23,15 +23,15 @@ Ensure the binaries are executable (`chmod +x ffmpeg` on Mac/Linux).
 The application uses Vosk for audio transcription. You need to download a model
 and place it in the `vosk-model/` directory.
 
-1.  **Download the model** from the
-    [Vosk Models page](https://alphacephei.com/vosk/models).
-2.  **Extract the model** into `resources/vosk-model/`.
-3.  The application uses: `vosk-model-en-us-0.22-lgraph` (Large model for better
-    accuracy)
+1. **Download the model** from the
+   [Vosk Models page](https://alphacephei.com/vosk/models).
+2. **Extract the model** into `resources/vosk-model/`.
+3. The application uses: `vosk-model-en-us-0.22-lgraph` (Large model for better
+   accuracy)
 
 Example structure:
 
-```
+```text
 resources/vosk-model/vosk-model-en-us-0.22-lgraph/
 ├── am/
 ├── conf/

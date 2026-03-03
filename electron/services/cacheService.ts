@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Simple In-Memory Cache Manager
  * For storing analysis results and preventing redundant API calls

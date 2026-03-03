@@ -7,7 +7,7 @@ Here's what was implemented:
 
 ## 📁 Architecture
 
-```
+```text
 electron/services/              ← Backend Services (TypeScript)
 ├── youtubeService.ts          - YouTube API client
 ├── aiAnalysisService.ts   - AI AI analysis
@@ -129,7 +129,7 @@ console.log(result);
 
 ### Flow Diagram
 
-```
+```text
 User enters URL
     ↓
 Frontend validates URL format
@@ -221,7 +221,7 @@ window.electronAPI.linkAnalysisToUser(userId: string, channelUrl: string): Promi
 
 ### Modify Analysis Prompt
 
-Edit [aiAnalysisService.ts](../electron/services/aiAnalysisService.ts):
+Edit [aiAnalysisService.ts](../../../electron/services/aiAnalysisService.ts):
 
 ```typescript
 private buildAnalysisPrompt(channel, topVideos, recentVideos) {
@@ -232,7 +232,7 @@ private buildAnalysisPrompt(channel, topVideos, recentVideos) {
 
 ### Adjust Cache TTL
 
-Edit [cacheService.ts](../electron/services/cacheService.ts):
+Edit [cacheService.ts](../../../electron/services/cacheService.ts):
 
 ```typescript
 setChannelAnalysis(channelId: string, analysis: any): boolean {
@@ -305,10 +305,10 @@ Potential improvements:
 
 ## 📚 Related Files
 
-- [App.tsx](../App.tsx) - Main app integration
-- [useOnboardingStore.ts](../stores/useOnboardingStore.ts) - State management
-- [electron.d.ts](../types/electron.d.ts) - TypeScript types
-- [main.ts](../../electron/main.ts) - IPC handlers
+- [App.tsx](../../App.tsx) - Main app integration
+- [useOnboardingStore.ts](../../stores/useOnboardingStore.ts) - State management
+- [electron.d.ts](../../types/electron.d.ts) - TypeScript types
+- [main.ts](../../../electron/main.ts) - IPC handlers
 
 ---
 

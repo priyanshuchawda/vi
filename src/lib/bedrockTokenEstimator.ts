@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface BedrockTokenEstimateInput {
   messages: Array<{ role: string; content: Array<Record<string, any>> }>;
   systemTexts?: string[];

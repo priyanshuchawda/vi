@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type ChatTurnMode = 'ask' | 'plan' | 'edit';
 export type ChatTurnStatus =

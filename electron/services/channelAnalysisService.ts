@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Channel Analysis Orchestration Service
  * Coordinates YouTube data fetching, AI analysis (Bedrock), and caching

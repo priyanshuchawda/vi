@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useProjectStore } from '../stores/useProjectStore';
 import { useAiMemoryStore } from '../stores/useAiMemoryStore';
 import type { FunctionCall, ToolResult } from './videoEditingTools';

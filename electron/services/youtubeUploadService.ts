@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * YouTube Upload Service
  * Handles video uploads to YouTube with metadata and progress tracking

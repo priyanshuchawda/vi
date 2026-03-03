@@ -25,7 +25,7 @@
     "test:memory": "vitest run test/integration/ai-memory.test.ts",
     "eval:ai:one": "node scripts/ai-eval/run-bedrock-eval.mjs",
     "eval:ai:batch": "node scripts/ai-eval/run-bedrock-batch.mjs",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "pre-commit": "lint-staged",

@@ -36,13 +36,12 @@ them after performance-related changes.
 npm run build
 ```
 
-2. Run desktop app and record timeline in Chrome DevTools Performance (renderer
+1. Run desktop app and record timeline in Chrome DevTools Performance (renderer
    process).
-3. Capture and compare:
+2. Capture and compare:
+   - Time to interactive shell render
+   - First open latency of chat panel
+   - First open latency of right tools panel
 
-- Time to interactive shell render
-- First open latency of chat panel
-- First open latency of right tools panel
-
-4. Regressions above budget should block merge until mitigated or accepted with
+3. Regressions above budget should block merge until mitigated or accepted with
    rationale.

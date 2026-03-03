@@ -54,6 +54,12 @@ export const IPC_CHANNELS = {
   window: {
     close: "window:close",
   },
+  update: {
+    check: "update:check",
+    download: "update:download",
+    install: "update:install",
+    status: "update:status",
+  },
 } as const;
 
 export const nonEmptyStringSchema = z.string().trim().min(1);
@@ -213,4 +219,13 @@ export type IpcInvokeContract = {
     result: { success: boolean; videoId?: string; error?: string };
   };
   "window:close": { args: []; result: void };
+  "update:check": {
+    args: [];
+    result: { enabled: boolean; started: boolean; error?: string };
+  };
+  "update:download": {
+    args: [];
+    result: { enabled: boolean; started: boolean; error?: string };
+  };
+  "update:install": { args: []; result: { enabled: boolean; started: boolean } };
 };

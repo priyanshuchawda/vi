@@ -132,6 +132,12 @@ GitHub Actions workflows:
   - `Build`
 - `Release Desktop` runs on version tags (`v*`) and produces Linux desktop artifacts.
 
+## Release and Updates
+
+- `electron-updater` is integrated for packaged app update checks/download/install flow.
+- Release/publish and signing environment contract is documented in:
+  [docs/release-and-updates.md](./docs/release-and-updates.md)
+
 ## Notes on Tests
 
 Some integration tests depend on local test media files and may fail if those assets are not present in your environment. Unit tests run independently.

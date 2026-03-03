@@ -116,3 +116,4 @@ When behavior or workflow changes, update docs in the same PR:
 
 - `README.md` for setup/run/architecture/user-facing flow
 - `CONTRIBUTING.md` for engineering process/policy changes
+- `docs/release-and-updates.md` for packaging/update/signing pipeline changes

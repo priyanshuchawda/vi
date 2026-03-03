@@ -24,6 +24,14 @@ type YouTubeUploadProgress = {
   videoId?: string;
   error?: string;
 };
+type UpdateStatus =
+  | { status: 'disabled'; reason: string }
+  | { status: 'checking' }
+  | { status: 'available'; version: string; notes?: string }
+  | { status: 'not-available' }
+  | { status: 'downloading'; percent: number; transferred: number; total: number; bytesPerSecond: number }
+  | { status: 'downloaded'; version: string }
+  | { status: 'error'; message: string };
 type YouTubeUploadMetadata = {
   title: string;
   description?: string;
@@ -137,6 +145,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
           ipcRenderer.removeListener(IPC_CHANNELS.youtube.uploadProgress, listener);
         }
       }
+    },
+  },
+  updates: {
+    check: () => invokeIpc(IPC_CHANNELS.update.check),
+    download: () => invokeIpc(IPC_CHANNELS.update.download),
+    install: () => invokeIpc(IPC_CHANNELS.update.install),
+    onStatus: (callback: (status: UpdateStatus) => void) => {
+      const listener = (_event: IpcRendererEvent, status: UpdateStatus) => callback(status);
+      ipcRenderer.on(IPC_CHANNELS.update.status, listener);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.update.status, listener);
     },
   },
 });

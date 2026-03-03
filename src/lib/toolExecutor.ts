@@ -35,6 +35,30 @@ interface ExecutionPolicy {
   stopOnFailure?: boolean;
 }
 
+type RecoveryReasonCode =
+  | 'arg_normalization_retry'
+  | 'state_inspection'
+  | 'constraint_recompile_retry'
+  | 'fallback_readonly_recovery'
+  | 'recovery_exhausted';
+
+interface RecoveryEvent {
+  index: number;
+  name: string;
+  code: RecoveryReasonCode;
+  success: boolean;
+  message: string;
+}
+
+interface RecoveryPolicy extends ExecutionPolicy {
+  maxAttemptsPerOperation?: number;
+}
+
+interface ExecuteWithRecoveryResult {
+  results: ToolResult[];
+  recoveryEvents: RecoveryEvent[];
+}
+
 type ToolLifecycleState = 'pending' | 'running' | 'completed' | 'error';
 
 interface ToolExecutionLifecycleEvent {
@@ -2292,6 +2316,247 @@ export class ToolExecutor {
       corrections,
       issues,
     };
+  }
+
+  private static cloneCall(call: FunctionCall): FunctionCall {
+    return {
+      name: call.name,
+      args: { ...(call.args || {}) },
+      id: call.id,
+    };
+  }
+
+  private static repairCallWithConstraints(call: FunctionCall): FunctionCall | null {
+    const repaired = this.cloneCall(call);
+    const state = useProjectStore.getState();
+
+    switch (repaired.name) {
+      case 'set_playhead_position': {
+        const totalDuration = state.getTotalDuration();
+        const time = Number(repaired.args?.time);
+        if (!Number.isFinite(time)) return null;
+        repaired.args.time = Math.max(0, Math.min(totalDuration, time));
+        return repaired;
+      }
+      case 'move_clip': {
+        const startTime = Number(repaired.args?.start_time);
+        if (!Number.isFinite(startTime)) return null;
+        repaired.args.start_time = Math.max(0, startTime);
+        return repaired;
+      }
+      case 'split_clip': {
+        const clipId = String(repaired.args?.clip_id || '');
+        const clip = state.clips.find((entry) => entry.id === clipId);
+        if (!clip) return null;
+        const time = Number(repaired.args?.time_in_clip);
+        if (!Number.isFinite(time)) return null;
+        const clamped = Math.max(0.05, Math.min(clip.duration - 0.05, time));
+        repaired.args.time_in_clip = Number(clamped.toFixed(2));
+        return repaired;
+      }
+      case 'update_clip_bounds': {
+        const clipId = String(repaired.args?.clip_id || '');
+        const clip = state.clips.find((entry) => entry.id === clipId);
+        if (!clip) return null;
+        const normalized = this.normalizeClipBounds(
+          clip,
+          repaired.args?.new_start as number | undefined,
+          repaired.args?.new_end as number | undefined,
+        );
+        if (!normalized.valid) return null;
+        repaired.args.new_start = normalized.start;
+        repaired.args.new_end = normalized.end;
+        return repaired;
+      }
+      default:
+        return null;
+    }
+  }
+
+  private static mergeRecoveryMetadata(
+    result: ToolResult,
+    recoveryReasonCodes: RecoveryReasonCode[],
+    notes: string[],
+  ): ToolResult {
+    const attempts = Math.max(1, recoveryReasonCodes.length + 1);
+    return {
+      ...result,
+      result: {
+        ...result.result,
+        recovery: {
+          attempts,
+          recovered: result.result.success && recoveryReasonCodes.length > 0,
+          reasonCodes: recoveryReasonCodes,
+          notes,
+        },
+      },
+    };
+  }
+
+  static async executeWithRecovery(
+    calls: FunctionCall[],
+    policy: RecoveryPolicy = {},
+    onProgress?: (index: number, total: number, result: ToolResult) => void,
+    lifecycle?: ExecutionLifecycleContext,
+  ): Promise<ExecuteWithRecoveryResult> {
+    const stopOnFailure = policy.stopOnFailure ?? true;
+    const maxAttemptsPerOperation = Math.max(1, Math.min(5, policy.maxAttemptsPerOperation || 4));
+    const results: ToolResult[] = [];
+    const recoveryEvents: RecoveryEvent[] = [];
+
+    const emitRecoveryEvent = (
+      index: number,
+      name: string,
+      code: RecoveryReasonCode,
+      success: boolean,
+      message: string,
+    ) => {
+      recoveryEvents.push({ index, name, code, success, message });
+    };
+
+    for (let i = 0; i < calls.length; i++) {
+      const baseCall = this.cloneCall(calls[i]);
+      const operationRecoveryCodes: RecoveryReasonCode[] = [];
+      const operationNotes: string[] = [];
+
+      let finalResult = await this.executeToolCallWithLifecycle(
+        baseCall,
+        i + 1,
+        calls.length,
+        lifecycle,
+      );
+      let attemptsUsed = 1;
+
+      if (!finalResult.result.success && attemptsUsed < maxAttemptsPerOperation) {
+        const preflight = this.preflightPlan([baseCall]);
+        const normalizedCall = preflight.normalizedCalls[0];
+        const normalizationApplied =
+          preflight.corrections.length > 0 ||
+          JSON.stringify(normalizedCall.args || {}) !== JSON.stringify(baseCall.args || {});
+        if (normalizationApplied) {
+          operationRecoveryCodes.push('arg_normalization_retry');
+          operationNotes.push(...preflight.corrections);
+          finalResult = await this.executeToolCallWithLifecycle(
+            normalizedCall,
+            i + 1,
+            calls.length,
+            lifecycle,
+          );
+          emitRecoveryEvent(
+            i,
+            baseCall.name,
+            'arg_normalization_retry',
+            finalResult.result.success,
+            finalResult.result.message || finalResult.result.error || 'arg normalization retry',
+          );
+          attemptsUsed++;
+        }
+      }
+
+      if (!finalResult.result.success && attemptsUsed < maxAttemptsPerOperation) {
+        const inspectCalls: FunctionCall[] = [{ name: 'get_timeline_info', args: {} }];
+        if (typeof baseCall.args?.clip_id === 'string' && baseCall.args.clip_id.trim()) {
+          inspectCalls.push({ name: 'get_clip_details', args: { clip_id: baseCall.args.clip_id } });
+        }
+
+        const inspectResults: ToolResult[] = [];
+        for (const inspectCall of inspectCalls) {
+          const inspectResult = await this.executeToolCallWithLifecycle(
+            inspectCall,
+            i + 1,
+            calls.length,
+            lifecycle,
+          );
+          inspectResults.push(inspectResult);
+        }
+        const inspectSuccess = inspectResults.every((entry) => entry.result.success);
+        operationRecoveryCodes.push('state_inspection');
+        operationNotes.push(
+          inspectSuccess
+            ? 'State inspection completed before retry.'
+            : 'State inspection partially failed.',
+        );
+        emitRecoveryEvent(
+          i,
+          baseCall.name,
+          'state_inspection',
+          inspectSuccess,
+          inspectResults.map((entry) => entry.result.message).join(' | '),
+        );
+        attemptsUsed++;
+      }
+
+      if (!finalResult.result.success && attemptsUsed < maxAttemptsPerOperation) {
+        const repairedCall = this.repairCallWithConstraints(baseCall);
+        if (repairedCall) {
+          operationRecoveryCodes.push('constraint_recompile_retry');
+          operationNotes.push('Applied deterministic argument repair and retried.');
+          finalResult = await this.executeToolCallWithLifecycle(
+            repairedCall,
+            i + 1,
+            calls.length,
+            lifecycle,
+          );
+          emitRecoveryEvent(
+            i,
+            baseCall.name,
+            'constraint_recompile_retry',
+            finalResult.result.success,
+            finalResult.result.message || finalResult.result.error || 'constraint repair retry',
+          );
+          attemptsUsed++;
+        }
+      }
+
+      if (!finalResult.result.success) {
+        const fallbackInspect = await this.executeToolCallWithLifecycle(
+          { name: 'get_timeline_info', args: {} },
+          i + 1,
+          calls.length,
+          lifecycle,
+        );
+        operationRecoveryCodes.push('fallback_readonly_recovery');
+        operationNotes.push('Fallback read-only timeline inspection executed.');
+        emitRecoveryEvent(
+          i,
+          baseCall.name,
+          'fallback_readonly_recovery',
+          fallbackInspect.result.success,
+          fallbackInspect.result.message || 'fallback recovery inspection',
+        );
+        operationRecoveryCodes.push('recovery_exhausted');
+        emitRecoveryEvent(
+          i,
+          baseCall.name,
+          'recovery_exhausted',
+          false,
+          'All configured recovery ladder steps were exhausted.',
+        );
+        finalResult = {
+          ...finalResult,
+          result: {
+            ...finalResult.result,
+            recoveryHint:
+              finalResult.result.recoveryHint ||
+              'Recovery steps were attempted. Please review clip IDs/timestamps and retry. Undo is available for successful prior steps.',
+          },
+        };
+      }
+
+      const annotated = this.mergeRecoveryMetadata(
+        finalResult,
+        operationRecoveryCodes,
+        operationNotes,
+      );
+      results.push(annotated);
+      onProgress?.(i + 1, calls.length, annotated);
+
+      if (stopOnFailure && !annotated.result.success) {
+        break;
+      }
+    }
+
+    return { results, recoveryEvents };
   }
 
   static async executeWithPolicy(

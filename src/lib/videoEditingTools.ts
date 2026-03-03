@@ -1014,5 +1014,11 @@ export interface ToolResult {
       | 'constraint_violation';
     recoveryHint?: string;
     adjustments?: string[];
+    recovery?: {
+      attempts: number;
+      recovered: boolean;
+      reasonCodes: string[];
+      notes?: string[];
+    };
   };
 }

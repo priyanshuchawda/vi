@@ -282,6 +282,19 @@ Acceptance:
 - Known transient/validation failures auto-recover without derailing the whole
   turn.
 
+Status (2026-03-03):
+
+- Implemented centralized `executeWithRecovery` in tool executor with reason
+  codes and per-operation retry budget.
+- Recovery ladder now runs in execution flow:
+  1. arg normalization retry
+  2. state inspection (`get_timeline_info` / `get_clip_details`)
+  3. deterministic constraint repair retry
+  4. fallback read-only recovery + recovery-exhausted marker
+- `aiPlanningService.executePlan` now uses recovery execution and surfaces
+  concise failure + undo-safe messaging.
+- Added recovery tests in `test/lib/toolExecutorPolicy.test.ts`.
+
 ---
 
 ## Phase 6 - Context and Cost Intelligence v2

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   app,
   BrowserWindow,
@@ -16,6 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { config } from 'dotenv';
 import { z } from 'zod';
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
+import type { FfprobeData, FfprobeStream } from 'fluent-ffmpeg';
 import {
   IPC_CHANNELS,
   bedrockConverseInputSchema,
@@ -121,6 +121,14 @@ function ipcFailure(error: unknown, code: string) {
     error: error instanceof Error ? error.message : String(error),
     code,
   };
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
 }
 
 function registerMediaProtocol() {
@@ -307,14 +315,14 @@ ipcMain.handle(IPC_CHANNELS.media.getMetadata, async (_, rawFilePath) => {
 
   // For video and audio files, use ffprobe
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(filePath, (err: any, metadata: any) => {
+    ffmpeg.ffprobe(filePath, (err: Error | undefined, metadata: FfprobeData) => {
       if (err) {
         console.error('ffprobe error:', err);
         reject(err);
       } else {
         console.log('ffprobe success:', metadata.format.duration);
-        const videoStream = metadata.streams.find((s: any) => s.codec_type === 'video');
-        const audioStream = metadata.streams.find((s: any) => s.codec_type === 'audio');
+        const videoStream = metadata.streams.find((s: FfprobeStream) => s.codec_type === 'video');
+        const audioStream = metadata.streams.find((s: FfprobeStream) => s.codec_type === 'audio');
 
         resolve({
           duration: metadata.format.duration,
@@ -575,7 +583,9 @@ ipcMain.handle(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
   };
 
   const commandInput = reviveBytes(input);
-  const response = await bedrockGatewayClient.send(new ConverseCommand(commandInput as any));
+  const response = await bedrockGatewayClient.send(
+    new ConverseCommand(commandInput as ConstructorParameters<typeof ConverseCommand>[0]),
+  );
   return response;
 });
 
@@ -665,8 +675,8 @@ ipcMain.handle(IPC_CHANNELS.memory.load, async (_, projectId?: string) => {
       `[Memory] Loaded ${parsed.entries?.length || 0} entries from disk (Project: ${projectId || 'default'})`,
     );
     return { success: true, data: parsed };
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
+  } catch (error: unknown) {
+    if (isErrnoException(error) && error.code === 'ENOENT') {
       // File doesn't exist yet, that's fine
       console.log(
         `[Memory] No existing memory file found for project ${projectId || 'default'}, starting fresh`,
@@ -694,8 +704,8 @@ ipcMain.handle(IPC_CHANNELS.memory.readMemoryFiles, async (_, rawMemoryDir: stri
         ` [TESTING MODE] Loaded ${parsed.entries?.length || 0} entries from ${defaultPath}`,
       );
       return { success: true, entries: parsed.entries || [] };
-    } catch (err: any) {
-      if (err.code === 'ENOENT') {
+    } catch (err: unknown) {
+      if (isErrnoException(err) && err.code === 'ENOENT') {
         console.log(` [TESTING MODE] No memory.json found in ${defaultPath}`);
         return { success: true, entries: [] };
       }
@@ -840,9 +850,9 @@ ipcMain.handle(IPC_CHANNELS.youtube.uploadVideo, async (_event, rawPayload) => {
 
     console.log('[YouTube] Upload completed:', videoId);
     return { success: true, videoId };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[YouTube] Upload error:', error);
-    return { success: false, error: error.message || 'Upload failed' };
+    return { success: false, error: getErrorMessage(error, 'Upload failed') };
   }
 });
 

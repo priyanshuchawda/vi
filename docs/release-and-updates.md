@@ -2,6 +2,8 @@
 
 This document defines the production packaging and update contract for QuickCut.
 
+For release approval criteria, see `docs/release-go-no-go-runbook.md`.
+
 ## Auto-Update Behavior
 
 QuickCut uses `electron-updater` in packaged builds.

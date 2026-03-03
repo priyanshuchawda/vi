@@ -47,10 +47,20 @@ npm run lint
 
 GitHub branch protection-compatible checks are:
 
-- `Typecheck`
-- `Lint`
-- `Test`
-- `Build`
+- `Quality Gates (ubuntu-latest)`
+- `Quality Gates (macos-latest)`
+- `Quality Gates (windows-latest)`
+- `Verify package-lock is in sync`
+- `Lint GitHub workflows`
+- `Lint shell scripts`
+- `Markdown lint`
+- `Link check`
+- `Analyze (JavaScript/TypeScript)`
+- `Package Smoke (ubuntu-latest)`
+- `Package Smoke (macos-latest)`
+- `Package Smoke (windows-latest)`
+
+See `docs/branch-protection-policy.md` for the canonical required-check policy.
 
 Recommended additional checks:
 
@@ -104,6 +114,7 @@ npm install
 - Validate and constrain IPC usage; avoid exposing broad generic IPC invoke
   surfaces.
 - Prefer typed APIs/contracts for renderer ↔ main communication.
+- In GitHub workflows, pin all third-party actions to immutable commit SHAs.
 
 ## Code Organization
 

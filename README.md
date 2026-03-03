@@ -138,6 +138,11 @@ GitHub Actions workflows:
 - Release/publish and signing environment contract is documented in:
   [docs/release-and-updates.md](./docs/release-and-updates.md)
 
+## Performance Budget
+
+- Startup and interaction performance budgets are documented in:
+  [docs/performance-budget.md](./docs/performance-budget.md)
+
 ## Notes on Tests
 
 Some integration tests depend on local test media files and may fail if those assets are not present in your environment. Unit tests run independently.

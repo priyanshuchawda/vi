@@ -1,18 +1,25 @@
-import { useEffect, useState } from 'react';
-import FilePanel from './components/FilePanel/FilePanel';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import Preview from './components/Preview/Preview';
 import Timeline from './components/Timeline/Timeline';
 import Toolbar from './components/Toolbar/Toolbar';
 import Toast from './components/ui/Toast';
 import AutoSave from './components/AutoSave';
-import RightPanel from './components/ui/RightPanel';
-import ChatPanel from './components/Chat/ChatPanel';
-import { OnboardingWizard } from './components/Onboarding';
 import { useChatStore } from './stores/useChatStore';
 import { useOnboardingStore } from './stores/useOnboardingStore';
 import { useProfileStore } from './stores/useProfileStore';
 import { useShallow } from 'zustand/react/shallow';
 import type { ChannelAnalysisData } from './types/electron';
+
+const FilePanel = lazy(() => import('./components/FilePanel/FilePanel'));
+const RightPanel = lazy(() => import('./components/ui/RightPanel'));
+const ChatPanel = lazy(() => import('./components/Chat/ChatPanel'));
+const OnboardingWizard = lazy(() =>
+  import('./components/Onboarding').then((module) => ({ default: module.OnboardingWizard })),
+);
+
+const panelFallback = (
+  <div className="h-full w-full animate-pulse bg-bg-secondary/50" />
+);
 
 function App() {
   const { togglePanel, isOpen: isChatOpen, panelWidth, setPanelWidth } = useChatStore(
@@ -63,6 +70,20 @@ function App() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    if (!hasCompletedOnboarding) return;
+    const idle = window.requestIdleCallback?.(() => {
+      void import('./components/Chat/ChatPanel');
+      void import('./components/ui/RightPanel');
+      void import('./components/FilePanel/FilePanel');
+    });
+    return () => {
+      if (idle && window.cancelIdleCallback) {
+        window.cancelIdleCallback(idle);
+      }
+    };
+  }, [hasCompletedOnboarding]);
 
   useEffect(() => {
     if (!isResizingSidePanel || !isDesktop) return;
@@ -120,10 +141,12 @@ function App() {
   // Show onboarding if not completed
   if (!hasCompletedOnboarding) {
     return (
-      <OnboardingWizard 
-        onComplete={handleOnboardingComplete}
-        onSkip={handleOnboardingSkip}
-      />
+      <Suspense fallback={panelFallback}>
+        <OnboardingWizard 
+          onComplete={handleOnboardingComplete}
+          onSkip={handleOnboardingSkip}
+        />
+      </Suspense>
     );
   }
 
@@ -152,7 +175,9 @@ function App() {
             {/* LEFT: File Panel with smooth transition */}
             {isFilePanelOpen && (
               <div className="animate-slide-in">
-                <FilePanel isOpen={isFilePanelOpen} onClose={() => setIsFilePanelOpen(false)} />
+                <Suspense fallback={panelFallback}>
+                  <FilePanel isOpen={isFilePanelOpen} onClose={() => setIsFilePanelOpen(false)} />
+                </Suspense>
               </div>
             )}
 
@@ -191,14 +216,18 @@ function App() {
             )}
             {isChatOpen ? (
               <div className="bg-gradient-to-b from-bg-secondary to-bg-elevated flex flex-col h-full shadow-2xl">
-                <ChatPanel />
+                <Suspense fallback={panelFallback}>
+                  <ChatPanel />
+                </Suspense>
               </div>
             ) : (
-              <RightPanel
-                isOpen={isRightPanelOpen}
-                onClose={() => setIsRightPanelOpen(false)}
-                width={effectiveSidePanelWidth}
-              />
+              <Suspense fallback={panelFallback}>
+                <RightPanel
+                  isOpen={isRightPanelOpen}
+                  onClose={() => setIsRightPanelOpen(false)}
+                  width={effectiveSidePanelWidth}
+                />
+              </Suspense>
             )}
           </div>
         )}

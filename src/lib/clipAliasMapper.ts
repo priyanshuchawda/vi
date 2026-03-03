@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Clip Alias Mapper - Maps human-readable aliases to UUIDs
  *

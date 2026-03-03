@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * YouTube OAuth Service
  * Handles Google OAuth 2.0 authentication for YouTube uploads

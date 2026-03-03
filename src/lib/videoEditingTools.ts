@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Video Editing Tool Declarations for AWS Bedrock (Amazon Nova Lite)
  *

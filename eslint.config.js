@@ -31,7 +31,7 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
       'no-async-promise-executor': 'off',
       'react-hooks/static-components': 'off',
       'react-hooks/set-state-in-effect': 'off',

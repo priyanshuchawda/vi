@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { useAiMemoryStore } from './useAiMemoryStore';

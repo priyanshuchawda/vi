@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Hybrid Auto-Captioning Service — AWS Bedrock (Amazon Nova Lite v1)
  *

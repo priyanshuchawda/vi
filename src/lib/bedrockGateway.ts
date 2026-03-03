@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const MODEL_ID = import.meta.env.VITE_BEDROCK_MODEL_ID || 'amazon.nova-lite-v1:0';
 
 export function isBedrockConfigured(): boolean {

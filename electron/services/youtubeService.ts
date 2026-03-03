@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * YouTube Data API v3 Client
  * Fetches channel and video data for analysis

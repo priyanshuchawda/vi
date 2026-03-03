@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { AIChatMessage } from './aiService';
 
 export interface ToolOutputMaskingOptions {

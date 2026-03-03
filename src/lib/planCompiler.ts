@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Plan Compiler - Deterministic layer between LLM output and execution
  *

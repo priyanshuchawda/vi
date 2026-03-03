@@ -72,6 +72,8 @@ const ChatPanel = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const sendQueueRef = useRef(createChatRequestQueue());
+  const activeAbortControllerRef = useRef<AbortController | null>(null);
+  const [hasActiveAbortableRequest, setHasActiveAbortableRequest] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [showMemoryDetails, setShowMemoryDetails] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -334,6 +336,10 @@ const ChatPanel = () => {
   };
 
   const processSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
+    const requestAbortController = new AbortController();
+    const requestSignal = requestAbortController.signal;
+    activeAbortControllerRef.current = requestAbortController;
+    setHasActiveAbortableRequest(true);
     // Add user message with attachments
     const userMessageId = addMessage('user', content, undefined, attachments);
     setIsTyping(true);
@@ -706,8 +712,14 @@ const ChatPanel = () => {
               mediaMode: shouldInlineMediaBytes(content, attachments)
                 ? 'inline_bytes'
                 : 'descriptor_only',
+              signal: requestSignal,
             }
-          : { includeTools: true, contextFlags, mediaMode: 'descriptor_only' as const };
+          : {
+              includeTools: true,
+              contextFlags,
+              mediaMode: 'descriptor_only' as const,
+              signal: requestSignal,
+            };
 
       for await (const chunk of sendMessageWithHistoryStream(
         content,
@@ -759,6 +771,7 @@ const ChatPanel = () => {
               aiHistory,
               chunk.modelContent,
               results,
+              { signal: requestSignal },
             )) {
               if (followupChunk.type === 'text' && followupChunk.text) {
                 followupText += followupChunk.text;
@@ -835,6 +848,13 @@ const ChatPanel = () => {
         turnClosed = true;
       }
     } catch (error) {
+      if (error instanceof Error && error.message === 'Request cancelled') {
+        if (turnId && !turnClosed) {
+          closeTurn(turnId, 'interrupted');
+          turnClosed = true;
+        }
+        return;
+      }
       console.error('Error communicating with AI:', error);
       let errorMessage = 'Error: ';
 
@@ -864,10 +884,26 @@ const ChatPanel = () => {
       if (turnId && !turnClosed) {
         closeTurn(turnId, 'interrupted');
       }
+      if (activeAbortControllerRef.current === requestAbortController) {
+        activeAbortControllerRef.current = null;
+        setHasActiveAbortableRequest(false);
+      }
       setIsTyping(false);
       setIsGeneratingPlan(false);
       setUploadStatus(null);
     }
+  };
+
+  const handleStopActiveRequest = () => {
+    const activeController = activeAbortControllerRef.current;
+    if (!activeController || activeController.signal.aborted) {
+      return;
+    }
+    activeController.abort();
+    setHasActiveAbortableRequest(false);
+    setIsTyping(false);
+    setIsGeneratingPlan(false);
+    setUploadStatus(null);
   };
 
   const handleSendMessage = (content: string, attachments?: MediaAttachment[]) => {
@@ -1146,6 +1182,10 @@ const ChatPanel = () => {
 
   const handleClarificationAnswer = async (answer: string) => {
     if (!pendingClarification) return;
+    const requestAbortController = new AbortController();
+    const requestSignal = requestAbortController.signal;
+    activeAbortControllerRef.current = requestAbortController;
+    setHasActiveAbortableRequest(true);
     const clarification = pendingClarification;
     setPendingClarification(null);
     setIsTyping(true);
@@ -1191,6 +1231,7 @@ const ChatPanel = () => {
         clarification.history,
         clarification.modelContent,
         toolResults,
+        { signal: requestSignal },
       )) {
         if (chunk.type === 'tool_plan') {
           const functionCalls = chunk.functionCalls || [];
@@ -1248,6 +1289,12 @@ const ChatPanel = () => {
         closeTurn(clarification.turnId, 'completed');
       }
     } catch (error) {
+      if (error instanceof Error && error.message === 'Request cancelled') {
+        if (clarification.turnId) {
+          closeTurn(clarification.turnId, 'interrupted');
+        }
+        return;
+      }
       const message = error instanceof Error ? error.message : 'Failed after clarification';
       addMessage('assistant', `Error after clarification: ${message}`, { error: true });
       if (clarification.turnId) {
@@ -1260,6 +1307,10 @@ const ChatPanel = () => {
       }
       turnFailed = true;
     } finally {
+      if (activeAbortControllerRef.current === requestAbortController) {
+        activeAbortControllerRef.current = null;
+        setHasActiveAbortableRequest(false);
+      }
       if (turnFailed) {
         setPendingToolCalls(null);
       }
@@ -1269,6 +1320,10 @@ const ChatPanel = () => {
 
   const handleExecuteTools = async () => {
     if (!pendingToolCalls) return;
+    const requestAbortController = new AbortController();
+    const requestSignal = requestAbortController.signal;
+    activeAbortControllerRef.current = requestAbortController;
+    setHasActiveAbortableRequest(true);
     setPendingClarification(null);
 
     const beforeSnapshot = buildAIProjectSnapshot();
@@ -1318,6 +1373,7 @@ const ChatPanel = () => {
         pendingToolCalls.history,
         pendingToolCalls.modelContent,
         results,
+        { signal: requestSignal },
       )) {
         if (chunk.type === 'text' && chunk.text) {
           fullResponse += chunk.text;
@@ -1362,6 +1418,12 @@ const ChatPanel = () => {
         });
       }
     } catch (error) {
+      if (error instanceof Error && error.message === 'Request cancelled') {
+        if (activeTurnId) {
+          closeTurn(activeTurnId, 'interrupted');
+        }
+        return;
+      }
       console.error('Tool execution error:', error);
       addMessage('assistant', 'Error executing operations: ' + (error as Error).message, {
         error: true,
@@ -1376,6 +1438,10 @@ const ChatPanel = () => {
       }
       toolExecutionFailed = true;
     } finally {
+      if (activeAbortControllerRef.current === requestAbortController) {
+        activeAbortControllerRef.current = null;
+        setHasActiveAbortableRequest(false);
+      }
       setIsExecutingTools(false);
       setIsTyping(false);
       setPendingToolCalls(null);
@@ -2534,6 +2600,16 @@ const ChatPanel = () => {
       </div>
 
       {/* Input */}
+      {hasActiveAbortableRequest && (
+        <div className="px-4 pb-2 flex justify-end">
+          <button
+            onClick={handleStopActiveRequest}
+            className="px-3 py-1 text-xs rounded-md border border-rose-400/40 text-rose-300 hover:bg-rose-500/10 transition-colors"
+          >
+            Stop
+          </button>
+        </div>
+      )}
       <ChatInput onSendMessage={handleSendMessage} disabled={isTyping} />
     </div>
   );

@@ -712,6 +712,8 @@ export interface StreamOptions {
   contextFlags?: ContextFlags;
   /** Whether to send raw media bytes or compact descriptors */
   mediaMode?: MediaEncodingMode;
+  /** Abort signal for cooperative cancellation */
+  signal?: AbortSignal;
 }
 
 interface DynamicContextBuildOptions {
@@ -721,6 +723,12 @@ interface DynamicContextBuildOptions {
 
 interface CachedChatResponse {
   text: string;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new Error('Request cancelled');
+  }
 }
 
 function historyFingerprint(history: AIChatMessage[]): string {
@@ -747,6 +755,8 @@ export async function* sendMessageWithHistoryStream(
   attachments?: MediaAttachment[],
   options?: StreamOptions,
 ): AsyncGenerator<StreamChunk, void, unknown> {
+  const abortSignal = options?.signal;
+  throwIfAborted(abortSignal);
   if (!isBedrockConfigured()) {
     throw new Error('Bedrock gateway not available. Ensure Electron preload API is active.');
   }
@@ -754,6 +764,7 @@ export async function* sendMessageWithHistoryStream(
   const includeTools = options?.includeTools ?? true; // Default: include tools (backward compat)
 
   try {
+    throwIfAborted(abortSignal);
     // Run full context optimization pipeline
     const { optimized: initialOptimizedHistory, metrics: optimizationMetrics } =
       await runContextOptimization(history);
@@ -806,6 +817,7 @@ export async function* sendMessageWithHistoryStream(
     // Yield upload progress for each file
     if (attachments && attachments.length > 0) {
       for (let i = 0; i < attachments.length; i++) {
+        throwIfAborted(abortSignal);
         yield {
           type: 'upload_progress',
           uploadProgress: {
@@ -818,6 +830,7 @@ export async function* sendMessageWithHistoryStream(
 
     const mediaParts =
       attachments && attachments.length > 0 ? await buildMediaParts(attachments, mediaMode) : [];
+    throwIfAborted(abortSignal);
     const cacheableChat = !includeTools && mediaParts.length === 0;
     const selectedModel = routeBedrockModel({
       intent: includeTools ? 'plan' : 'chat',
@@ -903,6 +916,7 @@ export async function* sendMessageWithHistoryStream(
 
     // Wait for a rate-limit slot before making the API call
     await waitForSlot();
+    throwIfAborted(abortSignal);
 
     // Build the command — conditionally include tools
     const commandInput: Record<string, unknown> = {
@@ -922,6 +936,7 @@ export async function* sendMessageWithHistoryStream(
     }
 
     const response = await converseBedrock(commandInput as any);
+    throwIfAborted(abortSignal);
 
     // Check if response contains tool use requests
     if (response.stopReason === 'tool_use') {
@@ -1046,12 +1061,16 @@ export async function* sendToolResultsToAI(
   originalHistory: AIChatMessage[],
   modelContent: any,
   toolResults: Array<{ name: string; result: any; toolUseId?: string }>,
+  options?: { signal?: AbortSignal },
 ): AsyncGenerator<StreamChunk, void, unknown> {
+  const abortSignal = options?.signal;
+  throwIfAborted(abortSignal);
   if (!isBedrockConfigured()) {
     throw new Error('AWS credentials not configured.');
   }
 
   try {
+    throwIfAborted(abortSignal);
     // Build conversation with tool responses
     const messages: AIChatMessage[] = [...originalHistory];
 
@@ -1109,6 +1128,7 @@ export async function* sendToolResultsToAI(
 
     // Wait for rate limit
     await waitForSlot();
+    throwIfAborted(abortSignal);
 
     const response = await converseBedrock({
       modelId: routeBedrockModel({ intent: 'tool_followup' }).modelId,
@@ -1121,6 +1141,7 @@ export async function* sendToolResultsToAI(
         temperature: 0.2,
       },
     });
+    throwIfAborted(abortSignal);
 
     // Yield text response
     const textContent = (response.output?.message?.content || []).find((c: any) => c.text);

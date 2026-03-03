@@ -52,4 +52,18 @@ describe('outputTruncation', () => {
       getToolOutputMaxChars('move_clip'),
     );
   });
+
+  it('honors explicit maxCharsOverride budgets', () => {
+    const hugePayload = {
+      success: true,
+      message: 'Large output',
+      data: { dump: 'x'.repeat(12_000) },
+    };
+    const result = truncateToolResultForModel('move_clip', hugePayload, {
+      maxCharsOverride: 1200,
+    });
+
+    expect(result.truncated).toBe(true);
+    expect(JSON.stringify(result.payload).length).toBeLessThanOrEqual(1200);
+  });
 });

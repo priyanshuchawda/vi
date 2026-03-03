@@ -134,7 +134,7 @@ function buildTruncationEnvelope(
 export function truncateToolResultForModel(
   toolName: string,
   result: unknown,
-  options?: { reserveChars?: number },
+  options?: { reserveChars?: number; maxCharsOverride?: number },
 ): {
   payload: unknown;
   truncated: boolean;
@@ -144,7 +144,10 @@ export function truncateToolResultForModel(
 } {
   const category = resolveToolOutputCategory(toolName);
   const reserveChars = Math.max(0, options?.reserveChars ?? 0);
-  const maxChars = TOOL_OUTPUT_MAX_CHARS_BY_CATEGORY[category];
+  const maxChars = Math.max(
+    256,
+    Math.floor(options?.maxCharsOverride ?? TOOL_OUTPUT_MAX_CHARS_BY_CATEGORY[category]),
+  );
   const effectiveMaxChars = Math.max(256, maxChars - reserveChars);
   const serialized = safeJsonStringify(result);
 

@@ -67,6 +67,7 @@ import {
 } from './aiTelemetry';
 import { formatRetrievedMemoryContext, retrieveRelevantMemory } from './memoryRetrieval';
 import { getContextBudgetProfile } from './contextBudgetPolicy';
+import { truncateToolResultForModel } from './outputTruncation';
 
 const DEFAULT_MAX_ROUNDS = 2;
 const ABSOLUTE_MAX_ROUNDS = 3;
@@ -124,6 +125,9 @@ export interface PlannedOperation {
   };
   description: string; // Human-readable description
   isReadOnly: boolean; // Whether this operation modifies state
+  tokenBudget?: {
+    maxResultChars: number;
+  };
 }
 
 export interface ExecutionPlan {
@@ -144,6 +148,12 @@ export interface ExecutionPlan {
   strategyArtifact?: StrategyPlan;
   executionRecommendation?: ExecutionRecommendation;
   executionRecommendationReason?: string;
+}
+
+function buildOperationTokenBudget(isReadOnly: boolean): { maxResultChars: number } {
+  return {
+    maxResultChars: isReadOnly ? 5_000 : 3_000,
+  };
 }
 
 export interface TurnAuditPayload {
@@ -558,6 +568,7 @@ If the goal is complete, return no new tool calls.`;
             functionCall,
             description: generateOperationDescription(functionCall),
             isReadOnly: isReadOnlyTool(toolUse.name),
+            tokenBudget: buildOperationTokenBudget(isReadOnlyTool(toolUse.name)),
           };
           operations.push(operation);
         }
@@ -712,6 +723,7 @@ If the goal is complete, return no new tool calls.`;
   const normalizedOperations = compiledOperations.map((operation, index) => ({
     ...operation,
     functionCall: preflight.normalizedCalls[index] || operation.functionCall,
+    tokenBudget: operation.tokenBudget || buildOperationTokenBudget(operation.isReadOnly),
   }));
   const compilationWarningIssues: PlanValidationIssue[] = compilationResult.warnings.map(
     (warning): PlanValidationIssue => ({
@@ -884,6 +896,7 @@ export async function executePlan(
   const operationsByRound = groupOperationsByRound(executableOperations);
   let completedOperations = 0;
   const allResults: ToolResult[] = [];
+  let budgetExhaustionCount = 0;
 
   // Execute operations round by round
   for (const roundOperations of operationsByRound.values()) {
@@ -941,12 +954,22 @@ export async function executePlan(
     } as any);
 
     // Add tool results as toolResult blocks in a user message
-    const toolResultContent = results.map((r, i) => ({
-      toolResult: {
-        toolUseId: `plan-tool-${currentRound}-${i}`,
-        content: [{ json: r.result }],
-      },
-    }));
+    const toolResultContent = results.map((r, i) => {
+      const operationBudget = roundOperations[i]?.tokenBudget?.maxResultChars ?? 3_000;
+      const shaped = truncateToolResultForModel(r.name, r.result, {
+        maxCharsOverride: operationBudget,
+      });
+      if (shaped.truncated) {
+        budgetExhaustionCount += 1;
+        recordContextLimitApplied({ droppedItems: 1 });
+      }
+      return {
+        toolResult: {
+          toolUseId: `plan-tool-${currentRound}-${i}`,
+          content: [{ json: shaped.payload }],
+        },
+      };
+    });
     messages.push({
       role: 'user',
       content: toolResultContent,
@@ -1001,6 +1024,12 @@ export async function executePlan(
     `- Removed clips: ${diff.removedClipNames.length > 0 ? diff.removedClipNames.join(', ') : 'none'}`,
     '',
     'Rollback: Use Undo to revert the changes if needed.',
+    ...(budgetExhaustionCount > 0
+      ? [
+          '',
+          `Budget note: ${budgetExhaustionCount} tool result(s) were compacted to stay within token budgets.`,
+        ]
+      : []),
   ].join('\n');
 }
 

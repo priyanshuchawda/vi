@@ -9,7 +9,6 @@ electron/services/youtubeAuthService.ts
 electron/services/youtubeService.ts
 electron/services/youtubeUploadService.ts
 src/components/Chat/ChatPanel.tsx
-src/lib/aiMemoryService.ts
 src/lib/aiPlanningService.ts
 src/lib/aiService.ts
 src/lib/toolExecutor.ts

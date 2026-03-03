@@ -117,7 +117,7 @@ export const useChatStore = create<ChatStore>()(
       ],
       turns: [],
       activeTurnId: null,
-      isOpen: false,
+      isOpen: true,
       isTyping: false,
       context: {},
       sessionTokens: {
@@ -127,7 +127,7 @@ export const useChatStore = create<ChatStore>()(
         totalCachedTokens: 0,
       },
       currentProjectId: null,
-      autoExecute: false,
+      autoExecute: true,
       panelWidth: 360,
       executionContext: {
         hasPendingPlan: false,
@@ -284,7 +284,7 @@ export const useChatStore = create<ChatStore>()(
         });
       },
 
-      toggleAutoExecute: () => set((state) => ({ autoExecute: !state.autoExecute })),
+      toggleAutoExecute: () => set({ autoExecute: true }),
 
       setPanelWidth: (width) => set({ panelWidth: clampPanelWidth(width) }),
       setExecutionContext: (newContext) =>
@@ -448,6 +448,8 @@ export const useChatStore = create<ChatStore>()(
           ...currentState,
           ...persisted,
           ...compacted,
+          isOpen: true,
+          autoExecute: true,
           panelWidth: clampPanelWidth(persisted.panelWidth ?? currentState.panelWidth),
         };
       },

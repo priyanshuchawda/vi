@@ -59,7 +59,6 @@ const ChatPanel = () => {
     clearChat,
     setIsTyping,
     autoExecute,
-    toggleAutoExecute,
     executionContext,
     setExecutionContext,
     clearExecutionContext,
@@ -402,11 +401,13 @@ const ChatPanel = () => {
         await import('../../lib/intentClassifier');
       const lastAssistantMessage =
         [...messages].reverse().find((m) => m.role === 'assistant')?.content || '';
+      const hasScriptDraftContext = looksLikeScriptDraft(lastAssistantMessage);
       const recentEditingContext = hasRecentEditingContext(messages);
       let intent = classifyIntentWithContext(content, {
         hasPendingPlan: hasReadyPendingPlan,
         hasRecentEditingContext: recentEditingContext,
       });
+      let plannerInput = content;
       const normalizedIntent = normalizeUserIntent(content, {
         hasTimeline: clips.length > 0,
         baseIntent: intent,
@@ -418,6 +419,10 @@ const ChatPanel = () => {
         (isAmbiguousContinuation(content) && recentEditingContext)
       ) {
         intent = 'edit';
+      }
+      if (isExecutionConfirmation(content) && hasScriptDraftContext) {
+        intent = 'edit';
+        plannerInput = buildCaptionApplyRequest(lastAssistantMessage);
       }
       if (intent === 'chat' && normalizedIntent.requiresPlanning) {
         intent = 'edit';
@@ -457,7 +462,7 @@ const ChatPanel = () => {
         assistantMessage('Analyzing your request and generating execution plan...');
 
         const plan = await runWithTransientRetry(
-          () => generateCompletePlan(content, aiHistory, 3, { normalizedIntent }),
+          () => generateCompletePlan(plannerInput, aiHistory, 3, { normalizedIntent }),
           {
             turnId,
             onRetryStatus: (attempt, nextAt, reason) => {
@@ -481,8 +486,11 @@ const ChatPanel = () => {
             messages: currentMessages.slice(0, -1),
           });
 
-          const hasValidationIssues = plan.validation && plan.validation.valid === false;
-          if (hasValidationIssues) {
+          const validationIssues = plan.validation?.issues || [];
+          const hasHardValidationIssues = validationIssues.some(
+            (issue) => issue.category !== 'validation_warning',
+          );
+          if (hasHardValidationIssues) {
             const issuePreview = (plan.validation.issues || [])
               .slice(0, 3)
               .map((issue) => `- ${issue.toolName}: ${issue.message}`)
@@ -502,25 +510,22 @@ const ChatPanel = () => {
             }
             setExecutionPlan({
               plan,
-              originalMessage: content,
+              originalMessage: plannerInput,
               history: aiHistory,
               normalizedIntent,
             });
             setLastPlanExecutionError(null);
             setExecutionContext({
               hasPendingPlan: plan.planReady,
-              lastUserMessageForPlan: content,
+              lastUserMessageForPlan: plannerInput,
             });
             setIsTyping(false);
             return;
           }
 
-          const confidenceScore = Number(plan.confidenceScore || 0);
-          const mutatingPlan = Boolean(plan.requiresApproval);
-          const meetsMutationAutoThreshold = !mutatingPlan || confidenceScore >= 0.85;
           const clarifyRequired = plan.executionRecommendation === 'clarify_required';
 
-          if (clarifyRequired) {
+          if (clarifyRequired && !autoExecute) {
             const clarificationQuestion = buildClarificationQuestion({
               ambiguities: normalizedIntent.ambiguities,
               mode: normalizedIntent.mode,
@@ -535,7 +540,7 @@ const ChatPanel = () => {
             }
             setExecutionPlan({
               plan,
-              originalMessage: content,
+              originalMessage: plannerInput,
               history: aiHistory,
               normalizedIntent,
             });
@@ -544,18 +549,16 @@ const ChatPanel = () => {
             }
             setExecutionContext({
               hasPendingPlan: false,
-              lastUserMessageForPlan: content,
+              lastUserMessageForPlan: plannerInput,
             });
             setIsTyping(false);
             return;
           }
 
-          // Auto-execute if enabled OR no approval is required (read-only plans)
-          if (
-            plan.planReady &&
-            (autoExecute || !plan.requiresApproval) &&
-            meetsMutationAutoThreshold
-          ) {
+          // Auto-execute when enabled; allow warning-only plans without blocking confirmations.
+          const canAutoExecutePlan = autoExecute && !hasHardValidationIssues;
+          const canExecuteReadOnlyPlan = plan.planReady && !plan.requiresApproval;
+          if (canAutoExecutePlan || canExecuteReadOnlyPlan) {
             if (turnId) {
               setTurnStatus(turnId, 'executing');
               appendTurnPart(turnId, {
@@ -565,8 +568,9 @@ const ChatPanel = () => {
               });
             }
             const readOnlyNotice = !plan.requiresApproval ? ' (read-only plan)' : '';
+            const readinessNotice = !plan.planReady ? ' (draft plan)' : '';
             assistantMessage(
-              `Auto-executing ${plan.operations.length} operation${plan.operations.length > 1 ? 's' : ''}${readOnlyNotice}...`,
+              `Auto-executing ${plan.operations.length} operation${plan.operations.length > 1 ? 's' : ''}${readOnlyNotice}${readinessNotice}...`,
             );
 
             try {
@@ -645,20 +649,10 @@ const ChatPanel = () => {
             return;
           }
 
-          if (
-            plan.planReady &&
-            (autoExecute || !plan.requiresApproval) &&
-            !meetsMutationAutoThreshold
-          ) {
-            assistantMessage(
-              `Auto-execute skipped because confidence is ${(confidenceScore * 100).toFixed(0)}% (<85% for mutating edits). Please review and approve.`,
-            );
-          }
-
           // Show for approval if auto-execute is disabled
           setExecutionPlan({
             plan,
-            originalMessage: content,
+            originalMessage: plannerInput,
             history: aiHistory,
             normalizedIntent,
           });
@@ -674,7 +668,7 @@ const ChatPanel = () => {
           setLastPlanExecutionError(null);
           setExecutionContext({
             hasPendingPlan: plan.planReady,
-            lastUserMessageForPlan: content,
+            lastUserMessageForPlan: plannerInput,
           });
           setIsTyping(false);
           return;
@@ -831,7 +825,32 @@ const ChatPanel = () => {
             return;
           }
 
-          // Non-read-only calls require approval.
+          // Auto-execute all remaining tool plans when auto mode is enabled.
+          if (functionCalls.length > 0 && autoExecute) {
+            setUploadStatus(null);
+            setPendingClarification(null);
+            setPendingToolCalls({
+              functionCalls,
+              modelContent: chunk.modelContent,
+              history: aiHistory,
+            });
+            if (turnId) {
+              setTurnStatus(turnId, 'executing');
+              functionCalls.forEach((call) => {
+                appendTurnPart(turnId!, {
+                  type: 'tool_call',
+                  name: call.name,
+                  args: call.args || {},
+                  state: 'pending',
+                  timestamp: Date.now(),
+                });
+              });
+            }
+            setIsTyping(false);
+            return;
+          }
+
+          // Non-read-only calls require approval when auto mode is disabled.
           setUploadStatus(null);
           setPendingClarification(null);
           setPendingToolCalls({
@@ -1026,15 +1045,50 @@ const ChatPanel = () => {
 
   const handleExecutePlan = async () => {
     if (!executionPlan) return;
+    const validationIssues = executionPlan.plan.validation?.issues || [];
+    const hasHardValidationIssues = validationIssues.some(
+      (issue) => issue.category !== 'validation_warning',
+    );
+    const canForceExecute =
+      executionPlan.plan.operations.length > 0 &&
+      !hasHardValidationIssues &&
+      validationIssues.length > 0;
+
     if (!executionPlan.plan.planReady) {
-      addMessage(
-        'assistant',
-        `Execution blocked: ${executionPlan.plan.planReadyReason || 'plan is not ready yet. Please refine or rebuild.'}`,
-        { error: true },
-      );
-      return;
+      if (!canForceExecute) {
+        addMessage(
+          'assistant',
+          `Execution blocked: ${executionPlan.plan.planReadyReason || 'plan is not ready yet. Please refine or rebuild.'}`,
+          { error: true },
+        );
+        return;
+      }
+
+      if (!autoExecute) {
+        const riskText = executionPlan.plan.riskNotes?.length
+          ? `\n\nRisks:\n- ${executionPlan.plan.riskNotes.join('\n- ')}`
+          : '';
+        const proceed = window.confirm(
+          `Plan is not marked ready.\n\nReason: ${executionPlan.plan.planReadyReason || 'Validation warnings present.'}${riskText}\n\nProceed anyway?`,
+        );
+        if (!proceed) {
+          addMessage(
+            'assistant',
+            'Execution canceled. Use Refine/Rebuild to improve plan readiness.',
+            {
+              error: true,
+            },
+          );
+          return;
+        }
+      } else {
+        addMessage(
+          'assistant',
+          `Plan is not fully ready (${executionPlan.plan.planReadyReason || 'validation warning'}). Proceeding automatically.`,
+        );
+      }
     }
-    if (executionPlan.plan.validation && executionPlan.plan.validation.valid === false) {
+    if (executionPlan.plan.validation && hasHardValidationIssues) {
       addMessage(
         'assistant',
         'Execution blocked: plan has validation issues. Please update the request or regenerate the plan.',
@@ -1496,6 +1550,41 @@ const ChatPanel = () => {
     }
   };
 
+  useEffect(() => {
+    if (!autoExecute || !pendingClarification || isTyping) return;
+    const autoAnswer = pendingClarification.options[0] || 'Proceed with best effort';
+    void handleClarificationAnswer(autoAnswer);
+  }, [autoExecute, pendingClarification, isTyping]);
+
+  useEffect(() => {
+    if (!autoExecute || !pendingToolCalls || isExecutingTools || isTyping) return;
+    void handleExecuteTools();
+  }, [autoExecute, pendingToolCalls, isExecutingTools, isTyping]);
+
+  useEffect(() => {
+    if (!autoExecute || !executionPlan || isGeneratingPlan || isExecutingTools || isTyping) return;
+    if (pendingToolCalls || pendingClarification || lastPlanExecutionError) return;
+    const validationIssues = executionPlan.plan.validation?.issues || [];
+    const hasHardValidationIssues = validationIssues.some(
+      (issue) => issue.category !== 'validation_warning',
+    );
+    const canForceExecute =
+      executionPlan.plan.operations.length > 0 &&
+      !hasHardValidationIssues &&
+      validationIssues.length > 0;
+    if (!executionPlan.plan.planReady && !canForceExecute) return;
+    void handleExecutePlan();
+  }, [
+    autoExecute,
+    executionPlan,
+    isGeneratingPlan,
+    isExecutingTools,
+    isTyping,
+    pendingToolCalls,
+    pendingClarification,
+    lastPlanExecutionError,
+  ]);
+
   const recentTurns: ChatTurn[] = turns.slice(-5).reverse();
   const selectedAudit = auditTurnId ? getTurnAudit(auditTurnId) : undefined;
 
@@ -1677,30 +1766,6 @@ const ChatPanel = () => {
                 d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-10V6m0 12v-2M5 12a7 7 0 1014 0 7 7 0 10-14 0z"
               />
             </svg>
-          </button>
-          <button
-            onClick={toggleAutoExecute}
-            className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-md transition-all duration-200 hover:scale-110 active:scale-95 ${autoExecute ? 'text-green-400 bg-green-500/10 hover:bg-green-500/15' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
-            title={autoExecute ? 'Auto-execute ON' : 'Auto-execute OFF'}
-          >
-            {autoExecute ? (
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            ) : (
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
-              </svg>
-            )}
           </button>
           <button
             onClick={handleClearChat}
@@ -2519,7 +2584,7 @@ const ChatPanel = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={handleExecutePlan}
-                    disabled={isExecutingTools || !executionPlan.plan.planReady}
+                    disabled={isExecutingTools}
                     className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors flex items-center gap-2"
                   >
                     {isExecutingTools
@@ -2677,8 +2742,32 @@ function looksLikeEditPlan(text: string): boolean {
     lower.includes('execution plan') ||
     lower.includes('timeline') ||
     lower.includes('split') ||
-    lower.includes('clip')
+    lower.includes('clip') ||
+    lower.includes('add subtitle') ||
+    lower.includes('caption')
   );
+}
+
+function looksLikeScriptDraft(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    /\b(voiceover|text overlay|on-screen text|caption|subtitle|script)\b/.test(lower) &&
+    /(\[\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\])|(\b0:0\d\b)|(\b0:1\d\b)/.test(lower)
+  );
+}
+
+function buildCaptionApplyRequest(lastAssistantMessage: string): string {
+  const compactScript = lastAssistantMessage.replace(/\s+/g, ' ').slice(0, 2400);
+  return `Apply the script from your previous response as on-screen captions on my current timeline.
+
+Requirements:
+- Use subtitle/caption editing tools to add the timestamped lines.
+- Keep the final caption sequence within the timeline duration.
+- Preserve my existing clips; do not trim or reorder unless absolutely required.
+- Use concise, attractive caption text matching the script tone.
+
+Reference script:
+${compactScript}`;
 }
 
 function isAmbiguousContinuation(input: string): boolean {

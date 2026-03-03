@@ -32,6 +32,14 @@ const STYLE_AMBIGUITY_PATTERN =
   /\b(like this|properly|make it cool|make it better|as usual|cinematic)\b/i;
 const SHORT_FORM_PATTERN = /\b(yt short|youtube short|shorts|reel|tiktok)\b/i;
 const SCRIPT_PATTERN = /\b(script|voiceover|narration|caption script|storyline|hook)\b/i;
+const EDIT_OPERATION_PATTERN =
+  /\b(trim|split|cut|crop|delete|remove|move|merge|combine|join|duplicate|copy|paste|reorder|timeline|clip|track|transition|effect|filter|fade|speed|audio|mute|unmute|volume|subtitle|caption|transcribe|playhead|export|render)\b/i;
+
+function isScriptOnlyRequest(message: string): boolean {
+  if (!SCRIPT_PATTERN.test(message)) return false;
+  if (EXECUTION_PATTERN.test(message)) return false;
+  return !EDIT_OPERATION_PATTERN.test(message);
+}
 
 function detectMode(message: string, hasTimeline: boolean): EditMode {
   if (SHORT_FORM_PATTERN.test(message)) {
@@ -84,7 +92,11 @@ function detectGoals(message: string): string[] {
 
 function detectRequestedOutputs(message: string): string[] {
   const outputs: string[] = [];
-  if (/\b(edit|cut|timeline|trim|transition|merge|combine|stitch|assemble|make)\b/i.test(message)) {
+  const scriptOnly = isScriptOnlyRequest(message);
+  if (
+    !scriptOnly &&
+    /\b(edit|cut|timeline|trim|transition|merge|combine|stitch|assemble|make)\b/i.test(message)
+  ) {
     outputs.push('edit_plan');
   }
   if (SCRIPT_PATTERN.test(message)) {
@@ -141,6 +153,7 @@ function detectAmbiguities(message: string): string[] {
 
 export function normalizeUserIntent(message: string, options: NormalizeOptions): NormalizedIntent {
   const lower = message.trim().toLowerCase();
+  const scriptOnlyRequest = isScriptOnlyRequest(lower);
   const mode = detectMode(lower, options.hasTimeline);
   const goals = detectGoals(lower);
   const requestedOutputs = detectRequestedOutputs(lower);
@@ -155,7 +168,9 @@ export function normalizeUserIntent(message: string, options: NormalizeOptions):
   const baseIntentIsEdit = options.baseIntent === 'edit';
   const contextSuggestsEdit = Boolean(options.hasPendingPlan || options.hasRecentEditingContext);
   const requiresPlanning =
-    !looksLikeQuestion && (baseIntentIsEdit || imperativeEditSignal || contextSuggestsEdit);
+    !scriptOnlyRequest &&
+    !looksLikeQuestion &&
+    (baseIntentIsEdit || imperativeEditSignal || contextSuggestsEdit);
 
   let confidence = 0.45;
   if (requiresPlanning) confidence += 0.3;

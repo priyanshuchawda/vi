@@ -18,7 +18,7 @@ const OnboardingWizard = lazy(() =>
 );
 
 const panelFallback = <div className="h-full w-full animate-pulse bg-bg-secondary/50" />;
-const DESKTOP_TIMELINE_DEFAULT_HEIGHT = 180;
+const DESKTOP_TIMELINE_DEFAULT_HEIGHT = 250;
 const MOBILE_TIMELINE_HEIGHT = 160;
 const TIMELINE_MIN_HEIGHT = 140;
 

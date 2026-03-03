@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Hybrid Auto-Captioning Service — AWS Bedrock (Amazon Nova Lite v1)
  *
@@ -14,9 +13,8 @@ import { z } from 'zod';
 import { waitForSlot } from './rateLimiter';
 import { recordUsage } from './tokenTracker';
 import { srtTimeToSeconds } from './timecode';
+import type { TranscriptionResult } from '../types/electron';
 
-// Access Electron API for local transcription
-const electron = (window as any).electron;
 const MAX_INLINE_VIDEO_BYTES = 25 * 1024 * 1024;
 
 /**
@@ -57,6 +55,19 @@ export interface CaptionOptions {
   maxLinesPerCaption?: number;
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string') {
+      return message;
+    }
+  }
+  return String(error ?? '');
+}
+
 /**
  * Generate captions using hybrid approach:
  * 1. Local Vosk transcription (free, fast)
@@ -74,9 +85,11 @@ export async function generateCaptions(
 
   try {
     // Step 1: Get raw transcription from local Vosk model
-    const localTranscription = await electron.transcribeVideo(filePath);
+    const localResponse = await window.electronAPI.transcribeVideo(filePath);
+    const localTranscription = localResponse.result;
 
     if (
+      !localResponse.success ||
       !localTranscription ||
       !localTranscription.segments ||
       localTranscription.segments.length === 0
@@ -93,13 +106,14 @@ export async function generateCaptions(
     console.log(' Captions generated and refined successfully');
 
     return refinedTranscription;
-  } catch (localError: any) {
-    console.warn(' Local transcription failed:', localError.message);
+  } catch (localError: unknown) {
+    const localErrorMessage = getErrorMessage(localError);
+    console.warn(' Local transcription failed:', localErrorMessage);
 
     const isNoAudioError =
-      localError.message?.includes('does not contain an audio track') ||
-      localError.message?.includes('no audio') ||
-      localError.message?.includes('Output file does not contain any stream');
+      localErrorMessage.includes('does not contain an audio track') ||
+      localErrorMessage.includes('no audio') ||
+      localErrorMessage.includes('Output file does not contain any stream');
 
     if (isNoAudioError) {
       console.log(' Video has no audio track. Falling back to AI direct transcription...');
@@ -117,7 +131,7 @@ export async function generateCaptions(
  * Text-to-text call — very cheap since no video is sent.
  */
 async function refineTranscriptionWithBedrock(
-  localTranscription: any,
+  localTranscription: TranscriptionResult,
   options: CaptionOptions,
 ): Promise<Transcription> {
   if (!isBedrockConfigured()) {
@@ -128,7 +142,7 @@ async function refineTranscriptionWithBedrock(
   const maxCharsPerLine = options.maxCharsPerLine || 60;
   const maxLinesPerCaption = options.maxLinesPerCaption || 2;
 
-  const segmentsWithTimes = localTranscription.segments.map((seg: any, idx: number) => ({
+  const segmentsWithTimes = localTranscription.segments.map((seg, idx: number) => ({
     index: idx + 1,
     startTime: secondsToSRTTime(seg.start),
     endTime: secondsToSRTTime(seg.end),
@@ -208,11 +222,11 @@ Your task:
 /**
  * Convert local Vosk transcription to our Transcription format (fallback when no API)
  */
-function convertLocalToTranscription(localTranscription: any): Transcription {
+function convertLocalToTranscription(localTranscription: TranscriptionResult): Transcription {
   return {
     language: 'English',
     languageCode: 'en-US',
-    segments: localTranscription.segments.map((seg: any, idx: number) => ({
+    segments: localTranscription.segments.map((seg, idx: number) => ({
       index: idx + 1,
       startTime: secondsToSRTTime(seg.start),
       endTime: secondsToSRTTime(seg.end),
@@ -436,7 +450,7 @@ Requirements:
   console.log(' Using Bedrock direct video transcription (no cache available)...');
 
   // Read video file as base64 via Electron
-  const base64Data = await electron.readFileAsBase64(filePath);
+  const base64Data = await window.electronAPI.readFileAsBase64(filePath);
   if (!base64Data) {
     throw new Error('Failed to read video file');
   }
@@ -482,7 +496,7 @@ Requirements:
     messages: [
       {
         role: 'user',
-        content: [{ video: { format, source: { bytes } } }, { text: prompt }] as any,
+        content: [{ video: { format, source: { bytes } } }, { text: prompt }],
       },
     ],
     system: [

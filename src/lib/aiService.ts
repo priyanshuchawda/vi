@@ -39,6 +39,7 @@ import {
 import { useAiMemoryStore } from '../stores/useAiMemoryStore';
 import { formatRetrievedMemoryContext, retrieveRelevantMemory } from './memoryRetrieval';
 import { getSupportedToolNames } from './toolCapabilityMatrix';
+import { truncateToolResultForModel } from './outputTruncation';
 
 const INLINE_MEDIA_LIMIT_BYTES = 25 * 1024 * 1024;
 const CHAT_MAX_TOKENS = 1024;
@@ -1086,26 +1087,33 @@ export async function* sendToolResultsToAI(
     // Per Bedrock Converse API: a message containing toolResult blocks must
     // contain ONLY toolResult blocks — mixing text blocks causes a
     // ValidationException. The reply instruction goes in the last toolResult.
-    const toolResultContent: Array<Record<string, any>> = toolResults.map((tr, idx) => ({
-      toolResult: {
-        toolUseId: tr.toolUseId!, // must be the real toolUseId from the response
-        content: [
-          {
-            json: {
-              ...tr.result,
-              // Attach the reply instruction only to the last tool result so
-              // Bedrock sees it without mixing content block types.
-              ...(idx === toolResults.length - 1
-                ? {
-                    _instruction:
-                      'Reply: 1) What changed, 2) Any failures, 3) Timeline diff if available, 4) Next best action.',
-                  }
-                : {}),
+    const followupInstruction =
+      'Reply: 1) What changed, 2) Any failures, 3) Timeline diff if available, 4) Next best action.';
+    const toolResultContent: Array<Record<string, any>> = toolResults.map((tr, idx) => {
+      const isLastResult = idx === toolResults.length - 1;
+      const truncatedResult = truncateToolResultForModel(tr.name, tr.result, {
+        reserveChars: isLastResult ? followupInstruction.length + 48 : 0,
+      });
+      return {
+        toolResult: {
+          toolUseId: tr.toolUseId!, // must be the real toolUseId from the response
+          content: [
+            {
+              json: {
+                ...(truncatedResult.payload as Record<string, unknown>),
+                // Attach the reply instruction only to the last tool result so
+                // Bedrock sees it without mixing content block types.
+                ...(isLastResult
+                  ? {
+                      _instruction: followupInstruction,
+                    }
+                  : {}),
+              },
             },
-          },
-        ],
-      },
-    }));
+          ],
+        },
+      };
+    });
 
     messages.push({
       role: 'user',

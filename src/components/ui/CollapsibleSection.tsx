@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { getStoredString, setStoredString, storageKeys } from '../../lib/storage';
 
 interface CollapsibleSectionProps {
   title: string;
@@ -18,7 +19,7 @@ const CollapsibleSection = ({
 }: CollapsibleSectionProps) => {
   const [isOpen, setIsOpen] = useState(() => {
     if (storageKey) {
-      const saved = localStorage.getItem(`collapse-${storageKey}`);
+      const saved = getStoredString(storageKeys.uiCollapse(storageKey));
       return saved !== null ? saved === 'true' : defaultOpen;
     }
     return defaultOpen;
@@ -26,7 +27,7 @@ const CollapsibleSection = ({
 
   useEffect(() => {
     if (storageKey) {
-      localStorage.setItem(`collapse-${storageKey}`, String(isOpen));
+      setStoredString(storageKeys.uiCollapse(storageKey), String(isOpen));
     }
   }, [isOpen, storageKey]);
 

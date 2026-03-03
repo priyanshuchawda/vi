@@ -1614,7 +1614,7 @@ const ChatPanel = () => {
     lastPlanExecutionError,
   ]);
 
-  const recentTurns: ChatTurn[] = turns.slice(-5).reverse();
+  const recentTurns: ChatTurn[] = turns.slice(-1).reverse();
   const selectedAudit = auditTurnId ? getTurnAudit(auditTurnId) : undefined;
 
   const getToolDescription = (call: { name: string; args: Record<string, unknown> }): string => {
@@ -1920,22 +1920,6 @@ const ChatPanel = () => {
             >
               Save Policy
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Auto-Execute Mode Banner */}
-      {autoExecute && (
-        <div className="px-4 py-2 bg-green-500/5 border-b border-green-500/10 animate-slide-up">
-          <div className="flex items-center gap-2 text-xs text-green-400">
-            <svg className="w-3.5 h-3.5 animate-pulse-glow" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <span>Auto-execute enabled. Operations will run automatically without approval.</span>
           </div>
         </div>
       )}

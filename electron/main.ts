@@ -14,7 +14,12 @@ import fs from 'fs/promises';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { config } from 'dotenv';
 import { z } from 'zod';
-import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
+import {
+  BedrockRuntimeClient,
+  ConverseCommand,
+  type ConverseCommandOutput,
+} from '@aws-sdk/client-bedrock-runtime';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
 import type { FfprobeData, FfprobeStream } from 'fluent-ffmpeg';
 import {
   IPC_CHANNELS,
@@ -130,6 +135,13 @@ if (YOUTUBE_API_KEY && AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
   log('info', 'Channel analysis service initialized (Bedrock)');
   bedrockGatewayClient = new BedrockRuntimeClient({
     region: AWS_REGION,
+    maxAttempts: 4,
+    retryMode: 'adaptive',
+    requestHandler: new NodeHttpHandler({
+      connectionTimeout: 5_000,
+      requestTimeout: 30_000,
+      socketTimeout: 30_000,
+    }),
     credentials: {
       accessKeyId: AWS_ACCESS_KEY_ID,
       secretAccessKey: AWS_SECRET_ACCESS_KEY,
@@ -160,6 +172,69 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableBedrockTransportError(error: unknown): boolean {
+  const message = getErrorMessage(error, '').toLowerCase();
+  if (!message) return false;
+
+  return (
+    message.includes('eai_again') ||
+    message.includes('econnrefused') ||
+    message.includes('err_http2_stream_cancel') ||
+    message.includes('enotfound') ||
+    message.includes('econnreset') ||
+    message.includes('socket hang up') ||
+    message.includes('timed out') ||
+    message.includes('timeout') ||
+    message.includes('request socket did not establish a connection') ||
+    message.includes('temporary failure in name resolution')
+  );
+}
+
+function isExpiredAwsTokenError(error: unknown): boolean {
+  const message = getErrorMessage(error, '').toLowerCase();
+  return (
+    message.includes('expiredtokenexception') ||
+    message.includes('security token included in the request is expired') ||
+    message.includes('token has expired')
+  );
+}
+
+async function sendBedrockConverseWithRetry(
+  commandInput: ConstructorParameters<typeof ConverseCommand>[0],
+): Promise<ConverseCommandOutput> {
+  if (!bedrockGatewayClient) {
+    throw new Error('Bedrock gateway unavailable: missing AWS credentials in Electron environment');
+  }
+
+  const maxTransportRetries = 2;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxTransportRetries; attempt++) {
+    try {
+      return await bedrockGatewayClient.send(new ConverseCommand(commandInput));
+    } catch (error) {
+      lastError = error;
+      const shouldRetry = attempt < maxTransportRetries && isRetryableBedrockTransportError(error);
+      if (!shouldRetry) {
+        throw error;
+      }
+      const backoffMs = 400 * Math.pow(2, attempt);
+      log('warn', 'Retrying Bedrock converse after transient transport error', {
+        attempt: attempt + 1,
+        backoffMs,
+        error: getErrorMessage(error, 'Unknown Bedrock transport error'),
+      });
+      await sleep(backoffMs);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Unknown Bedrock transport error');
 }
 
 function registerMediaProtocol() {
@@ -212,8 +287,8 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  // Start in fullscreen by default for focused editing workflow.
-  mainWindow.setFullScreen(true);
+  // Start maximized (not true fullscreen) so OS title-bar controls remain visible.
+  mainWindow.maximize();
 
   // Set dock icon on macOS
   if (process.platform === 'darwin' && app.dock) {
@@ -591,10 +666,6 @@ ipcMain.handle(
 );
 
 ipcMain.handle(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
-  if (!bedrockGatewayClient) {
-    throw new Error('Bedrock gateway unavailable: missing AWS credentials in Electron environment');
-  }
-
   const input = bedrockConverseInputSchema.parse(rawInput);
 
   const reviveBytes = (value: unknown): unknown => {
@@ -629,10 +700,28 @@ ipcMain.handle(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
       BEDROCK_INFERENCE_PROFILE_ID,
     );
   }
-  const response = await bedrockGatewayClient.send(
-    new ConverseCommand(commandInput as ConstructorParameters<typeof ConverseCommand>[0]),
-  );
-  return response;
+  try {
+    const response = await sendBedrockConverseWithRetry(
+      commandInput as ConstructorParameters<typeof ConverseCommand>[0],
+    );
+    return response;
+  } catch (error) {
+    if (isExpiredAwsTokenError(error)) {
+      throw new Error(
+        'AWS credentials expired for Bedrock access. Refresh AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN in .env and restart QuickCut.',
+      );
+    }
+    if (isRetryableBedrockTransportError(error)) {
+      const endpoint = `bedrock-runtime.${AWS_REGION}.amazonaws.com`;
+      throw new Error(
+        `Bedrock endpoint unreachable (${endpoint}). Check internet/firewall/VPN/proxy settings, then retry. Root cause: ${getErrorMessage(
+          error,
+          'Unknown transport error',
+        )}`,
+      );
+    }
+    throw error;
+  }
 });
 
 // File reading for AI Memory analysis

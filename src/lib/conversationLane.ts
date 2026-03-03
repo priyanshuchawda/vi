@@ -27,6 +27,22 @@ export function inferAssistantArtifactFromText(
   const trimmed = String(text || '').trim();
   if (!trimmed) return null;
 
+  if (looksLikeExecutionResult(trimmed)) {
+    return {
+      type: 'tool_execution_result',
+      executable: false,
+      nextActions: ['undo_last_action', 'refine_request'],
+    };
+  }
+
+  if (looksLikeExecutionPlan(trimmed)) {
+    return {
+      type: 'execution_plan',
+      executable: true,
+      nextActions: ['execute_plan', 'refine_plan', 'reject_plan'],
+    };
+  }
+
   if (looksLikeScriptDraft(trimmed)) {
     const executable = scriptDraftOffersExecution(trimmed);
     return {
@@ -36,30 +52,24 @@ export function inferAssistantArtifactFromText(
     };
   }
 
-  if (/complete execution plan|plan ready|execute \(\d+\)/i.test(trimmed)) {
-    return {
-      type: 'execution_plan',
-      executable: true,
-      nextActions: ['execute_plan', 'refine_plan', 'reject_plan'],
-    };
-  }
-
-  if (/execution complete|operations executed|rollback: use undo/i.test(trimmed)) {
-    return {
-      type: 'tool_execution_result',
-      executable: false,
-      nextActions: ['undo_last_action', 'refine_request'],
-    };
-  }
-
   return null;
 }
 
 export function isExecutionConfirmation(input: string): boolean {
   const text = input.toLowerCase().trim();
-  return /\b(do it|go ahead|execute|apply (it|that)|proceed|make it|yes|ok|okay|sure|continue)\b/.test(
-    text,
-  );
+  if (!text) return false;
+
+  const explicitConfirmation =
+    /^(yes|ok|okay|sure|continue|proceed|go ahead|do it|execute|apply( it| that)?|make it)( please)?[.!?]*$/.test(
+      text,
+    );
+  if (!explicitConfirmation) return false;
+
+  const hasConcreteEditSignal =
+    /\b(trim|cut|clip|clips|photo|image|video|caption|subtitle|timeline|second|seconds|sec|duration|speed|volume|transition|script|add|remove|move|split|merge|resize|crop)\b/.test(
+      text,
+    );
+  return !hasConcreteEditSignal;
 }
 
 export function isAmbiguousContinuation(input: string): boolean {
@@ -97,6 +107,14 @@ export function scriptDraftOffersExecution(text: string): boolean {
   return /\b(would you like to proceed|ready for the next steps|confirm if you'?re ready|apply these as captions(?: on timeline)?)\b/i.test(
     text,
   );
+}
+
+function looksLikeExecutionResult(text: string): boolean {
+  return /execution complete|operations executed|timeline diff:|rollback: use undo/i.test(text);
+}
+
+function looksLikeExecutionPlan(text: string): boolean {
+  return /complete execution plan|plan ready|execute \(\d+\)/i.test(text);
 }
 
 export function buildCaptionApplyRequest(lastAssistantMessage: string): string {
@@ -140,8 +158,11 @@ export function resolveConversationLane(input: ConversationLaneInput): Conversat
 
   const confirmation = isExecutionConfirmation(input.message);
   const continuation = isAmbiguousContinuation(input.message);
-  const assistantHasEditPlan = looksLikeEditPlan(input.lastAssistantMessage);
-  const assistantHasExecutableScriptDraft = scriptDraftOffersExecution(input.lastAssistantMessage);
+  const assistantLooksLikeExecutionResult = looksLikeExecutionResult(input.lastAssistantMessage);
+  const assistantHasEditPlan =
+    !assistantLooksLikeExecutionResult && looksLikeEditPlan(input.lastAssistantMessage);
+  const assistantHasExecutableScriptDraft =
+    !assistantLooksLikeExecutionResult && scriptDraftOffersExecution(input.lastAssistantMessage);
   const artifact =
     input.lastAssistantArtifact || inferAssistantArtifactFromText(input.lastAssistantMessage);
   const artifactIsExecutable = Boolean(artifact?.executable);

@@ -77,4 +77,35 @@ describe('conversationLane phase 2 confirmation contracts', () => {
     expect(decision.lane).toBe('timeline_edit');
     expect(decision.reason).toBe('confirmation_bound_to_plan_artifact');
   });
+
+  it('does not treat edit request prefixed with ok as plain confirmation', () => {
+    const lastAssistantMessage = `Execution complete.
+
+What I understood: Apply the script from your previous response as on-screen captions on my current timeline.
+
+Reference script:
+[00:00 - 00:02] Voiceover: "Ready for the challenge?"
+[00:03 - 00:05] Voiceover: "Teamwork and creativity."
+Ask for Confirmation
+"Apply these as captions on timeline?"
+
+Operations executed:
+1. Execute add subtitle
+2. Execute add subtitle
+
+Timeline diff:
+- Clips: 3 -> 3
+- Duration: 16.3s -> 16.3s
+Rollback: Use Undo to revert the changes if needed.`;
+
+    const decision = lane({
+      message: 'ok lets make photo to 7 second both',
+      lastAssistantMessage,
+      hasRecentEditingContext: true,
+    });
+
+    expect(decision.lane).toBe('timeline_edit');
+    expect(decision.plannerInput).toBe('ok lets make photo to 7 second both');
+    expect(decision.plannerInput).not.toContain('Apply the script from your previous response');
+  });
 });

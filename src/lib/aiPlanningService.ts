@@ -641,7 +641,10 @@ If the goal is complete, return no new tool calls.`;
   let compiledOperations = operations;
 
   // First compilation attempt
-  let compilationResult = compilePlan(operations, aliasMap, realSnapshot);
+  let compilationResult = compilePlan(operations, aliasMap, realSnapshot, {
+    normalizedIntent: options?.normalizedIntent,
+    userMessage: message,
+  });
   const compileFailed = compilationResult.errors.length > 0;
 
   // If compilation found critical errors, try one retry with correction prompt
@@ -699,7 +702,10 @@ If the goal is complete, return no new tool calls.`;
 
       // Try compiling the retry operations
       if (retryOperations.length > 0) {
-        const retryCompilation = compilePlan(retryOperations, aliasMap, realSnapshot);
+        const retryCompilation = compilePlan(retryOperations, aliasMap, realSnapshot, {
+          normalizedIntent: options?.normalizedIntent,
+          userMessage: message,
+        });
         if (retryCompilation.errors.length === 0) {
           // Retry succeeded - use these operations
           compiledOperations = retryOperations;

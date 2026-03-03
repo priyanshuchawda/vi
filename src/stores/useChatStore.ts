@@ -5,6 +5,7 @@ import {
   getSessionStats as getTrackedSessionStats,
   resetSession as resetTrackedSession,
 } from '../lib/tokenTracker';
+import { compactPersistedChatSlice } from '../lib/chatPersistencePolicy';
 import type {
   ChatMessage,
   ChatContext,
@@ -418,25 +419,38 @@ export const useChatStore = create<ChatStore>()(
     }),
     {
       name: 'quickcut-chat-storage',
-      partialize: (state) => ({
-        messages: state.messages.map((msg) => ({
-          ...msg,
-          // Don't persist File objects or previewUrls (not serializable)
-          attachments: msg.attachments?.map((a) => ({
-            ...a,
-            file: undefined as unknown as File, // Can't serialize File objects
-            previewUrl: undefined, // Object URLs are not persistent
-            base64Data: undefined, // Don't persist large base64 in localStorage
-          })),
-        })),
-        sessionTokens: state.sessionTokens,
-        currentProjectId: state.currentProjectId,
-        autoExecute: state.autoExecute,
-        panelWidth: state.panelWidth,
-        executionContext: state.executionContext,
-        turns: state.turns,
-        activeTurnId: state.activeTurnId,
-      }),
+      partialize: (state) => {
+        const compacted = compactPersistedChatSlice({
+          messages: state.messages,
+          turns: state.turns,
+          activeTurnId: state.activeTurnId,
+        });
+        return {
+          messages: compacted.messages,
+          sessionTokens: state.sessionTokens,
+          currentProjectId: state.currentProjectId,
+          autoExecute: state.autoExecute,
+          panelWidth: state.panelWidth,
+          executionContext: state.executionContext,
+          turns: compacted.turns,
+          activeTurnId: compacted.activeTurnId,
+        };
+      },
+      merge: (persistedState, currentState) => {
+        const persisted = (persistedState as Partial<ChatStore>) || {};
+        const compacted = compactPersistedChatSlice({
+          messages: persisted.messages,
+          turns: persisted.turns,
+          activeTurnId: persisted.activeTurnId,
+        });
+
+        return {
+          ...currentState,
+          ...persisted,
+          ...compacted,
+          panelWidth: clampPanelWidth(persisted.panelWidth ?? currentState.panelWidth),
+        };
+      },
     },
   ),
 );

@@ -66,3 +66,23 @@ If/when SQLite is introduced:
 - Keep project save/load in main process file APIs.
 - Never overwrite user-selected project files without explicit save path.
 - Preserve AI memory write/read behavior and test compatibility.
+
+## Chat Persistence Retention Policy
+
+Persisted chat state is compacted on both write and hydrate using
+`src/lib/chatPersistencePolicy.ts`.
+
+Current caps:
+
+- `maxMessages`: 120
+- `maxTurns`: 80
+- `maxTurnParts`: 200 per turn
+- `maxMessageChars`: 12,000 per message
+
+Behavior:
+
+- Old oversized stores are migration-pruned safely during hydrate.
+- Latest system message is retained when message compaction is needed.
+- Active turn ID is cleared if the referenced turn is pruned.
+- Non-serializable attachment fields (`file`, `previewUrl`, `base64Data`) are
+  stripped from persisted messages.

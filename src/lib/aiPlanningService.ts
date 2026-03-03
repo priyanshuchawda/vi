@@ -22,7 +22,7 @@ import { getSessionEstimatedCost, recordUsage } from './tokenTracker';
 import { estimateTurnCost, evaluateBudgetPolicy, trimHistoryToLimit } from './costPolicy';
 import { evaluateTokenGuard } from './bedrockTokenEstimator';
 import { maskToolOutputsInHistory } from './toolOutputMaskingService';
-import { routeBedrockModel } from './modelRoutingPolicy';
+import { recordRoutingModelOutcome, routeBedrockModel } from './modelRoutingPolicy';
 import { buildSemanticCacheKey, getCached, hashString, setCached } from './requestCache';
 import {
   buildAliasedSnapshotForPlanning,
@@ -249,14 +249,21 @@ async function generateStrategyDraft(input: {
   });
 
   await waitForSlot();
-  const response = await withRetryOn429(() =>
-    converseBedrock({
-      modelId: input.modelId,
-      messages: [{ role: 'user', content: [{ text: prompt }] }],
-      system: [{ text: STRATEGY_SYSTEM_INSTRUCTION }],
-      inferenceConfig: { maxTokens: 512, temperature: 0.1 },
-    }),
-  );
+  let response;
+  try {
+    response = await withRetryOn429(() =>
+      converseBedrock({
+        modelId: input.modelId,
+        messages: [{ role: 'user', content: [{ text: prompt }] }],
+        system: [{ text: STRATEGY_SYSTEM_INSTRUCTION }],
+        inferenceConfig: { maxTokens: 512, temperature: 0.1 },
+      }),
+    );
+  } catch (error) {
+    recordRoutingModelOutcome(input.modelId, 'failure');
+    throw error;
+  }
+  recordRoutingModelOutcome(input.modelId, 'success');
   if (response.usage) {
     recordUsage({
       promptTokenCount: response.usage.inputTokens,
@@ -480,15 +487,22 @@ If the goal is complete, return no new tool calls.`;
     // Wait for rate-limit slot before each planning round API call
     await waitForSlot();
 
-    const response = await withRetryOn429(() =>
-      converseBedrock({
-        modelId: routingDecision.modelId,
-        messages: messages as any,
-        system: [{ text: STATIC_PLANNING_INSTRUCTION }],
-        toolConfig: { tools: toolSet as any },
-        inferenceConfig: { maxTokens: PLANNING_MAX_TOKENS, temperature: 0.2 },
-      }),
-    );
+    let response;
+    try {
+      response = await withRetryOn429(() =>
+        converseBedrock({
+          modelId: routingDecision.modelId,
+          messages: messages as any,
+          system: [{ text: STATIC_PLANNING_INSTRUCTION }],
+          toolConfig: { tools: toolSet as any },
+          inferenceConfig: { maxTokens: PLANNING_MAX_TOKENS, temperature: 0.2 },
+        }),
+      );
+      recordRoutingModelOutcome(routingDecision.modelId, 'success');
+    } catch (error) {
+      recordRoutingModelOutcome(routingDecision.modelId, 'failure');
+      throw error;
+    }
 
     // Record token usage from planning calls
     if (response.usage) {

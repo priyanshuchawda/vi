@@ -23,6 +23,7 @@ import { classifyTransientError, getRetryDelayMs } from '../../lib/retryClassifi
 import { buildAIProjectSnapshot, type AIProjectSnapshot } from '../../lib/aiProjectSnapshot';
 import { createChatRequestQueue } from '../../lib/chatRequestQueue';
 import { normalizeUserIntent, type NormalizedIntent } from '../../lib/intentNormalizer';
+import { createStreamCoalescer } from '../../lib/streamCoalescer';
 import {
   buildClarificationQuestion,
   formatClarificationForChat,
@@ -42,6 +43,9 @@ type ToolCallLike = {
   args: Record<string, unknown>;
   id?: string;
 };
+
+const STREAM_FLUSH_INTERVAL_MS = 32;
+const STREAM_MAX_BUFFERED_CHARS = 160;
 
 const ChatPanel = () => {
   const {
@@ -702,6 +706,22 @@ const ChatPanel = () => {
       let fullResponse = '';
       let isFirstChunk = true;
       let currentMessageId = '';
+      messageCoalescer = createStreamCoalescer({
+        flushIntervalMs: STREAM_FLUSH_INTERVAL_MS,
+        maxBufferedChars: STREAM_MAX_BUFFERED_CHARS,
+        onFlush: (text) => {
+          fullResponse += text;
+          if (isFirstChunk) {
+            addMessage('assistant', fullResponse);
+            const lastMessage =
+              useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
+            currentMessageId = lastMessage.id;
+            isFirstChunk = false;
+          } else {
+            updateLastMessage(fullResponse);
+          }
+        },
+      });
 
       // For chat intent: skip tools + selective context = huge token savings
       const streamOptions: StreamOptions =
@@ -766,15 +786,11 @@ const ChatPanel = () => {
             let followupText = '';
             let first = true;
             let currentMessageId = '';
-
-            for await (const followupChunk of sendToolResultsToAI(
-              aiHistory,
-              chunk.modelContent,
-              results,
-              { signal: requestSignal },
-            )) {
-              if (followupChunk.type === 'text' && followupChunk.text) {
-                followupText += followupChunk.text;
+            const followupCoalescer = createStreamCoalescer({
+              flushIntervalMs: STREAM_FLUSH_INTERVAL_MS,
+              maxBufferedChars: STREAM_MAX_BUFFERED_CHARS,
+              onFlush: (text) => {
+                followupText += text;
                 if (first) {
                   addMessage('assistant', followupText);
                   const last =
@@ -784,14 +800,27 @@ const ChatPanel = () => {
                 } else {
                   updateLastMessage(followupText);
                 }
+              },
+            });
+
+            for await (const followupChunk of sendToolResultsToAI(
+              aiHistory,
+              chunk.modelContent,
+              results,
+              { signal: requestSignal },
+            )) {
+              if (followupChunk.type === 'text' && followupChunk.text) {
+                followupCoalescer.push(followupChunk.text);
               } else if (
                 followupChunk.type === 'metadata' &&
                 followupChunk.tokens &&
                 currentMessageId
               ) {
+                followupCoalescer.flush();
                 updateMessageTokens(currentMessageId, followupChunk.tokens);
               }
             }
+            followupCoalescer.flush();
 
             if (turnId) {
               closeTurn(turnId, 'completed');
@@ -826,28 +855,21 @@ const ChatPanel = () => {
           return;
         } else if (chunk.type === 'text' && chunk.text) {
           setUploadStatus(null);
-          fullResponse += chunk.text;
-
-          if (isFirstChunk) {
-            addMessage('assistant', fullResponse);
-            const lastMessage =
-              useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
-            currentMessageId = lastMessage.id;
-            isFirstChunk = false;
-          } else {
-            updateLastMessage(fullResponse);
-          }
+          messageCoalescer.push(chunk.text);
         } else if (chunk.type === 'metadata' && chunk.tokens) {
+          messageCoalescer.flush();
           if (currentMessageId) {
             updateMessageTokens(currentMessageId, chunk.tokens);
           }
         }
       }
+      messageCoalescer.flush();
       if (turnId) {
         closeTurn(turnId, 'completed');
         turnClosed = true;
       }
     } catch (error) {
+      messageCoalescer?.flush();
       if (error instanceof Error && error.message === 'Request cancelled') {
         if (turnId && !turnClosed) {
           closeTurn(turnId, 'interrupted');
@@ -1226,6 +1248,22 @@ const ChatPanel = () => {
       let fullResponse = '';
       let isFirstChunk = true;
       let currentMessageId = '';
+      messageCoalescer = createStreamCoalescer({
+        flushIntervalMs: STREAM_FLUSH_INTERVAL_MS,
+        maxBufferedChars: STREAM_MAX_BUFFERED_CHARS,
+        onFlush: (text) => {
+          fullResponse += text;
+          if (isFirstChunk) {
+            addMessage('assistant', fullResponse);
+            const lastMessage =
+              useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
+            currentMessageId = lastMessage.id;
+            isFirstChunk = false;
+          } else {
+            updateLastMessage(fullResponse);
+          }
+        },
+      });
 
       for await (const chunk of sendToolResultsToAI(
         clarification.history,
@@ -1268,27 +1306,21 @@ const ChatPanel = () => {
         }
 
         if (chunk.type === 'text' && chunk.text) {
-          fullResponse += chunk.text;
-          if (isFirstChunk) {
-            addMessage('assistant', fullResponse);
-            const lastMessage =
-              useChatStore.getState().messages[useChatStore.getState().messages.length - 1];
-            currentMessageId = lastMessage.id;
-            isFirstChunk = false;
-          } else {
-            updateLastMessage(fullResponse);
-          }
+          messageCoalescer.push(chunk.text);
         } else if (chunk.type === 'metadata' && chunk.tokens) {
+          messageCoalescer.flush();
           if (currentMessageId) {
             updateMessageTokens(currentMessageId, chunk.tokens);
           }
         }
       }
+      messageCoalescer.flush();
 
       if (clarification.turnId) {
         closeTurn(clarification.turnId, 'completed');
       }
     } catch (error) {
+      messageCoalescer?.flush();
       if (error instanceof Error && error.message === 'Request cancelled') {
         if (clarification.turnId) {
           closeTurn(clarification.turnId, 'interrupted');
@@ -1334,6 +1366,7 @@ const ChatPanel = () => {
     setIsTyping(true);
     let toolExecutionFailed = false;
 
+    let messageCoalescer: ReturnType<typeof createStreamCoalescer> | null = null;
     try {
       // Import ToolExecutor
       const { ToolExecutor } = await import('../../lib/toolExecutor');
@@ -1368,15 +1401,11 @@ const ChatPanel = () => {
       let fullResponse = '';
       let isFirstChunk = true;
       let currentMessageId = '';
-
-      for await (const chunk of sendToolResultsToAI(
-        pendingToolCalls.history,
-        pendingToolCalls.modelContent,
-        results,
-        { signal: requestSignal },
-      )) {
-        if (chunk.type === 'text' && chunk.text) {
-          fullResponse += chunk.text;
+      messageCoalescer = createStreamCoalescer({
+        flushIntervalMs: STREAM_FLUSH_INTERVAL_MS,
+        maxBufferedChars: STREAM_MAX_BUFFERED_CHARS,
+        onFlush: (text) => {
+          fullResponse += text;
           if (isFirstChunk) {
             addMessage('assistant', fullResponse);
             const lastMessage =
@@ -1386,12 +1415,25 @@ const ChatPanel = () => {
           } else {
             updateLastMessage(fullResponse);
           }
+        },
+      });
+
+      for await (const chunk of sendToolResultsToAI(
+        pendingToolCalls.history,
+        pendingToolCalls.modelContent,
+        results,
+        { signal: requestSignal },
+      )) {
+        if (chunk.type === 'text' && chunk.text) {
+          messageCoalescer.push(chunk.text);
         } else if (chunk.type === 'metadata' && chunk.tokens) {
+          messageCoalescer.flush();
           if (currentMessageId) {
             updateMessageTokens(currentMessageId, chunk.tokens);
           }
         }
       }
+      messageCoalescer.flush();
 
       if (activeTurnId) {
         const afterSnapshot = buildAIProjectSnapshot();
@@ -1418,6 +1460,7 @@ const ChatPanel = () => {
         });
       }
     } catch (error) {
+      messageCoalescer?.flush();
       if (error instanceof Error && error.message === 'Request cancelled') {
         if (activeTurnId) {
           closeTurn(activeTurnId, 'interrupted');

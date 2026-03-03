@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { allVideoEditingTools } from './videoEditingTools';
 
 export type ToolErrorCategory =
@@ -87,6 +86,23 @@ const TOOL_SIDE_EFFECTS: Record<string, string[]> = {
 
 const DEFAULT_FAILURES: ToolErrorCategory[] = ['validation_error', 'execution_error'];
 
+interface ToolSpecSchema {
+  required?: string[];
+  properties?: Record<string, unknown>;
+}
+
+interface ToolSpec {
+  name: string;
+  description?: string;
+  inputSchema?: {
+    json?: ToolSpecSchema;
+  };
+}
+
+interface ToolDeclaration {
+  toolSpec?: ToolSpec;
+}
+
 const UNSUPPORTED_OPERATIONS = [
   'Creating tools not declared in toolConfig',
   'Calling pseudo-functions (e.g. insert_clip, apply_transition_magic)',
@@ -164,8 +180,8 @@ export function isToolAllowedInMode(name: string, mode: RuntimeToolMode): boolea
 }
 
 export function getSupportedToolNames(): string[] {
-  return allVideoEditingTools
-    .map((tool: any) => tool?.toolSpec?.name)
+  return (allVideoEditingTools as ToolDeclaration[])
+    .map((tool) => tool?.toolSpec?.name)
     .filter((name: string | undefined): name is string => Boolean(name));
 }
 
@@ -175,10 +191,12 @@ export function buildToolCapabilityMatrix(toolNames?: string[]): {
 } {
   const requested = new Set(toolNames || getSupportedToolNames());
 
-  const tools = allVideoEditingTools
-    .map((declaration: any) => declaration?.toolSpec)
-    .filter((toolSpec: any) => toolSpec?.name && requested.has(toolSpec.name))
-    .map((toolSpec: any): ToolCapability => {
+  const tools = (allVideoEditingTools as ToolDeclaration[])
+    .map((declaration) => declaration?.toolSpec)
+    .filter((toolSpec): toolSpec is ToolSpec =>
+      Boolean(toolSpec?.name && requested.has(toolSpec.name)),
+    )
+    .map((toolSpec): ToolCapability => {
       const schema = toolSpec.inputSchema?.json || {};
       const properties = schema.properties || {};
       const requiredArgs: string[] = Array.isArray(schema.required) ? schema.required : [];

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { AIChatMessage } from './aiService';
 
 export interface ToolOutputMaskingOptions {
@@ -35,11 +34,15 @@ ${preview}
 </${MASK_TAG}>`;
 }
 
-function extractToolOutput(part: Record<string, any>): string | null {
-  if (part?.toolResult) {
+function hasKey(record: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(record, key);
+}
+
+function extractToolOutput(part: Record<string, unknown>): string | null {
+  if (hasKey(part, 'toolResult')) {
     return JSON.stringify(part.toolResult, null, 2);
   }
-  if (part?.toolUse) {
+  if (hasKey(part, 'toolUse')) {
     return JSON.stringify(part.toolUse, null, 2);
   }
   return null;

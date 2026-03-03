@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * AI Memory Service — AWS Bedrock (Amazon Nova Lite v1)
  *
@@ -374,7 +373,7 @@ async function analyzeFile(task: AnalysisTask): Promise<void> {
       const prompt = getAnalysisPrompt(task.mediaType, task.fileName, tier);
 
       // Build Bedrock content blocks
-      const content: Array<Record<string, any>> = [];
+      const content: Array<Record<string, unknown>> = [];
 
       if (task.mediaType === 'image') {
         // Images: always inline bytes
@@ -477,7 +476,7 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
         messages: [
           {
             role: 'user',
-            content: content as any,
+            content,
           },
         ],
         system: [{ text: systemPrompt }],

@@ -36,10 +36,18 @@ QuickCut uses only AWS Bedrock.
 Run these before opening/updating a PR:
 
 ```bash
+npm run typecheck
 npm run build
 npm run test
 npm run lint
 ```
+
+GitHub branch protection-compatible checks are:
+
+- `Typecheck`
+- `Lint`
+- `Test`
+- `Build`
 
 Recommended additional checks:
 
@@ -108,4 +116,3 @@ When behavior or workflow changes, update docs in the same PR:
 
 - `README.md` for setup/run/architecture/user-facing flow
 - `CONTRIBUTING.md` for engineering process/policy changes
-

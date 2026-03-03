@@ -115,6 +115,23 @@ npm run test:coverage
 npm run lint
 ```
 
+## Typecheck
+
+```bash
+npm run typecheck
+```
+
+## CI/CD
+
+GitHub Actions workflows:
+
+- `CI` runs on PRs and pushes to `main` with separate required checks:
+  - `Typecheck`
+  - `Lint`
+  - `Test`
+  - `Build`
+- `Release Desktop` runs on version tags (`v*`) and produces Linux desktop artifacts.
+
 ## Notes on Tests
 
 Some integration tests depend on local test media files and may fail if those assets are not present in your environment. Unit tests run independently.

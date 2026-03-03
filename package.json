@@ -17,6 +17,7 @@
     "dist:win": "npm run build && electron-builder --win --x64",
     "dist:linux": "npm run build && electron-builder --linux --x64",
     "test": "vitest run",
+    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.electron.json --pretty false --noEmit",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:memory": "vitest run test/integration/ai-memory.test.ts",

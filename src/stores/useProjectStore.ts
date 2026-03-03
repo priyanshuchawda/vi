@@ -12,6 +12,7 @@ import type { TranscriptionResult } from '../types/electron';
 import type { ChatMessage } from '../types/chat';
 import type { MediaAnalysisEntry } from '../types/aiMemory';
 import { srtTimeToSeconds } from '../lib/timecode';
+import { getStoredString, setStoredString, storageKeys } from '../lib/storage';
 
 export interface TextProperties {
   text: string;
@@ -285,7 +286,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     snapToFrames: true,
     frameRate: 30, // 30fps default
   },
-  activeSidebarTab: (localStorage.getItem('activeSidebarTab') as SidebarTab) || 'media', // Default to media tab
+  activeSidebarTab: (getStoredString(storageKeys.activeSidebarTab) as SidebarTab) || 'media', // Default to media tab
   defaultImageDuration: 5, // Default 5 seconds for images
   exportedVideoPath: null, // No exported video initially
   addClip: (clip) =>
@@ -1333,8 +1334,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   setActiveSidebarTab: (tab) => {
     set({ activeSidebarTab: tab });
-    // Store in localStorage for persistence
-    localStorage.setItem('activeSidebarTab', tab);
+    setStoredString(storageKeys.activeSidebarTab, tab);
   },
 
   setDefaultImageDuration: (duration) => {

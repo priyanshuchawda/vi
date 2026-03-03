@@ -148,6 +148,11 @@ GitHub Actions workflows:
 - Error tracking, structured logging, and privacy telemetry boundaries are documented in:
   [docs/observability-and-telemetry.md](./docs/observability-and-telemetry.md)
 
+## Storage Strategy
+
+- Storage decision matrix and future SQLite migration notes are documented in:
+  [docs/storage-strategy.md](./docs/storage-strategy.md)
+
 ## Notes on Tests
 
 Some integration tests depend on local test media files and may fail if those assets are not present in your environment. Unit tests run independently.

@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useProjectStore } from '../../src/stores/useProjectStore';
+import { storageKeys } from '../../src/lib/storage';
 
 describe('useProjectStore', () => {
   beforeEach(() => {
+    localStorage.clear();
     // Reset store before each test
     useProjectStore.setState({
       clips: [],
@@ -18,6 +20,14 @@ describe('useProjectStore', () => {
       timelineVersion: 0,
       history: [],
       historyIndex: -1,
+    });
+  });
+
+  describe('sidebar persistence', () => {
+    it('stores active sidebar tab using namespaced storage key', () => {
+      const { setActiveSidebarTab } = useProjectStore.getState();
+      setActiveSidebarTab('settings');
+      expect(localStorage.getItem(storageKeys.activeSidebarTab)).toBe('settings');
     });
   });
 

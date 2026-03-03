@@ -48,6 +48,7 @@ interface ChatStore {
   ) => string;
   updateLastMessage: (content: string) => void;
   updateMessageTokens: (messageId: string, tokens: TokenInfo) => void;
+  updateMessageMetadata: (messageId: string, metadata: ChatMessage['metadata']) => void;
   clearChat: () => void;
   togglePanel: () => void;
   setIsOpen: (isOpen: boolean) => void;
@@ -172,6 +173,22 @@ export const useChatStore = create<ChatStore>()(
         set((state) => {
           const messages = state.messages.map((msg) =>
             msg.id === messageId ? { ...msg, tokens } : msg,
+          );
+          return { messages };
+        }),
+
+      updateMessageMetadata: (messageId, metadata) =>
+        set((state) => {
+          const messages = state.messages.map((msg) =>
+            msg.id === messageId
+              ? {
+                  ...msg,
+                  metadata: {
+                    ...(msg.metadata || {}),
+                    ...(metadata || {}),
+                  },
+                }
+              : msg,
           );
           return { messages };
         }),

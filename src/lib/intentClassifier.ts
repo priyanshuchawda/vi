@@ -96,6 +96,8 @@ const EXECUTION_CONFIRM_PATTERNS = [
 const SCRIPT_REQUEST_PATTERN = /\b(script|voiceover|narration|hook|intro)\b/i;
 const HARD_EDIT_OPERATION_PATTERN =
   /\b(trim|split|cut|crop|delete|remove|move|merge|combine|join|duplicate|copy|paste|reorder|timeline|clip|track|transition|effect|filter|fade|speed|mute|unmute|volume|subtitle|caption|transcribe|playhead|export|render)\b/i;
+const VIDEO_BUILD_PATTERN = /\b(make|create|build)\s+(a\s+)?(youtube\s+)?video\b/i;
+const EXPLICIT_EDIT_WORD_PATTERN = /\bedit(?:ing)?\b/i;
 
 /**
  * Classify a user message as editing intent or chat intent.
@@ -113,7 +115,10 @@ export function classifyIntentWithContext(message: string, context: IntentContex
   const lower = message.toLowerCase().trim();
   const hasExecutionContext = Boolean(context.hasPendingPlan || context.hasRecentEditingContext);
   const isScriptRequest = SCRIPT_REQUEST_PATTERN.test(lower);
-  const hasHardEditOperation = HARD_EDIT_OPERATION_PATTERN.test(lower);
+  const hasHardEditOperation =
+    HARD_EDIT_OPERATION_PATTERN.test(lower) ||
+    VIDEO_BUILD_PATTERN.test(lower) ||
+    EXPLICIT_EDIT_WORD_PATTERN.test(lower);
 
   // Script-writing requests should stay in chat mode unless explicit edit operations are included.
   if (isScriptRequest && !hasHardEditOperation) {

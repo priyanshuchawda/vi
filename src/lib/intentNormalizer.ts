@@ -33,11 +33,13 @@ const STYLE_AMBIGUITY_PATTERN =
 const SHORT_FORM_PATTERN = /\b(yt short|youtube short|shorts|reel|tiktok)\b/i;
 const SCRIPT_PATTERN = /\b(script|voiceover|narration|caption script|storyline|hook)\b/i;
 const EDIT_OPERATION_PATTERN =
-  /\b(trim|split|cut|crop|delete|remove|move|merge|combine|join|duplicate|copy|paste|reorder|timeline|clip|track|transition|effect|filter|fade|speed|audio|mute|unmute|volume|subtitle|caption|transcribe|playhead|export|render)\b/i;
+  /\b(edit|trim|split|cut|crop|delete|remove|move|merge|combine|join|duplicate|copy|paste|reorder|timeline|clip|track|transition|effect|filter|fade|speed|audio|mute|unmute|volume|subtitle|caption|transcribe|playhead|export|render)\b/i;
+const VIDEO_BUILD_PATTERN = /\b(make|create|build)\s+(a\s+)?(youtube\s+)?video\b/i;
 
 function isScriptOnlyRequest(message: string): boolean {
   if (!SCRIPT_PATTERN.test(message)) return false;
   if (EXECUTION_PATTERN.test(message)) return false;
+  if (VIDEO_BUILD_PATTERN.test(message)) return false;
   return !EDIT_OPERATION_PATTERN.test(message);
 }
 

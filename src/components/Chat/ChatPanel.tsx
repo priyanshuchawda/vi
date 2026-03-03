@@ -7,7 +7,7 @@ import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import TypingIndicator from './TypingIndicator';
 import { TokenCounter } from './TokenCounter';
-import type { ChatTurn, MediaAttachment } from '../../types/chat';
+import type { ChatMessage as ChatRecord, ChatTurn, MediaAttachment } from '../../types/chat';
 import { getBudgetPolicy, updateBudgetPolicy, type BudgetPolicy } from '../../lib/costPolicy';
 import {
   convertToAIHistory,
@@ -22,12 +22,19 @@ import { getTelemetryRates, recordTurnRetry, resetTelemetry } from '../../lib/ai
 import { classifyTransientError, getRetryDelayMs } from '../../lib/retryClassifier';
 import { buildAIProjectSnapshot, type AIProjectSnapshot } from '../../lib/aiProjectSnapshot';
 import { createChatRequestQueue } from '../../lib/chatRequestQueue';
-import { normalizeUserIntent, type NormalizedIntent } from '../../lib/intentNormalizer';
+import type { NormalizedIntent } from '../../lib/intentNormalizer';
 import { createStreamCoalescer } from '../../lib/streamCoalescer';
 import {
   buildClarificationQuestion,
   formatClarificationForChat,
 } from '../../lib/clarificationBuilder';
+import { detectContextNeeds } from '../../lib/intentClassifier';
+import {
+  hasRecentEditingContext,
+  inferAssistantArtifactFromText,
+  isExecutionConfirmation,
+  resolveConversationLane,
+} from '../../lib/conversationLane';
 
 interface SessionLogEntry {
   id: string;
@@ -56,6 +63,7 @@ const ChatPanel = () => {
     addMessage,
     updateLastMessage,
     updateMessageTokens,
+    updateMessageMetadata,
     clearChat,
     setIsTyping,
     autoExecute,
@@ -180,6 +188,12 @@ const ChatPanel = () => {
   useEffect(() => {
     // Context will be used when AI is integrated
   }, [clips, currentTime]);
+
+  const tagAssistantMessageArtifact = (messageId: string, text: string) => {
+    const inferred = inferAssistantArtifactFromText(text);
+    if (!inferred) return;
+    updateMessageMetadata(messageId, { artifact: inferred });
+  };
 
   const recordToolLifecycleForTurn = (
     currentTurnId: string | null,
@@ -351,8 +365,15 @@ const ChatPanel = () => {
     let turnClosed = false;
     let messageCoalescer: ReturnType<typeof createStreamCoalescer> | null = null;
 
-    const assistantMessage = (text: string, metadata?: { error?: boolean }) => {
-      const id = addMessage('assistant', text, metadata);
+    const assistantMessage = (text: string, metadata?: ChatRecord['metadata']) => {
+      const inferredArtifact = inferAssistantArtifactFromText(text);
+      const resolvedMetadata: ChatRecord['metadata'] = inferredArtifact
+        ? {
+            ...(metadata || {}),
+            artifact: metadata?.artifact || inferredArtifact,
+          }
+        : metadata;
+      const id = addMessage('assistant', text, resolvedMetadata);
       if (turnId) {
         appendTurnPart(turnId, {
           type: 'text',
@@ -396,37 +417,20 @@ const ChatPanel = () => {
         return;
       }
 
-      // Import intent classifier (zero-cost, local)
-      const { classifyIntentWithContext, detectContextNeeds } =
-        await import('../../lib/intentClassifier');
-      const lastAssistantMessage =
-        [...messages].reverse().find((m) => m.role === 'assistant')?.content || '';
-      const hasScriptDraftContext = looksLikeScriptDraft(lastAssistantMessage);
+      const lastAssistantTurn = [...messages].reverse().find((m) => m.role === 'assistant');
+      const lastAssistantMessage = lastAssistantTurn?.content || '';
       const recentEditingContext = hasRecentEditingContext(messages);
-      let intent = classifyIntentWithContext(content, {
-        hasPendingPlan: hasReadyPendingPlan,
-        hasRecentEditingContext: recentEditingContext,
-      });
-      let plannerInput = content;
-      const normalizedIntent = normalizeUserIntent(content, {
+      const laneDecision = resolveConversationLane({
+        message: content,
+        lastAssistantMessage,
+        lastAssistantArtifact: lastAssistantTurn?.metadata?.artifact,
         hasTimeline: clips.length > 0,
-        baseIntent: intent,
         hasPendingPlan: hasReadyPendingPlan,
         hasRecentEditingContext: recentEditingContext,
       });
-      if (
-        (isExecutionConfirmation(content) && looksLikeEditPlan(lastAssistantMessage)) ||
-        (isAmbiguousContinuation(content) && recentEditingContext)
-      ) {
-        intent = 'edit';
-      }
-      if (isExecutionConfirmation(content) && hasScriptDraftContext) {
-        intent = 'edit';
-        plannerInput = buildCaptionApplyRequest(lastAssistantMessage);
-      }
-      if (intent === 'chat' && normalizedIntent.requiresPlanning) {
-        intent = 'edit';
-      }
+      const plannerInput = laneDecision.plannerInput;
+      const normalizedIntent = laneDecision.normalizedIntent;
+      const intent = laneDecision.lane === 'timeline_edit' ? 'edit' : 'chat';
       turnId = startTurn(userMessageId, intent === 'edit' ? 'plan' : 'ask');
       appendTurnPart(turnId, {
         type: 'text',
@@ -437,7 +441,7 @@ const ChatPanel = () => {
       const contextFlags = detectContextNeeds(content, intent);
 
       console.log(
-        `Intent: ${intent} | Context: T=${contextFlags.includeTimeline} M=${contextFlags.includeMemory} C=${contextFlags.includeChannel}`,
+        `Intent: ${intent} | Lane: ${laneDecision.lane} (${laneDecision.reason}) | Context: T=${contextFlags.includeTimeline} M=${contextFlags.includeMemory} C=${contextFlags.includeChannel}`,
       );
 
       // Convert chat history to Bedrock format (exclude system messages)
@@ -816,6 +820,9 @@ const ChatPanel = () => {
               }
             }
             followupCoalescer.flush();
+            if (currentMessageId) {
+              tagAssistantMessageArtifact(currentMessageId, followupText);
+            }
 
             if (turnId) {
               closeTurn(turnId, 'completed');
@@ -884,6 +891,9 @@ const ChatPanel = () => {
         }
       }
       messageCoalescer.flush();
+      if (currentMessageId) {
+        tagAssistantMessageArtifact(currentMessageId, fullResponse);
+      }
       if (turnId) {
         closeTurn(turnId, 'completed');
         turnClosed = true;
@@ -1148,7 +1158,9 @@ const ChatPanel = () => {
       setToolExecutionProgress(null);
 
       // Add final response
-      addMessage('assistant', finalResponse);
+      addMessage('assistant', finalResponse, {
+        artifact: inferAssistantArtifactFromText(finalResponse) || undefined,
+      });
       if (activeTurnId) {
         appendTurnPart(activeTurnId, {
           type: 'step_finish',
@@ -1371,6 +1383,9 @@ const ChatPanel = () => {
         }
       }
       messageCoalescer.flush();
+      if (currentMessageId) {
+        tagAssistantMessageArtifact(currentMessageId, fullResponse);
+      }
 
       if (clarification.turnId) {
         closeTurn(clarification.turnId, 'completed');
@@ -1490,6 +1505,9 @@ const ChatPanel = () => {
         }
       }
       messageCoalescer.flush();
+      if (currentMessageId) {
+        tagAssistantMessageArtifact(currentMessageId, fullResponse);
+      }
 
       if (activeTurnId) {
         const afterSnapshot = buildAIProjectSnapshot();
@@ -2727,70 +2745,10 @@ const ChatPanel = () => {
 
 export default ChatPanel;
 
-function isExecutionConfirmation(input: string): boolean {
-  const text = input.toLowerCase().trim();
-  return /\b(do it|go ahead|execute|apply (it|that)|proceed|make it|yes|ok|okay|sure|continue)\b/.test(
-    text,
-  );
-}
-
-function looksLikeEditPlan(text: string): boolean {
-  const lower = text.toLowerCase();
-  return (
-    lower.includes('step-by-step') ||
-    lower.includes('editing process') ||
-    lower.includes('execution plan') ||
-    lower.includes('timeline') ||
-    lower.includes('split') ||
-    lower.includes('clip') ||
-    lower.includes('add subtitle') ||
-    lower.includes('caption')
-  );
-}
-
-function looksLikeScriptDraft(text: string): boolean {
-  const lower = text.toLowerCase();
-  return (
-    /\b(voiceover|text overlay|on-screen text|caption|subtitle|script)\b/.test(lower) &&
-    /(\[\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\])|(\b0:0\d\b)|(\b0:1\d\b)/.test(lower)
-  );
-}
-
-function buildCaptionApplyRequest(lastAssistantMessage: string): string {
-  const compactScript = lastAssistantMessage.replace(/\s+/g, ' ').slice(0, 2400);
-  return `Apply the script from your previous response as on-screen captions on my current timeline.
-
-Requirements:
-- Use subtitle/caption editing tools to add the timestamped lines.
-- Keep the final caption sequence within the timeline duration.
-- Preserve my existing clips; do not trim or reorder unless absolutely required.
-- Use concise, attractive caption text matching the script tone.
-
-Reference script:
-${compactScript}`;
-}
-
-function isAmbiguousContinuation(input: string): boolean {
-  const text = input.toLowerCase().trim();
-  return (
-    /\b(yes|ok|okay|sure|continue|next|step by step|move next)\b/.test(text) && text.length <= 60
-  );
-}
-
 function shouldInlineMediaBytes(input: string, attachments?: MediaAttachment[]): boolean {
   if (!attachments || attachments.length === 0) return false;
   return /\b(analyze|describe|what do you see|review this frame|visual analysis|inspect image|inspect video)\b/i.test(
     input,
-  );
-}
-
-function hasRecentEditingContext(messages: Array<{ role: string; content: string }>): boolean {
-  const recent = messages
-    .slice(-8)
-    .map((m) => m.content.toLowerCase())
-    .join(' ');
-  return /\b(edit|timeline|clip|split|trim|merge|subtitle|caption|transcribe|youtube video|execution plan)\b/.test(
-    recent,
   );
 }
 

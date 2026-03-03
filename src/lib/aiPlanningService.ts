@@ -221,6 +221,11 @@ CRITICAL: You must ONLY use clip aliases from the provided snapshot.
 7. Every tool call must have valid, complete arguments.
 8. Treat timeline edits as DELTA operations: modify only the needed clip/segment; avoid rebuilding the whole timeline.
 9. For MODIFY/DELETE requests, prefer minimal reversible changes (trim/split/delete/move) over broad reordering.
+10. For script/caption tasks, prefer macro tools:
+    - generate_intro_script_from_timeline
+    - preview_caption_fit
+    - apply_script_as_captions
+    Avoid long fragile chains of atomic subtitle calls unless absolutely necessary.
 </planning-rules>
 
 <timestamp-rules>

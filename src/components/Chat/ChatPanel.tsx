@@ -35,6 +35,7 @@ import {
   isExecutionConfirmation,
   resolveConversationLane,
 } from '../../lib/conversationLane';
+import { optimizePromptForLane } from '../../lib/promptOptimizer';
 
 interface SessionLogEntry {
   id: string;
@@ -431,6 +432,16 @@ const ChatPanel = () => {
       const plannerInput = laneDecision.plannerInput;
       const normalizedIntent = laneDecision.normalizedIntent;
       const intent = laneDecision.lane === 'timeline_edit' ? 'edit' : 'chat';
+      const timelineDuration = clips.reduce(
+        (max, clip) => Math.max(max, clip.startTime + clip.duration),
+        0,
+      );
+      const optimizedPrompt = optimizePromptForLane({
+        message: content,
+        laneDecision,
+        timelineDuration,
+        clipCount: clips.length,
+      });
       turnId = startTurn(userMessageId, intent === 'edit' ? 'plan' : 'ask');
       appendTurnPart(turnId, {
         type: 'text',
@@ -741,7 +752,7 @@ const ChatPanel = () => {
             };
 
       for await (const chunk of sendMessageWithHistoryStream(
-        content,
+        optimizedPrompt,
         aiHistory,
         attachments,
         streamOptions,
@@ -2763,6 +2774,8 @@ function isReadOnlyToolCall(call: { name: string }): boolean {
     'get_all_media_analysis',
     'search_clips_by_content',
     'ask_clarification',
+    'generate_intro_script_from_timeline',
+    'preview_caption_fit',
   ]);
   return readOnlyTools.has(call.name);
 }

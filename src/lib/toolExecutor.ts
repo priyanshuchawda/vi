@@ -61,6 +61,20 @@ interface ExecutionLifecycleContext {
   onHook?: (event: ToolExecutionHookEvent) => void;
 }
 
+interface CaptionScriptBlockInput {
+  start_time?: number;
+  end_time?: number;
+  text?: string;
+  voiceover?: string;
+  on_screen_text?: string;
+}
+
+interface NormalizedCaptionBlock {
+  start: number;
+  end: number;
+  text: string;
+}
+
 /**
  * Tool Executor - Maps AI function calls to actual video editing operations
  *
@@ -68,6 +82,265 @@ interface ExecutionLifecycleContext {
  * video editing tools exposed to AI AI.
  */
 export class ToolExecutor {
+  private static parseTimestampToken(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    if (/^\d+(\.\d+)?$/.test(trimmed)) {
+      const seconds = Number(trimmed);
+      return Number.isFinite(seconds) ? seconds : null;
+    }
+
+    const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (!match) return null;
+    const hours = match[3] ? Number(match[1]) : 0;
+    const minutes = match[3] ? Number(match[2]) : Number(match[1]);
+    const seconds = match[3] ? Number(match[3]) : Number(match[2]);
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  private static coerceScriptBlocks(input: unknown): CaptionScriptBlockInput[] {
+    if (Array.isArray(input)) {
+      return input.filter(
+        (item) => typeof item === 'object' && item !== null,
+      ) as CaptionScriptBlockInput[];
+    }
+
+    if (typeof input !== 'string' || !input.trim()) return [];
+    const lines = input.split(/\n+/).map((line) => line.trim());
+    const blocks: CaptionScriptBlockInput[] = [];
+
+    for (const line of lines) {
+      const match = line.match(
+        /^\[(\d{1,2}:\d{2}(?::\d{2})?)\s*-\s*(\d{1,2}:\d{2}(?::\d{2})?)\]\s*(.+)$/,
+      );
+      if (!match) continue;
+      blocks.push({
+        start_time: this.parseTimestampToken(match[1]) ?? undefined,
+        end_time: this.parseTimestampToken(match[2]) ?? undefined,
+        text: match[3].replace(/^(voiceover|on-screen text|caption)\s*:\s*/i, '').trim(),
+      });
+    }
+
+    return blocks;
+  }
+
+  private static normalizeCaptionBlocks(
+    input: CaptionScriptBlockInput[],
+    totalDuration: number,
+  ): {
+    blocks: NormalizedCaptionBlock[];
+    dropped: number;
+  } {
+    const minDuration = 0.8;
+    const maxDuration = Math.max(1, totalDuration);
+    const sorted = input
+      .map((block) => {
+        const start = this.parseTimestampToken(block.start_time) ?? 0;
+        const end = this.parseTimestampToken(block.end_time) ?? start + 2;
+        const text = String(block.on_screen_text || block.text || block.voiceover || '').trim();
+        return { start, end, text };
+      })
+      .filter((block) => block.text.length > 0)
+      .sort((a, b) => a.start - b.start);
+
+    const normalized: NormalizedCaptionBlock[] = [];
+    let dropped = 0;
+    let cursor = 0;
+
+    for (const block of sorted) {
+      let start = Math.max(0, Math.min(block.start, maxDuration - 0.1));
+      let end = Math.max(start + minDuration, block.end);
+
+      if (start < cursor) start = cursor;
+      if (end <= start) end = start + minDuration;
+      if (end > maxDuration) end = maxDuration;
+      if (end - start < minDuration) {
+        if (start + minDuration <= maxDuration) {
+          end = start + minDuration;
+        } else {
+          dropped += 1;
+          continue;
+        }
+      }
+
+      if (start >= maxDuration) {
+        dropped += 1;
+        continue;
+      }
+
+      normalized.push({ start, end, text: block.text.slice(0, 160) });
+      cursor = end;
+    }
+
+    return { blocks: normalized, dropped };
+  }
+
+  private static buildCaptionFitReport(
+    blocks: NormalizedCaptionBlock[],
+    totalDuration: number,
+    maxCharsPerSecond: number,
+    minCaptionDuration: number,
+  ): {
+    issues: string[];
+    warnings: string[];
+    fitScore: number;
+  } {
+    const issues: string[] = [];
+    const warnings: string[] = [];
+
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i];
+      const duration = Math.max(0.1, block.end - block.start);
+      const cps = block.text.length / duration;
+
+      if (duration < minCaptionDuration) {
+        issues.push(
+          `Caption ${i + 1} duration ${duration.toFixed(1)}s is below ${minCaptionDuration}s`,
+        );
+      }
+      if (cps > maxCharsPerSecond) {
+        issues.push(
+          `Caption ${i + 1} is too dense (${cps.toFixed(1)} chars/sec > ${maxCharsPerSecond})`,
+        );
+      }
+      if (block.end > totalDuration + 0.01) {
+        issues.push(`Caption ${i + 1} exceeds timeline duration`);
+      }
+      if (i > 0 && block.start < blocks[i - 1].end - 0.01) {
+        issues.push(`Caption ${i + 1} overlaps caption ${i}`);
+      }
+      if (block.text.length > 68) {
+        warnings.push(`Caption ${i + 1} text is long (${block.text.length} chars)`);
+      }
+    }
+
+    const penalty = issues.length * 0.14 + warnings.length * 0.04;
+    const fitScore = Math.max(0, Number((1 - penalty).toFixed(2)));
+
+    return { issues, warnings, fitScore };
+  }
+
+  private static extractMemoryKeywords(limit: number): string[] {
+    const memory = useAiMemoryStore.getState().getCompletedEntries();
+    const bag = new Set<string>();
+
+    for (const entry of memory) {
+      for (const tag of entry.tags || []) {
+        const token = String(tag || '')
+          .trim()
+          .toLowerCase();
+        if (token && token.length >= 3) bag.add(token);
+        if (bag.size >= limit) return Array.from(bag);
+      }
+      const summaryTokens = String(entry.summary || '')
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((token) => token.length >= 4);
+      for (const token of summaryTokens) {
+        bag.add(token);
+        if (bag.size >= limit) return Array.from(bag);
+      }
+    }
+
+    return Array.from(bag);
+  }
+
+  private static formatSeconds(seconds: number): string {
+    const safe = Math.max(0, Math.floor(seconds));
+    const mm = Math.floor(safe / 60)
+      .toString()
+      .padStart(2, '0');
+    const ss = (safe % 60).toString().padStart(2, '0');
+    return `${mm}:${ss}`;
+  }
+
+  private static buildIntroScriptFromContext(args: Record<string, unknown>): {
+    title: string;
+    blocks: Array<{
+      start_time: number;
+      end_time: number;
+      voiceover: string;
+      on_screen_text: string;
+    }>;
+    formatted: string;
+    targetDuration: number;
+  } {
+    const store = useProjectStore.getState();
+    const clipNames = store.clips
+      .slice()
+      .sort((a, b) => a.startTime - b.startTime)
+      .map((clip) => clip.name)
+      .filter(Boolean);
+    const keywords = this.extractMemoryKeywords(10);
+    const objective = String(args.objective || 'how I won the hackathon').trim();
+    const tone = String(args.tone || 'energetic').trim();
+    const requestedDuration = Number(args.target_duration || 16);
+    const targetDuration = Math.max(
+      8,
+      Math.min(180, Number.isFinite(requestedDuration) ? requestedDuration : 16),
+    );
+    const requestedBeatCount = Number(args.beat_count || Math.round(targetDuration / 2.8));
+    const beatCount = Math.max(
+      4,
+      Math.min(8, Number.isFinite(requestedBeatCount) ? requestedBeatCount : 6),
+    );
+    const beatDuration = targetDuration / beatCount;
+
+    const title = `Hackathon Win Intro (${targetDuration}s)`;
+    const visualHints = clipNames.slice(0, beatCount);
+    const fallbackHints = [
+      'the challenge',
+      'rapid build',
+      'demo moment',
+      'judges reaction',
+      'winning announcement',
+    ];
+    const blocks: Array<{
+      start_time: number;
+      end_time: number;
+      voiceover: string;
+      on_screen_text: string;
+    }> = [];
+
+    for (let i = 0; i < beatCount; i++) {
+      const start = Number((i * beatDuration).toFixed(2));
+      const end = Number(((i + 1) * beatDuration).toFixed(2));
+      const visual = visualHints[i] || fallbackHints[i] || `moment ${i + 1}`;
+      const keyword = keywords[i] || keywords[0] || 'innovation';
+      const voiceover =
+        i === 0
+          ? `From idea to victory in one sprint: ${objective}.`
+          : i === beatCount - 1
+            ? `That is how we turned pressure into a winning finish.`
+            : `We pushed through ${visual}, focused on ${keyword}, and kept momentum high.`;
+      const onScreen =
+        i === 0
+          ? 'Hackathon Victory'
+          : i === beatCount - 1
+            ? 'Built to Win'
+            : `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)} Energy`;
+
+      blocks.push({
+        start_time: start,
+        end_time: i === beatCount - 1 ? Number(targetDuration.toFixed(2)) : end,
+        voiceover,
+        on_screen_text: onScreen,
+      });
+    }
+
+    const formatted = blocks
+      .map(
+        (block) =>
+          `[${this.formatSeconds(block.start_time)} - ${this.formatSeconds(block.end_time)}] Voiceover: ${block.voiceover}\nOn-screen text: ${block.on_screen_text}`,
+      )
+      .join('\n\n');
+
+    return { title: `${title} | Tone: ${tone}`, blocks, formatted, targetDuration };
+  }
+
   /**
    * Normalize clip bounds to valid source ranges.
    * This prevents hard failures when AI asks to extend beyond source media.
@@ -503,6 +776,68 @@ export class ToolExecutor {
         }
         if (!Array.isArray(options) || options.length < 2) {
           return { valid: false, error: 'options must include at least two choices' };
+        }
+        return { valid: true };
+      }
+
+      case 'generate_intro_script_from_timeline': {
+        const targetDuration = Number(call.args?.target_duration);
+        const objective = String(call.args?.objective || '').trim();
+        if (!Number.isFinite(targetDuration) || targetDuration <= 0) {
+          return {
+            valid: false,
+            error: 'target_duration must be a positive number',
+          };
+        }
+        if (targetDuration > 180) {
+          return {
+            valid: false,
+            error: 'target_duration cannot exceed 180 seconds',
+          };
+        }
+        if (!objective) {
+          return {
+            valid: false,
+            error: 'objective is required',
+          };
+        }
+        return { valid: true };
+      }
+
+      case 'apply_script_as_captions': {
+        const blocks = this.coerceScriptBlocks(call.args?.script_blocks);
+        if (!Array.isArray(blocks) || blocks.length === 0) {
+          return {
+            valid: false,
+            error: 'script_blocks must contain at least one caption block',
+          };
+        }
+        const hasText = blocks.some((block) =>
+          String(block.text || block.on_screen_text || block.voiceover || '').trim(),
+        );
+        if (!hasText) {
+          return {
+            valid: false,
+            error: 'script_blocks must include text/voiceover content',
+          };
+        }
+        return { valid: true };
+      }
+
+      case 'preview_caption_fit': {
+        const cps = call.args?.max_chars_per_second;
+        const minDuration = call.args?.min_caption_duration;
+        if (cps !== undefined && (!Number.isFinite(cps) || cps <= 0)) {
+          return {
+            valid: false,
+            error: 'max_chars_per_second must be a positive number',
+          };
+        }
+        if (minDuration !== undefined && (!Number.isFinite(minDuration) || minDuration <= 0)) {
+          return {
+            valid: false,
+            error: 'min_caption_duration must be a positive number',
+          };
         }
         return { valid: true };
       }
@@ -1459,6 +1794,155 @@ export class ToolExecutor {
               success: true,
               message: `Generated ${chapters.length} chapter markers added as ${add_as}.`,
               data: { chapters },
+            },
+          };
+        }
+
+        case 'generate_intro_script_from_timeline': {
+          const generated = this.buildIntroScriptFromContext(call.args || {});
+          return {
+            name: call.name,
+            result: {
+              success: true,
+              message: `Generated ${generated.blocks.length} intro script beats for ${generated.targetDuration}s timeline.`,
+              data: {
+                title: generated.title,
+                target_duration: generated.targetDuration,
+                script_blocks: generated.blocks,
+                formatted_script: generated.formatted,
+              },
+            },
+          };
+        }
+
+        case 'preview_caption_fit': {
+          const totalDuration = Math.max(1, store.getTotalDuration());
+          const inputBlocks = this.coerceScriptBlocks(call.args?.script_blocks);
+          const normalized =
+            inputBlocks.length > 0
+              ? this.normalizeCaptionBlocks(inputBlocks, totalDuration).blocks
+              : store.subtitles.map((subtitle) => ({
+                  start: subtitle.startTime,
+                  end: subtitle.endTime,
+                  text: subtitle.text,
+                }));
+          const maxCharsPerSecond = Math.max(8, Number(call.args?.max_chars_per_second || 17));
+          const minCaptionDuration = Math.max(0.5, Number(call.args?.min_caption_duration || 1));
+          const fit = this.buildCaptionFitReport(
+            normalized,
+            totalDuration,
+            maxCharsPerSecond,
+            minCaptionDuration,
+          );
+
+          return {
+            name: call.name,
+            result: {
+              success: true,
+              message:
+                fit.issues.length === 0
+                  ? `Caption fit looks good (score ${fit.fitScore}).`
+                  : `Caption fit has ${fit.issues.length} issue(s) (score ${fit.fitScore}).`,
+              data: {
+                checked_count: normalized.length,
+                fit_score: fit.fitScore,
+                issues: fit.issues,
+                warnings: fit.warnings,
+                max_chars_per_second: maxCharsPerSecond,
+                min_caption_duration: minCaptionDuration,
+              },
+            },
+          };
+        }
+
+        case 'apply_script_as_captions': {
+          const totalDuration = Math.max(1, store.getTotalDuration());
+          const rawBlocks = this.coerceScriptBlocks(
+            call.args?.script_blocks ?? call.args?.script_text ?? call.args?.script,
+          );
+          const normalized = this.normalizeCaptionBlocks(rawBlocks, totalDuration);
+          if (normalized.blocks.length === 0) {
+            return {
+              name: call.name,
+              result: {
+                success: false,
+                message: 'No usable caption blocks found in script.',
+                errorType: 'validation_error',
+                error: 'script_blocks are empty after normalization',
+                recoveryHint: 'Provide script blocks with text and valid start/end times.',
+              },
+            };
+          }
+
+          const stylePreset = String(call.args?.style_preset || 'clean_modern').toLowerCase();
+          const replaceExisting = call.args?.replace_existing !== false;
+          const presetStyle: Partial<typeof store.subtitleStyle> =
+            stylePreset === 'bold_hype'
+              ? {
+                  fontSize: 32,
+                  fontFamily: 'Arial Black',
+                  color: '#ffffff',
+                  backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                  position: 'bottom',
+                  displayMode: 'progressive',
+                }
+              : stylePreset === 'minimal'
+                ? {
+                    fontSize: 22,
+                    fontFamily: 'Arial',
+                    color: '#ffffff',
+                    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+                    position: 'bottom',
+                    displayMode: 'progressive',
+                  }
+                : {
+                    fontSize: 28,
+                    fontFamily: 'Arial',
+                    color: '#ffffff',
+                    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                    position: 'bottom',
+                    displayMode: 'progressive',
+                  };
+
+          const base = replaceExisting ? [] : [...store.subtitles];
+          const nextSubtitles = [
+            ...base,
+            ...normalized.blocks.map((block, index) => ({
+              index: base.length + index + 1,
+              startTime: block.start,
+              endTime: block.end,
+              text: block.text,
+            })),
+          ];
+
+          store.setSubtitles(nextSubtitles);
+          store.updateSubtitleStyle(presetStyle);
+
+          const fit = this.buildCaptionFitReport(
+            nextSubtitles.map((subtitle) => ({
+              start: subtitle.startTime,
+              end: subtitle.endTime,
+              text: subtitle.text,
+            })),
+            totalDuration,
+            17,
+            1,
+          );
+
+          return {
+            name: call.name,
+            result: {
+              success: true,
+              message: `Applied ${normalized.blocks.length} caption block(s) with "${stylePreset}" style.`,
+              data: {
+                applied_count: normalized.blocks.length,
+                dropped_blocks: normalized.dropped,
+                replace_existing: replaceExisting,
+                style_preset: stylePreset,
+                fit_score: fit.fitScore,
+                fit_issues: fit.issues,
+                subtitles: nextSubtitles,
+              },
             },
           };
         }

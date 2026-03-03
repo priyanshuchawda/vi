@@ -94,7 +94,7 @@ export function looksLikeScriptDraft(text: string): boolean {
 
 export function scriptDraftOffersExecution(text: string): boolean {
   if (!looksLikeScriptDraft(text)) return false;
-  return /\b(would you like to proceed|ready for the next steps|confirm if you'?re ready)\b/i.test(
+  return /\b(would you like to proceed|ready for the next steps|confirm if you'?re ready|apply these as captions(?: on timeline)?)\b/i.test(
     text,
   );
 }

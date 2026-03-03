@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Channel Analysis Orchestration Service
  * Coordinates YouTube data fetching, AI analysis (Bedrock), and caching
@@ -217,7 +216,7 @@ export class ChannelAnalysisService {
   /**
    * Get analysis for a user
    */
-  getUserAnalysis(userId: string): any | null {
+  getUserAnalysis(userId: string): unknown | null {
     return analysisCacheService.getUserAnalysis(userId);
   }
 }

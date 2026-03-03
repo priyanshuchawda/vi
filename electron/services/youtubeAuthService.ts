@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * YouTube OAuth Service
  * Handles Google OAuth 2.0 authentication for YouTube uploads
@@ -20,13 +19,46 @@ const CREDENTIALS_PATH = path.join(
 
 let oauth2Client: OAuth2Client | null = null;
 
+interface YouTubeOAuthCredentials {
+  installed: {
+    client_id: string;
+    client_secret: string;
+    redirect_uris: string[];
+  };
+}
+
+function isYouTubeOAuthCredentials(value: unknown): value is YouTubeOAuthCredentials {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const installed = (value as { installed?: unknown }).installed;
+  if (typeof installed !== 'object' || installed === null) {
+    return false;
+  }
+  const typedInstalled = installed as {
+    client_id?: unknown;
+    client_secret?: unknown;
+    redirect_uris?: unknown;
+  };
+  return (
+    typeof typedInstalled.client_id === 'string' &&
+    typeof typedInstalled.client_secret === 'string' &&
+    Array.isArray(typedInstalled.redirect_uris) &&
+    typedInstalled.redirect_uris.every((uri) => typeof uri === 'string')
+  );
+}
+
 /**
  * Load client credentials from the JSON file
  */
-function loadCredentials(): any {
+function loadCredentials(): YouTubeOAuthCredentials {
   try {
     const content = fs.readFileSync(CREDENTIALS_PATH, 'utf-8');
-    return JSON.parse(content);
+    const parsed: unknown = JSON.parse(content);
+    if (!isYouTubeOAuthCredentials(parsed)) {
+      throw new Error('Invalid credentials JSON shape');
+    }
+    return parsed;
   } catch (error) {
     console.error('Error loading credentials:', error);
     throw new Error('Could not load YouTube credentials file');

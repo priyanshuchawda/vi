@@ -12,6 +12,7 @@ const Toast = () => {
       }, 3000);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [notification, setNotification]);
 
   if (!notification) return null;

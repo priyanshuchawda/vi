@@ -24,6 +24,7 @@ export default defineConfig({
           if (id.includes('/src/stores/')) {
             return 'state';
           }
+          return undefined;
         },
       },
     },

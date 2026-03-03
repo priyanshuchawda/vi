@@ -43,6 +43,7 @@ npm run typecheck
 npm run build
 npm run test
 npm run lint
+npm run architecture:check
 ```
 
 GitHub branch protection-compatible checks are:
@@ -146,3 +147,10 @@ When behavior or workflow changes, update docs in the same PR:
 - `docs/storage-strategy.md` for persistence/storage behavior changes
 - `docs/electron-security-checklist.md` for Electron security policy changes
 - `docs/testing-hardening.md` for test matrix and coverage policy changes
+- `docs/architecture-boundaries.md` for enforced dependency boundary changes
+- `docs/typescript-style-guide.md` for TypeScript policy and typing patterns
+
+## Community Governance
+
+- Follow `CODE_OF_CONDUCT.md` for all interactions in issues, PRs, and reviews.
+- Use `SUPPORT.md` for support routing and response expectations.

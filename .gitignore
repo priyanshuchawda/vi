@@ -22,15 +22,20 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Build/test outputs
 dist-electron
 release/
 build/
 coverage/
 test-media/
 create_test_media.py
-gemini-cli/
-.geminicli/*
-vscode/
+
+# Local sibling/codebase checkouts (not part of this app repo)
+/gemini-cli/
+/.geminicli/
+/vscode/
+/kilocode/
 
 # Python virtual environment
 .venv/
@@ -38,7 +43,7 @@ venv/
 __pycache__/
 *.pyc
 
-# Vosk model files (large)
+# Model and environment files
 vosk-model-*/
 electron/vosk-model-*/
 .env
@@ -47,10 +52,6 @@ electron/vosk-model-*/
 resources/ffmpeg-win/
 resources/ffmpeg-mac/
 resources/ffmpeg-linux/
-
-# Local sibling/codebase checkouts (not part of this app repo)
-gemini-cli/
-kilocode/
 
 # Local AI eval outputs/media
 test-output/

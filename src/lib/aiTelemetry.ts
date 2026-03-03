@@ -9,6 +9,8 @@ type TelemetryState = {
   retryAttempts: number;
   assistantResponses: number;
   repeatedResponses: number;
+  contextLimitEvents: number;
+  contextItemsDropped: number;
   lastAssistantResponse: string;
   updatedAt: number;
 };
@@ -22,6 +24,8 @@ const DEFAULT_STATE: TelemetryState = {
   retryAttempts: 0,
   assistantResponses: 0,
   repeatedResponses: 0,
+  contextLimitEvents: 0,
+  contextItemsDropped: 0,
   lastAssistantResponse: '',
   updatedAt: Date.now(),
 };
@@ -88,6 +92,16 @@ export function recordAssistantResponse(text: string): void {
       state.repeatedResponses += 1;
     }
     state.lastAssistantResponse = normalized;
+  });
+}
+
+export function recordContextLimitApplied(metrics: { droppedItems: number }): void {
+  const droppedItems = Math.max(0, Math.floor(metrics.droppedItems || 0));
+  if (droppedItems <= 0) return;
+
+  update((state) => {
+    state.contextLimitEvents += 1;
+    state.contextItemsDropped += droppedItems;
   });
 }
 

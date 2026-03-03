@@ -30,7 +30,8 @@ import { buildSemanticCacheKey, getCached, hashString, setCached } from './reque
 import { estimateBedrockRequestTokens, evaluateTokenGuard } from './bedrockTokenEstimator';
 import { maskToolOutputsInHistory } from './toolOutputMaskingService';
 import { recordRoutingModelOutcome, routeBedrockModel } from './modelRoutingPolicy';
-import { recordAssistantResponse } from './aiTelemetry';
+import { recordAssistantResponse, recordContextLimitApplied } from './aiTelemetry';
+import { capAttachments, getContextBudgetProfile } from './contextBudgetPolicy';
 import {
   buildAIProjectSnapshot,
   formatSnapshotForPrompt,
@@ -488,8 +489,12 @@ function buildDynamicContextWithOptions(
           retrieveRelevantMemory({
             query: userMessage,
             entries: useAiMemoryStore.getState().getCompletedEntries(),
-            maxEntries: 5,
-            maxScenesPerEntry: 2,
+            intent: options?.intent ?? 'chat',
+            onLimitsApplied: (metrics) => {
+              recordContextLimitApplied({
+                droppedItems: metrics.droppedEntries + metrics.droppedScenes,
+              });
+            },
           }),
           userMessage,
           Math.min(1400, Math.floor(maxChars * 0.45)),
@@ -548,6 +553,14 @@ export async function sendMessageWithHistory(
   }
 
   try {
+    const chatProfile = getContextBudgetProfile('chat');
+    const { selected: boundedAttachments, dropped: droppedAttachments } = capAttachments(
+      attachments,
+      chatProfile.maxAttachments,
+    );
+    if (droppedAttachments > 0) {
+      recordContextLimitApplied({ droppedItems: droppedAttachments });
+    }
     // Run full context optimization pipeline
     const { optimized: initialOptimizedHistory, metrics: optimizationMetrics } =
       await runContextOptimization(history);
@@ -558,6 +571,7 @@ export async function sendMessageWithHistory(
     optimizedHistory = maskToolOutputsInHistory(optimizedHistory).history;
     let dynamicContext = buildDynamicContextWithOptions(undefined, {
       userMessage: message,
+      intent: 'chat',
     });
     const preflight = estimateTurnCost({
       intent: 'chat',
@@ -588,6 +602,7 @@ export async function sendMessageWithHistory(
       dynamicContext = buildDynamicContextWithOptions(undefined, {
         maxChars: maxDynamicContextChars,
         userMessage: message,
+        intent: 'chat',
       });
     }
 
@@ -595,7 +610,7 @@ export async function sendMessageWithHistory(
     const selectedModel = routeBedrockModel({
       intent: 'chat',
       message,
-      hasAttachments: Boolean(attachments && attachments.length > 0),
+      hasAttachments: Boolean(boundedAttachments && boundedAttachments.length > 0),
       degraded: preflight.degraded || budgetDecision.shouldDegrade,
     });
     const cacheKey = buildSemanticCacheKey({
@@ -606,7 +621,7 @@ export async function sendMessageWithHistory(
       snapshotHash: hashString(dynamicContext),
       mode: 'non_stream',
     });
-    if (!attachments || attachments.length === 0) {
+    if (!boundedAttachments || boundedAttachments.length === 0) {
       const cached = getCached<CachedChatResponse>(cacheKey);
       if (cached) {
         return cached.text;
@@ -619,7 +634,9 @@ export async function sendMessageWithHistory(
       {
         role: 'user' as const,
         content: [
-          ...(attachments && attachments.length > 0 ? await buildMediaParts(attachments) : []),
+          ...(boundedAttachments && boundedAttachments.length > 0
+            ? await buildMediaParts(boundedAttachments)
+            : []),
           { text: fullMessage },
         ],
       },
@@ -639,6 +656,7 @@ export async function sendMessageWithHistory(
       const reducedContext = buildDynamicContextWithOptions(undefined, {
         maxChars: 1600,
         userMessage: message,
+        intent: 'chat',
       });
       fullMessage = `${reducedContext}\n\nUser Query: ${message}`;
       messages = [
@@ -646,7 +664,9 @@ export async function sendMessageWithHistory(
         {
           role: 'user' as const,
           content: [
-            ...(attachments && attachments.length > 0 ? await buildMediaParts(attachments) : []),
+            ...(boundedAttachments && boundedAttachments.length > 0
+              ? await buildMediaParts(boundedAttachments)
+              : []),
             { text: fullMessage },
           ],
         },
@@ -691,7 +711,7 @@ export async function sendMessageWithHistory(
     }
 
     const responseText = response.output?.message?.content?.[0]?.text || '';
-    if ((!attachments || attachments.length === 0) && responseText) {
+    if ((!boundedAttachments || boundedAttachments.length === 0) && responseText) {
       setCached<CachedChatResponse>(cacheKey, { text: responseText }, CHAT_CACHE_TTL_MS);
     }
 
@@ -700,7 +720,7 @@ export async function sendMessageWithHistory(
     const failedModel = routeBedrockModel({
       intent: 'chat',
       message,
-      hasAttachments: Boolean(attachments && attachments.length > 0),
+      hasAttachments: Boolean(boundedAttachments && boundedAttachments.length > 0),
     }).modelId;
     recordRoutingModelOutcome(failedModel, 'failure');
     console.error('Bedrock API error:', error);
@@ -731,6 +751,7 @@ export interface StreamOptions {
 interface DynamicContextBuildOptions {
   maxChars?: number;
   userMessage?: string;
+  intent?: 'chat' | 'plan' | 'edit';
 }
 
 interface CachedChatResponse {
@@ -774,8 +795,17 @@ export async function* sendMessageWithHistoryStream(
   }
 
   const includeTools = options?.includeTools ?? true; // Default: include tools (backward compat)
+  const streamIntent = includeTools ? 'edit' : 'chat';
+  const streamProfile = getContextBudgetProfile(streamIntent);
 
   try {
+    const { selected: boundedAttachments, dropped: droppedAttachments } = capAttachments(
+      attachments,
+      streamProfile.maxAttachments,
+    );
+    if (droppedAttachments > 0) {
+      recordContextLimitApplied({ droppedItems: droppedAttachments });
+    }
     throwIfAborted(abortSignal);
     // Run full context optimization pipeline
     const { optimized: initialOptimizedHistory, metrics: optimizationMetrics } =
@@ -787,6 +817,7 @@ export async function* sendMessageWithHistoryStream(
     optimizedHistory = maskToolOutputsInHistory(optimizedHistory).history;
     let dynamicContext = buildDynamicContextWithOptions(options?.contextFlags, {
       userMessage: message,
+      intent: streamIntent,
     });
     const standardTools = includeTools ? pickToolsForMessage(message) : [];
     const preflight = estimateTurnCost({
@@ -818,30 +849,33 @@ export async function* sendMessageWithHistoryStream(
       dynamicContext = buildDynamicContextWithOptions(options?.contextFlags, {
         maxChars: maxDynamicContextChars,
         userMessage: message,
+        intent: streamIntent,
       });
     }
 
     // Build multimodal parts if attachments exist
     const mediaMode = options?.mediaMode ?? 'inline_bytes';
-    const mediaDescriptorText = buildMediaDescriptorText(attachments || []);
+    const mediaDescriptorText = buildMediaDescriptorText(boundedAttachments || []);
     const fullMessage = `${dynamicContext}${mediaDescriptorText}\n\nUser Query: ${message}`;
 
     // Yield upload progress for each file
-    if (attachments && attachments.length > 0) {
-      for (let i = 0; i < attachments.length; i++) {
+    if (boundedAttachments && boundedAttachments.length > 0) {
+      for (let i = 0; i < boundedAttachments.length; i++) {
         throwIfAborted(abortSignal);
         yield {
           type: 'upload_progress',
           uploadProgress: {
-            fileName: attachments[i].name,
-            progress: ((i + 1) / attachments.length) * 100,
+            fileName: boundedAttachments[i].name,
+            progress: ((i + 1) / boundedAttachments.length) * 100,
           },
         };
       }
     }
 
     const mediaParts =
-      attachments && attachments.length > 0 ? await buildMediaParts(attachments, mediaMode) : [];
+      boundedAttachments && boundedAttachments.length > 0
+        ? await buildMediaParts(boundedAttachments, mediaMode)
+        : [];
     throwIfAborted(abortSignal);
     const cacheableChat = !includeTools && mediaParts.length === 0;
     const selectedModel = routeBedrockModel({
@@ -899,6 +933,7 @@ export async function* sendMessageWithHistoryStream(
       dynamicContext = buildDynamicContextWithOptions(options?.contextFlags, {
         maxChars: 1600,
         userMessage: message,
+        intent: streamIntent,
       });
       const reducedFullMessage = `${dynamicContext}\n\nUser Query: ${message}`;
       if (includeTools) {
@@ -1007,7 +1042,7 @@ export async function* sendMessageWithHistoryStream(
       const failedRoute = routeBedrockModel({
         intent: options?.includeTools ? 'plan' : 'chat',
         message,
-        hasAttachments: Boolean(attachments && attachments.length > 0),
+        hasAttachments: Boolean(boundedAttachments && boundedAttachments.length > 0),
       });
       recordRoutingModelOutcome(failedRoute.modelId, 'failure');
     }

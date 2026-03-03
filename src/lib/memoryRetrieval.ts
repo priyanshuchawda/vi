@@ -1,4 +1,5 @@
 import type { MediaAnalysisEntry } from '../types/aiMemory';
+import { getContextBudgetProfile, type ContextBudgetIntent } from './contextBudgetPolicy';
 
 export interface MemoryRetrievalHit {
   entry: MediaAnalysisEntry;
@@ -9,6 +10,7 @@ export interface MemoryRetrievalHit {
     endTime: number;
     description: string;
   }>;
+  matchedSceneTotal: number;
 }
 
 export interface MemoryRetrievalOptions {
@@ -16,6 +18,8 @@ export interface MemoryRetrievalOptions {
   entries: MediaAnalysisEntry[];
   maxEntries?: number;
   maxScenesPerEntry?: number;
+  intent?: ContextBudgetIntent;
+  onLimitsApplied?: (metrics: { droppedEntries: number; droppedScenes: number }) => void;
 }
 
 function tokenize(text: string): string[] {
@@ -81,7 +85,7 @@ function scoreEntry(
     }
   }
 
-  const sceneHits = (entry.scenes || [])
+  const allSceneHits = (entry.scenes || [])
     .map((scene) => ({
       scene,
       hitCount: queryTokens.filter((token) =>
@@ -90,7 +94,8 @@ function scoreEntry(
           .includes(token),
       ).length,
     }))
-    .filter((x) => x.hitCount > 0)
+    .filter((x) => x.hitCount > 0);
+  const sceneHits = allSceneHits
     .sort((a, b) => b.hitCount - a.hitCount)
     .slice(0, Math.max(1, maxScenesPerEntry));
 
@@ -112,6 +117,7 @@ function scoreEntry(
       endTime: x.scene.endTime,
       description: x.scene.description,
     })),
+    matchedSceneTotal: allSceneHits.length,
   };
 }
 
@@ -120,17 +126,35 @@ export function retrieveRelevantMemory(options: MemoryRetrievalOptions): MemoryR
     .trim()
     .toLowerCase();
   if (!query) return [];
-  const maxEntries = Math.max(1, Math.min(10, options.maxEntries ?? 5));
-  const maxScenesPerEntry = Math.max(1, Math.min(4, options.maxScenesPerEntry ?? 2));
+  const profile = getContextBudgetProfile(options.intent ?? 'chat');
+  const maxEntries = Math.max(1, Math.min(10, options.maxEntries ?? profile.maxRetrievedEntries));
+  const maxScenesPerEntry = Math.max(
+    1,
+    Math.min(4, options.maxScenesPerEntry ?? profile.maxScenesPerEntry),
+  );
   const queryTokens = tokenize(query);
   if (queryTokens.length === 0) return [];
+  let droppedScenes = 0;
 
-  const hits = options.entries
+  const scored = options.entries
     .filter((entry) => entry.status === 'completed')
     .map((entry) => scoreEntry(entry, queryTokens, query, maxScenesPerEntry))
+    .map((hit) => {
+      if (hit.matchedSceneTotal > hit.matchedScenes.length) {
+        droppedScenes += hit.matchedSceneTotal - hit.matchedScenes.length;
+      }
+      return hit;
+    })
     .filter((hit) => hit.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxEntries);
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.entry.fileName.localeCompare(b.entry.fileName);
+    });
+  const hits = scored.slice(0, maxEntries);
+  options.onLimitsApplied?.({
+    droppedEntries: Math.max(0, scored.length - hits.length),
+    droppedScenes,
+  });
 
   return hits;
 }

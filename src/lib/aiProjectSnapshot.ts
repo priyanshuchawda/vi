@@ -1,6 +1,7 @@
 import { useProjectStore } from '../stores/useProjectStore';
 import { useAiMemoryStore } from '../stores/useAiMemoryStore';
 import { buildClipAliasMap, type AliasMap } from './clipAliasMapper';
+import { getContextBudgetProfile } from './contextBudgetPolicy';
 
 export type SnapshotScope = 'full' | 'planning' | 'timeline_only' | 'media_only';
 
@@ -242,6 +243,7 @@ export function pickSnapshotForScope(
   }
 
   if (scope === 'planning') {
+    const planningBudget = getContextBudgetProfile('plan');
     return {
       schemaVersion: snapshot.schemaVersion,
       generatedAt: snapshot.generatedAt,
@@ -254,7 +256,7 @@ export function pickSnapshotForScope(
       mediaLibrary: {
         totalAnalyzed: snapshot.mediaLibrary.totalAnalyzed,
         byType: snapshot.mediaLibrary.byType,
-        entries: snapshot.mediaLibrary.entries.slice(0, 12),
+        entries: snapshot.mediaLibrary.entries.slice(0, planningBudget.maxSnapshotMediaEntries),
       },
       subtitles: {
         count: snapshot.subtitles.count,

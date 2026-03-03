@@ -120,3 +120,4 @@ When behavior or workflow changes, update docs in the same PR:
 - `docs/observability-and-telemetry.md` for logging/error-tracking changes
 - `docs/storage-strategy.md` for persistence/storage behavior changes
 - `docs/electron-security-checklist.md` for Electron security policy changes
+- `docs/testing-hardening.md` for test matrix and coverage policy changes

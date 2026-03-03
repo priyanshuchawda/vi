@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bedrockConverseInputSchema,
   exportVideoRequestSchema,
+  memoryMarkdownEntrySchema,
   memoryStateSchema,
   projectWriteSchema,
   timelineClipListSchema,
@@ -43,5 +45,30 @@ describe('IPC contract schemas', () => {
   it('rejects non-object memory state payload', () => {
     const result = memoryStateSchema.safeParse('bad');
     expect(result.success).toBe(false);
+  });
+
+  it('rejects memory markdown entries without fileName', () => {
+    const result = memoryMarkdownEntrySchema.safeParse({
+      summary: 'sample',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects youtube upload payload with empty title', () => {
+    const result = youtubeUploadRequestSchema.safeParse({
+      filePath: '/tmp/test.mp4',
+      metadata: {
+        title: '   ',
+        privacyStatus: 'private',
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts object-based bedrock input and rejects primitives', () => {
+    const ok = bedrockConverseInputSchema.safeParse({ modelId: 'x', payload: { ok: true } });
+    const bad = bedrockConverseInputSchema.safeParse('not-an-object');
+    expect(ok.success).toBe(true);
+    expect(bad.success).toBe(false);
   });
 });

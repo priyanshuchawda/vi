@@ -158,6 +158,11 @@ GitHub Actions workflows:
 - Residual Electron security checklist and enforced controls are documented in:
   [docs/electron-security-checklist.md](./docs/electron-security-checklist.md)
 
+## Testing Hardening
+
+- Runtime risk-area test mapping and optional E2E smoke path are documented in:
+  [docs/testing-hardening.md](./docs/testing-hardening.md)
+
 ## Notes on Tests
 
 Some integration tests depend on local test media files and may fail if those assets are not present in your environment. Unit tests run independently.

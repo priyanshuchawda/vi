@@ -17,7 +17,7 @@ export interface TokenGuardDecisionInput extends BedrockTokenEstimateInput {
 }
 
 export interface TokenGuardDecision extends BedrockTokenEstimate {
-  status: "ok" | "degrade" | "block";
+  status: 'ok' | 'degrade' | 'block';
   softLimitTokens: number;
   hardLimitTokens: number;
 }
@@ -42,15 +42,13 @@ function estimateTextTokens(text: string): number {
 
   let tokens = 0;
   for (let i = 0; i < text.length; i++) {
-    tokens += text.charCodeAt(i) <= 127
-      ? TOKENS_PER_ASCII_CHAR
-      : TOKENS_PER_NON_ASCII_CHAR;
+    tokens += text.charCodeAt(i) <= 127 ? TOKENS_PER_ASCII_CHAR : TOKENS_PER_NON_ASCII_CHAR;
   }
   return Math.ceil(tokens);
 }
 
 function estimatePartTokens(part: Record<string, any>): number {
-  if (typeof part?.text === "string") {
+  if (typeof part?.text === 'string') {
     return estimateTextTokens(part.text);
   }
 
@@ -103,18 +101,16 @@ export function estimateBedrockRequestTokens(
   };
 }
 
-export function evaluateTokenGuard(
-  input: TokenGuardDecisionInput,
-): TokenGuardDecision {
+export function evaluateTokenGuard(input: TokenGuardDecisionInput): TokenGuardDecision {
   const estimate = estimateBedrockRequestTokens(input);
   const softLimitTokens = input.softLimitTokens ?? DEFAULT_SOFT_LIMIT_TOKENS;
   const hardLimitTokens = input.hardLimitTokens ?? DEFAULT_HARD_LIMIT_TOKENS;
 
-  let status: TokenGuardDecision["status"] = "ok";
+  let status: TokenGuardDecision['status'] = 'ok';
   if (estimate.estimatedInputTokens > hardLimitTokens) {
-    status = "block";
+    status = 'block';
   } else if (estimate.estimatedInputTokens > softLimitTokens) {
-    status = "degrade";
+    status = 'degrade';
   }
 
   return {
@@ -124,4 +120,3 @@ export function evaluateTokenGuard(
     hardLimitTokens,
   };
 }
-

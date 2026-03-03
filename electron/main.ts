@@ -1,13 +1,20 @@
-import { app, BrowserWindow, ipcMain, dialog, nativeImage, protocol, net, session, shell } from "electron";
-import path from "path";
-import fs from "fs/promises";
-import { fileURLToPath, pathToFileURL } from "url";
-import { config } from "dotenv";
-import { z } from "zod";
 import {
-  BedrockRuntimeClient,
-  ConverseCommand,
-} from "@aws-sdk/client-bedrock-runtime";
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  nativeImage,
+  protocol,
+  net,
+  session,
+  shell,
+} from 'electron';
+import path from 'path';
+import fs from 'fs/promises';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { config } from 'dotenv';
+import { z } from 'zod';
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import {
   IPC_CHANNELS,
   bedrockConverseInputSchema,
@@ -20,33 +27,29 @@ import {
   saveFormatSchema,
   timelineClipSchema,
   youtubeUploadRequestSchema,
-} from "./ipc/contracts.js";
-import ffmpeg, {
-  exportVideo,
-  generateThumbnail,
-  generateWaveform,
-} from "./ffmpeg/processor.js";
-import { transcribeVideo, transcribeTimeline } from "./utils/transcription.js";
-import { ChannelAnalysisService } from "./services/channelAnalysisService.js";
-import { 
-  authenticateUser, 
-  isAuthenticated, 
-  logout as youtubeLogout 
-} from "./services/youtubeAuthService.js";
-import { uploadVideo } from "./services/youtubeUploadService.js";
-import { setupAutoUpdates } from "./services/updateService.js";
-import { captureMainException, initMainObservability } from "./services/observabilityService.js";
-import { log } from "./utils/logger.js";
+} from './ipc/contracts.js';
+import ffmpeg, { exportVideo, generateThumbnail, generateWaveform } from './ffmpeg/processor.js';
+import { transcribeVideo, transcribeTimeline } from './utils/transcription.js';
+import { ChannelAnalysisService } from './services/channelAnalysisService.js';
+import {
+  authenticateUser,
+  isAuthenticated,
+  logout as youtubeLogout,
+} from './services/youtubeAuthService.js';
+import { uploadVideo } from './services/youtubeUploadService.js';
+import { setupAutoUpdates } from './services/updateService.js';
+import { captureMainException, initMainObservability } from './services/observabilityService.js';
+import { log } from './utils/logger.js';
 import {
   isAllowedExternalUrl,
   packagedCspPolicy,
   shouldAllowPermissionRequest,
   shouldBlockNavigation,
-} from "./security/policy.js";
+} from './security/policy.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const APP_MEDIA_SCHEME = "app-media";
+const APP_MEDIA_SCHEME = 'app-media';
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -61,24 +64,22 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-
 // Load environment variables from .env file
-config({ path: path.join(__dirname, "../.env") });
+config({ path: path.join(__dirname, '../.env') });
 initMainObservability();
 
 // API Keys from environment variables
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || "";
-const AWS_REGION = process.env.AWS_REGION || "us-east-1";
-const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || "";
-const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || "";
-const BEDROCK_MODEL_ID =
-  process.env.BEDROCK_MODEL_ID || "amazon.nova-lite-v1:0";
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
+const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || '';
+const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || '';
+const BEDROCK_MODEL_ID = process.env.BEDROCK_MODEL_ID || 'amazon.nova-lite-v1:0';
 
-log("info", "API keys loaded", {
-  youtubeApiKey: YOUTUBE_API_KEY ? "Set" : "Missing",
+log('info', 'API keys loaded', {
+  youtubeApiKey: YOUTUBE_API_KEY ? 'Set' : 'Missing',
   awsRegion: AWS_REGION,
-  awsAccessKey: AWS_ACCESS_KEY_ID ? "Set" : "Missing",
-  awsSecretKey: AWS_SECRET_ACCESS_KEY ? "Set" : "Missing",
+  awsAccessKey: AWS_ACCESS_KEY_ID ? 'Set' : 'Missing',
+  awsSecretKey: AWS_SECRET_ACCESS_KEY ? 'Set' : 'Missing',
 });
 
 // Initialize analysis service
@@ -92,23 +93,21 @@ if (YOUTUBE_API_KEY && AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
     AWS_SECRET_ACCESS_KEY,
     BEDROCK_MODEL_ID,
   );
-  log("info", "Channel analysis service initialized (Bedrock)");
+  log('info', 'Channel analysis service initialized (Bedrock)');
   bedrockGatewayClient = new BedrockRuntimeClient({
     region: AWS_REGION,
     credentials: {
       accessKeyId: AWS_ACCESS_KEY_ID,
       secretAccessKey: AWS_SECRET_ACCESS_KEY,
-      ...(process.env.AWS_SESSION_TOKEN
-        ? { sessionToken: process.env.AWS_SESSION_TOKEN }
-        : {}),
+      ...(process.env.AWS_SESSION_TOKEN ? { sessionToken: process.env.AWS_SESSION_TOKEN } : {}),
     },
   });
 } else {
-  log("warn", "Missing API keys - channel analysis disabled");
+  log('warn', 'Missing API keys - channel analysis disabled');
 }
 
 // Set the application name for the menu bar
-app.setName("QuickCut");
+app.setName('QuickCut');
 
 let mainWindow: BrowserWindow | null = null;
 let updateService: ReturnType<typeof setupAutoUpdates> | null = null;
@@ -117,39 +116,34 @@ function registerMediaProtocol() {
   protocol.handle(APP_MEDIA_SCHEME, async (request) => {
     try {
       const url = new URL(request.url);
-      if (url.hostname !== "local") {
-        return new Response("Invalid host", { status: 400 });
+      if (url.hostname !== 'local') {
+        return new Response('Invalid host', { status: 400 });
       }
 
-      const encodedPath = url.pathname.startsWith("/")
-        ? url.pathname.slice(1)
-        : url.pathname;
+      const encodedPath = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
       const decodedPath = decodeURIComponent(encodedPath);
       const parsedPath = filePathSchema.parse(decodedPath);
 
       if (!path.isAbsolute(parsedPath)) {
-        return new Response("Path must be absolute", { status: 400 });
+        return new Response('Path must be absolute', { status: 400 });
       }
 
       return net.fetch(pathToFileURL(parsedPath).toString());
     } catch (error) {
-      console.error("[MediaProtocol] Failed to serve media:", error);
-      return new Response("Not found", { status: 404 });
+      console.error('[MediaProtocol] Failed to serve media:', error);
+      return new Response('Not found', { status: 404 });
     }
   });
 }
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    title: "QuickCut",
-    icon: path.join(
-      __dirname,
-      app.isPackaged ? "../dist/logo.png" : "../public/logo.png",
-    ),
+    title: 'QuickCut',
+    icon: path.join(__dirname, app.isPackaged ? '../dist/logo.png' : '../public/logo.png'),
     width: 1200,
     height: 800,
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
@@ -157,19 +151,19 @@ function createWindow() {
     },
   });
 
-  const devUrl = process.env.VITE_DEV_SERVER_URL || "http://localhost:7377";
+  const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:7377';
 
   if (!app.isPackaged) {
     mainWindow.loadURL(devUrl);
   } else {
-    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
   // Set dock icon on macOS
-  if (process.platform === "darwin" && app.dock) {
+  if (process.platform === 'darwin' && app.dock) {
     const iconPath = path.join(
       __dirname,
-      app.isPackaged ? "../dist/logo.png" : "../public/logo.png",
+      app.isPackaged ? '../dist/logo.png' : '../public/logo.png',
     );
     app.dock.setIcon(iconPath);
   }
@@ -178,7 +172,7 @@ function createWindow() {
   // mainWindow.webContents.openDevTools();
 
   // Force close on Windows — prevents app hanging when X is clicked
-  mainWindow.on("close", () => {
+  mainWindow.on('close', () => {
     if (mainWindow) {
       mainWindow.destroy();
     }
@@ -187,76 +181,76 @@ function createWindow() {
     if (isAllowedExternalUrl(url)) {
       void shell.openExternal(url);
     } else {
-      log("warn", "Blocked external window open", { url });
+      log('warn', 'Blocked external window open', { url });
     }
-    return { action: "deny" };
+    return { action: 'deny' };
   });
-  mainWindow.webContents.on("will-navigate", (event, url) => {
-    const currentUrl = mainWindow?.webContents.getURL() || "";
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const currentUrl = mainWindow?.webContents.getURL() || '';
     if (shouldBlockNavigation(currentUrl, url)) {
       event.preventDefault();
       if (isAllowedExternalUrl(url)) {
         void shell.openExternal(url);
       } else {
-        log("warn", "Blocked navigation attempt", { url });
+        log('warn', 'Blocked navigation attempt', { url });
       }
     }
   });
-  mainWindow.webContents.on("render-process-gone", (_event, details) => {
-    captureMainException(new Error("Renderer process exited unexpectedly"), {
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    captureMainException(new Error('Renderer process exited unexpectedly'), {
       reason: details.reason,
       exitCode: details.exitCode,
     });
   });
 }
 
-process.on("uncaughtException", (error) => {
-  captureMainException(error, { origin: "process:uncaughtException" });
+process.on('uncaughtException', (error) => {
+  captureMainException(error, { origin: 'process:uncaughtException' });
 });
 
-process.on("unhandledRejection", (reason) => {
-  captureMainException(reason, { origin: "process:unhandledRejection" });
+process.on('unhandledRejection', (reason) => {
+  captureMainException(reason, { origin: 'process:unhandledRejection' });
 });
 
-ipcMain.handle(IPC_CHANNELS.ping, async () => "pong");
+ipcMain.handle(IPC_CHANNELS.ping, async () => 'pong');
 
 ipcMain.handle(IPC_CHANNELS.dialog.openFile, async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
-    properties: ["openFile", "multiSelections"],
+    properties: ['openFile', 'multiSelections'],
     filters: [
       {
-        name: "All Media",
+        name: 'All Media',
         extensions: [
-          "mp4",
-          "mov",
-          "avi",
-          "mkv",
-          "webm",
-          "mp3",
-          "wav",
-          "aac",
-          "flac",
-          "ogg",
-          "m4a",
-          "jpg",
-          "jpeg",
-          "png",
-          "gif",
-          "webp",
-          "bmp",
-          "srt",
+          'mp4',
+          'mov',
+          'avi',
+          'mkv',
+          'webm',
+          'mp3',
+          'wav',
+          'aac',
+          'flac',
+          'ogg',
+          'm4a',
+          'jpg',
+          'jpeg',
+          'png',
+          'gif',
+          'webp',
+          'bmp',
+          'srt',
         ],
       },
-      { name: "Videos", extensions: ["mp4", "mov", "avi", "mkv", "webm"] },
+      { name: 'Videos', extensions: ['mp4', 'mov', 'avi', 'mkv', 'webm'] },
       {
-        name: "Audio",
-        extensions: ["mp3", "wav", "aac", "flac", "ogg", "m4a"],
+        name: 'Audio',
+        extensions: ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'],
       },
       {
-        name: "Images",
-        extensions: ["jpg", "jpeg", "png", "gif", "webp", "bmp"],
+        name: 'Images',
+        extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'],
       },
-      { name: "Subtitles", extensions: ["srt"] },
+      { name: 'Subtitles', extensions: ['srt'] },
     ],
   });
   if (canceled) {
@@ -269,7 +263,7 @@ ipcMain.handle(IPC_CHANNELS.dialog.openFile, async () => {
 ipcMain.handle(IPC_CHANNELS.media.getMetadata, async (_, rawFilePath) => {
   const filePath = filePathSchema.parse(rawFilePath);
   // Check if the file is an image
-  const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
   const ext = path.extname(filePath).toLowerCase();
   const isImage = imageExtensions.includes(ext);
 
@@ -280,16 +274,16 @@ ipcMain.handle(IPC_CHANNELS.media.getMetadata, async (_, rawFilePath) => {
       const size = img.getSize();
       return {
         duration: 5, // Default 5 seconds for images
-        format: "image",
+        format: 'image',
         width: size.width,
         height: size.height,
         isImage: true,
       };
     } catch (error) {
-      console.error("Failed to read image:", error);
+      console.error('Failed to read image:', error);
       return {
         duration: 5,
-        format: "image",
+        format: 'image',
         width: 1920,
         height: 1080,
         isImage: true,
@@ -301,16 +295,12 @@ ipcMain.handle(IPC_CHANNELS.media.getMetadata, async (_, rawFilePath) => {
   return new Promise((resolve, reject) => {
     ffmpeg.ffprobe(filePath, (err: any, metadata: any) => {
       if (err) {
-        console.error("ffprobe error:", err);
+        console.error('ffprobe error:', err);
         reject(err);
       } else {
-        console.log("ffprobe success:", metadata.format.duration);
-        const videoStream = metadata.streams.find(
-          (s: any) => s.codec_type === "video",
-        );
-        const audioStream = metadata.streams.find(
-          (s: any) => s.codec_type === "audio",
-        );
+        console.log('ffprobe success:', metadata.format.duration);
+        const videoStream = metadata.streams.find((s: any) => s.codec_type === 'video');
+        const audioStream = metadata.streams.find((s: any) => s.codec_type === 'audio');
 
         resolve({
           duration: metadata.format.duration,
@@ -331,7 +321,7 @@ ipcMain.handle(IPC_CHANNELS.media.getThumbnail, async (_, rawFilePath) => {
     const base64 = await generateThumbnail(filePath);
     return base64;
   } catch (error) {
-    console.error("Failed to generate thumbnail:", error);
+    console.error('Failed to generate thumbnail:', error);
     return null;
   }
 });
@@ -342,22 +332,22 @@ ipcMain.handle(IPC_CHANNELS.media.getWaveform, async (_, rawFilePath) => {
     const base64 = await generateWaveform(filePath);
     return base64;
   } catch (error) {
-    console.error("Failed to generate waveform:", error);
+    console.error('Failed to generate waveform:', error);
     return null;
   }
 });
 
-ipcMain.handle(IPC_CHANNELS.dialog.saveFile, async (_, rawFormat = "mp4") => {
-  const format = saveFormatSchema.catch("mp4").parse(rawFormat);
+ipcMain.handle(IPC_CHANNELS.dialog.saveFile, async (_, rawFormat = 'mp4') => {
+  const format = saveFormatSchema.catch('mp4').parse(rawFormat);
   const extensions: { [key: string]: string } = {
-    mp4: "MP4",
-    mov: "MOV",
-    avi: "AVI",
-    webm: "WebM",
+    mp4: 'MP4',
+    mov: 'MOV',
+    avi: 'AVI',
+    webm: 'WebM',
   };
 
   const { canceled, filePath } = await dialog.showSaveDialog({
-    filters: [{ name: extensions[format] || "Video", extensions: [format] }],
+    filters: [{ name: extensions[format] || 'Video', extensions: [format] }],
     defaultPath: `output.${format}`,
   });
   if (canceled) {
@@ -369,9 +359,9 @@ ipcMain.handle(IPC_CHANNELS.dialog.saveFile, async (_, rawFormat = "mp4") => {
 
 ipcMain.handle(IPC_CHANNELS.project.saveProject, async () => {
   const { canceled, filePath } = await dialog.showSaveDialog({
-    title: "Save Project",
-    defaultPath: "project.quickcut",
-    filters: [{ name: "QuickCut Project", extensions: ["quickcut"] }],
+    title: 'Save Project',
+    defaultPath: 'project.quickcut',
+    filters: [{ name: 'QuickCut Project', extensions: ['quickcut'] }],
   });
   if (canceled) {
     return null;
@@ -383,19 +373,19 @@ ipcMain.handle(IPC_CHANNELS.project.saveProject, async () => {
 ipcMain.handle(IPC_CHANNELS.project.writeProjectFile, async (_, rawPayload) => {
   try {
     const { filePath, data } = projectWriteSchema.parse(rawPayload);
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
     return { success: true };
   } catch (error) {
-    console.error("Failed to write project file:", error);
+    console.error('Failed to write project file:', error);
     return { success: false, error: String(error) };
   }
 });
 
 ipcMain.handle(IPC_CHANNELS.project.loadProject, async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
-    title: "Load Project",
-    properties: ["openFile"],
-    filters: [{ name: "QuickCut Project", extensions: ["quickcut"] }],
+    title: 'Load Project',
+    properties: ['openFile'],
+    filters: [{ name: 'QuickCut Project', extensions: ['quickcut'] }],
   });
   if (canceled || filePaths.length === 0) {
     return null;
@@ -407,10 +397,10 @@ ipcMain.handle(IPC_CHANNELS.project.loadProject, async () => {
 ipcMain.handle(IPC_CHANNELS.project.readProjectFile, async (_, rawFilePath) => {
   try {
     const filePath = filePathSchema.parse(rawFilePath);
-    const data = await fs.readFile(filePath, "utf-8");
+    const data = await fs.readFile(filePath, 'utf-8');
     return { success: true, data: JSON.parse(data) };
   } catch (error) {
-    console.error("Failed to read project file:", error);
+    console.error('Failed to read project file:', error);
     return { success: false, error: String(error) };
   }
 });
@@ -418,83 +408,74 @@ ipcMain.handle(IPC_CHANNELS.project.readProjectFile, async (_, rawFilePath) => {
 ipcMain.handle(IPC_CHANNELS.file.readTextFile, async (_, rawFilePath) => {
   try {
     const filePath = filePathSchema.parse(rawFilePath);
-    const data = await fs.readFile(filePath, "utf-8");
+    const data = await fs.readFile(filePath, 'utf-8');
     return { success: true, data };
   } catch (error) {
-    console.error("Failed to read text file:", error);
+    console.error('Failed to read text file:', error);
     return { success: false, error: String(error) };
   }
 });
 
-ipcMain.handle(
-  IPC_CHANNELS.media.exportVideo,
-  async (event, rawPayload) => {
-    try {
-      const {
-        clips,
-        outputPath,
-        format = "mp4",
-        resolution,
-        subtitles,
-        subtitleStyle,
-      } = exportVideoRequestSchema.parse(rawPayload);
-      await exportVideo(
-        clips,
-        event.sender,
-        outputPath,
-        format,
-        resolution,
-        subtitles,
-        subtitleStyle,
-      );
-      return true;
-    } catch (error) {
-      console.error("Export failed:", error);
-      throw error;
-    }
-  },
-);
+ipcMain.handle(IPC_CHANNELS.media.exportVideo, async (event, rawPayload) => {
+  try {
+    const {
+      clips,
+      outputPath,
+      format = 'mp4',
+      resolution,
+      subtitles,
+      subtitleStyle,
+    } = exportVideoRequestSchema.parse(rawPayload);
+    await exportVideo(
+      clips,
+      event.sender,
+      outputPath,
+      format,
+      resolution,
+      subtitles,
+      subtitleStyle,
+    );
+    return true;
+  } catch (error) {
+    console.error('Export failed:', error);
+    throw error;
+  }
+});
 
 // Transcription handlers
-ipcMain.handle(
-  IPC_CHANNELS.transcription.transcribeVideo,
-  async (event, rawVideoPath: string) => {
-    try {
-      const videoPath = filePathSchema.parse(rawVideoPath);
-      const result = await transcribeVideo(videoPath, (progress) => {
-        event.sender.send(IPC_CHANNELS.transcription.progress, progress);
-      });
-      return { success: true, result };
-    } catch (error) {
-      console.error("Transcription failed:", error);
-      return { success: false, error: String(error) };
-    }
-  },
-);
+ipcMain.handle(IPC_CHANNELS.transcription.transcribeVideo, async (event, rawVideoPath: string) => {
+  try {
+    const videoPath = filePathSchema.parse(rawVideoPath);
+    const result = await transcribeVideo(videoPath, (progress) => {
+      event.sender.send(IPC_CHANNELS.transcription.progress, progress);
+    });
+    return { success: true, result };
+  } catch (error) {
+    console.error('Transcription failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
 
-ipcMain.handle(
-  IPC_CHANNELS.transcription.transcribeTimeline,
-  async (event, rawClips) => {
-    try {
-      const clips = z.array(timelineClipSchema).parse(rawClips);
-      const result = await transcribeTimeline(clips, (progress) => {
-        event.sender.send(IPC_CHANNELS.transcription.progress, progress);
-      });
-      return { success: true, result };
-    } catch (error) {
-      console.error("Timeline transcription failed:", error);
-      return { success: false, error: String(error) };
-    }
-  },
-);
+ipcMain.handle(IPC_CHANNELS.transcription.transcribeTimeline, async (event, rawClips) => {
+  try {
+    const clips = z.array(timelineClipSchema).parse(rawClips);
+    const result = await transcribeTimeline(clips, (progress) => {
+      event.sender.send(IPC_CHANNELS.transcription.progress, progress);
+    });
+    return { success: true, result };
+  } catch (error) {
+    console.error('Timeline transcription failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
 
 // Channel Analysis handlers
 ipcMain.handle(IPC_CHANNELS.analysis.analyzeChannel, async (_event, rawChannelUrl: string) => {
   if (!analysisService) {
     return {
       success: false,
-      error: "Analysis service not initialized - missing API keys",
-      error_code: "SERVICE_NOT_AVAILABLE",
+      error: 'Analysis service not initialized - missing API keys',
+      error_code: 'SERVICE_NOT_AVAILABLE',
     };
   }
 
@@ -504,18 +485,18 @@ ipcMain.handle(IPC_CHANNELS.analysis.analyzeChannel, async (_event, rawChannelUr
     const result = await analysisService.analyzeChannel(channelUrl);
     return result;
   } catch (error) {
-    console.error("[IPC] Channel analysis error:", error);
+    console.error('[IPC] Channel analysis error:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-      error_code: "ANALYSIS_ERROR",
+      error: error instanceof Error ? error.message : 'Unknown error',
+      error_code: 'ANALYSIS_ERROR',
     };
   }
 });
 
 ipcMain.handle(IPC_CHANNELS.analysis.getUserAnalysis, async (_event, rawUserId: string) => {
   if (!analysisService) {
-    return { success: false, error: "Analysis service not initialized" };
+    return { success: false, error: 'Analysis service not initialized' };
   }
 
   try {
@@ -524,10 +505,10 @@ ipcMain.handle(IPC_CHANNELS.analysis.getUserAnalysis, async (_event, rawUserId: 
     if (analysis) {
       return { success: true, data: analysis };
     } else {
-      return { success: false, error: "No analysis found for user" };
+      return { success: false, error: 'No analysis found for user' };
     }
   } catch (error) {
-    console.error("[IPC] Get user analysis error:", error);
+    console.error('[IPC] Get user analysis error:', error);
     return { success: false, error: String(error) };
   }
 });
@@ -542,13 +523,10 @@ ipcMain.handle(
     try {
       const userId = nonEmptyStringSchema.parse(rawUserId);
       const channelUrl = nonEmptyStringSchema.parse(rawChannelUrl);
-      const linked = await analysisService.linkAnalysisToUser(
-        userId,
-        channelUrl,
-      );
+      const linked = await analysisService.linkAnalysisToUser(userId, channelUrl);
       return { success: linked };
     } catch (error) {
-      console.error("[IPC] Link analysis error:", error);
+      console.error('[IPC] Link analysis error:', error);
       return { success: false };
     }
   },
@@ -556,9 +534,7 @@ ipcMain.handle(
 
 ipcMain.handle(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
   if (!bedrockGatewayClient) {
-    throw new Error(
-      "Bedrock gateway unavailable: missing AWS credentials in Electron environment",
-    );
+    throw new Error('Bedrock gateway unavailable: missing AWS credentials in Electron environment');
   }
 
   const input = bedrockConverseInputSchema.parse(rawInput);
@@ -567,15 +543,11 @@ ipcMain.handle(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
     if (Array.isArray(value)) {
       return value.map(reviveBytes);
     }
-    if (value && typeof value === "object") {
+    if (value && typeof value === 'object') {
       const obj = value as Record<string, unknown>;
       const out: Record<string, unknown> = {};
       for (const [key, v] of Object.entries(obj)) {
-        if (
-          key === "bytes" &&
-          Array.isArray(v) &&
-          v.every((n) => typeof n === "number")
-        ) {
+        if (key === 'bytes' && Array.isArray(v) && v.every((n) => typeof n === 'number')) {
           out[key] = Uint8Array.from(v as number[]);
         } else {
           out[key] = reviveBytes(v);
@@ -587,9 +559,7 @@ ipcMain.handle(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
   };
 
   const commandInput = reviveBytes(input);
-  const response = await bedrockGatewayClient.send(
-    new ConverseCommand(commandInput as any),
-  );
+  const response = await bedrockGatewayClient.send(new ConverseCommand(commandInput as any));
   return response;
 });
 
@@ -607,9 +577,9 @@ ipcMain.handle(IPC_CHANNELS.file.readFileAsBase64, async (_, rawFilePath: string
     }
 
     const buffer = await fs.readFile(filePath);
-    return buffer.toString("base64");
+    return buffer.toString('base64');
   } catch (error) {
-    console.error("Failed to read file as base64:", error);
+    console.error('Failed to read file as base64:', error);
     throw error;
   }
 });
@@ -621,7 +591,7 @@ ipcMain.handle(IPC_CHANNELS.file.getFileSize, async (_, rawFilePath: string) => 
     const stat = await fs.stat(filePath);
     return stat.size;
   } catch (error) {
-    console.error("Failed to get file size:", error);
+    console.error('Failed to get file size:', error);
     return 0;
   }
 });
@@ -629,17 +599,17 @@ ipcMain.handle(IPC_CHANNELS.file.getFileSize, async (_, rawFilePath: string) => 
 // =============================================
 // AI Memory — File-based persistence (project-specific)
 // =============================================
-const MEMORY_BASE_DIR = path.join(app.getPath("userData"), "ai_memory");
+const MEMORY_BASE_DIR = path.join(app.getPath('userData'), 'ai_memory');
 
 function getProjectMemoryPaths(projectId?: string) {
   const projectDir = projectId
-    ? path.join(MEMORY_BASE_DIR, "projects", projectId)
-    : path.join(MEMORY_BASE_DIR, "default");
+    ? path.join(MEMORY_BASE_DIR, 'projects', projectId)
+    : path.join(MEMORY_BASE_DIR, 'default');
 
   return {
     dir: projectDir,
-    index: path.join(projectDir, "memory.json"),
-    analyses: path.join(projectDir, "analyses"),
+    index: path.join(projectDir, 'memory.json'),
+    analyses: path.join(projectDir, 'analyses'),
   };
 }
 
@@ -656,13 +626,13 @@ ipcMain.handle(IPC_CHANNELS.memory.save, async (_, rawData) => {
     const projectId = data.projectId;
     const paths = getProjectMemoryPaths(projectId);
     await ensureMemoryDirs(projectId);
-    await fs.writeFile(paths.index, JSON.stringify(data, null, 2), "utf-8");
+    await fs.writeFile(paths.index, JSON.stringify(data, null, 2), 'utf-8');
     console.log(
-      `[Memory] Saved ${data.entries?.length || 0} entries to ${paths.index} (Project: ${projectId || "default"})`,
+      `[Memory] Saved ${data.entries?.length || 0} entries to ${paths.index} (Project: ${projectId || 'default'})`,
     );
     return { success: true, path: paths.index };
   } catch (error) {
-    console.error("[Memory] Failed to save:", error);
+    console.error('[Memory] Failed to save:', error);
     return { success: false, error: String(error) };
   }
 });
@@ -673,21 +643,21 @@ ipcMain.handle(IPC_CHANNELS.memory.load, async (_, projectId?: string) => {
     const safeProjectId = projectId ? nonEmptyStringSchema.parse(projectId) : undefined;
     const paths = getProjectMemoryPaths(safeProjectId);
     await ensureMemoryDirs(safeProjectId);
-    const data = await fs.readFile(paths.index, "utf-8");
+    const data = await fs.readFile(paths.index, 'utf-8');
     const parsed = JSON.parse(data);
     console.log(
-      `[Memory] Loaded ${parsed.entries?.length || 0} entries from disk (Project: ${projectId || "default"})`,
+      `[Memory] Loaded ${parsed.entries?.length || 0} entries from disk (Project: ${projectId || 'default'})`,
     );
     return { success: true, data: parsed };
   } catch (error: any) {
-    if (error.code === "ENOENT") {
+    if (error.code === 'ENOENT') {
       // File doesn't exist yet, that's fine
       console.log(
-        `[Memory] No existing memory file found for project ${projectId || "default"}, starting fresh`,
+        `[Memory] No existing memory file found for project ${projectId || 'default'}, starting fresh`,
       );
       return { success: true, data: { entries: [] } };
     }
-    console.error("[Memory] Failed to load:", error);
+    console.error('[Memory] Failed to load:', error);
     return { success: false, error: String(error) };
   }
 });
@@ -699,24 +669,24 @@ ipcMain.handle(IPC_CHANNELS.memory.readMemoryFiles, async (_, rawMemoryDir: stri
     console.log(` [TESTING MODE] Reading memory from ${memoryDir}...`);
 
     // Try to read the default project memory first
-    const defaultPath = path.join(memoryDir, "default", "memory.json");
+    const defaultPath = path.join(memoryDir, 'default', 'memory.json');
 
     try {
-      const data = await fs.readFile(defaultPath, "utf-8");
+      const data = await fs.readFile(defaultPath, 'utf-8');
       const parsed = JSON.parse(data);
       console.log(
         ` [TESTING MODE] Loaded ${parsed.entries?.length || 0} entries from ${defaultPath}`,
       );
       return { success: true, entries: parsed.entries || [] };
     } catch (err: any) {
-      if (err.code === "ENOENT") {
+      if (err.code === 'ENOENT') {
         console.log(` [TESTING MODE] No memory.json found in ${defaultPath}`);
         return { success: true, entries: [] };
       }
       throw err;
     }
   } catch (error) {
-    console.error("[TESTING MODE] Failed to read memory files:", error);
+    console.error('[TESTING MODE] Failed to read memory files:', error);
     return { success: false, error: String(error), entries: [] };
   }
 });
@@ -732,22 +702,21 @@ ipcMain.handle(
       await ensureMemoryDirs(safeProjectId);
 
       // Sanitize filename
-      const safeName = entry.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const safeName = entry.fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
       const mdPath = path.join(paths.analyses, `${safeName}.md`);
 
       let md = `# Media Analysis: ${entry.fileName}\n\n`;
       md += `- **Type:** ${entry.mediaType}\n`;
       md += `- **File:** ${entry.filePath}\n`;
       md += `- **MIME:** ${entry.mimeType}\n`;
-      if (entry.duration)
-        md += `- **Duration:** ${entry.duration.toFixed(1)}s\n`;
+      if (entry.duration) md += `- **Duration:** ${entry.duration.toFixed(1)}s\n`;
       md += `- **Status:** ${entry.status}\n`;
       md += `- **Analyzed:** ${entry.updatedAt}\n\n`;
 
       md += `## Summary\n${entry.summary}\n\n`;
 
       if (entry.tags && entry.tags.length > 0) {
-        md += `## Tags\n${entry.tags.map((t: string) => `\`${t}\``).join(", ")}\n\n`;
+        md += `## Tags\n${entry.tags.map((t: string) => `\`${t}\``).join(', ')}\n\n`;
       }
 
       md += `## Detailed Analysis\n${entry.analysis}\n\n`;
@@ -755,28 +724,26 @@ ipcMain.handle(
       if (entry.visualInfo) {
         md += `## Visual Information\n`;
         if (entry.visualInfo.subjects?.length)
-          md += `- **Subjects:** ${entry.visualInfo.subjects.join(", ")}\n`;
-        if (entry.visualInfo.style)
-          md += `- **Style:** ${entry.visualInfo.style}\n`;
+          md += `- **Subjects:** ${entry.visualInfo.subjects.join(', ')}\n`;
+        if (entry.visualInfo.style) md += `- **Style:** ${entry.visualInfo.style}\n`;
         if (entry.visualInfo.dominantColors?.length)
-          md += `- **Colors:** ${entry.visualInfo.dominantColors.join(", ")}\n`;
+          md += `- **Colors:** ${entry.visualInfo.dominantColors.join(', ')}\n`;
         if (entry.visualInfo.composition)
           md += `- **Composition:** ${entry.visualInfo.composition}\n`;
-        if (entry.visualInfo.quality)
-          md += `- **Quality:** ${entry.visualInfo.quality}\n`;
-        md += "\n";
+        if (entry.visualInfo.quality) md += `- **Quality:** ${entry.visualInfo.quality}\n`;
+        md += '\n';
       }
 
       if (entry.audioInfo) {
         md += `## Audio Information\n`;
-        md += `- **Speech:** ${entry.audioInfo.hasSpeech ? "Yes" : "No"}\n`;
-        md += `- **Music:** ${entry.audioInfo.hasMusic ? "Yes" : "No"}\n`;
+        md += `- **Speech:** ${entry.audioInfo.hasSpeech ? 'Yes' : 'No'}\n`;
+        md += `- **Music:** ${entry.audioInfo.hasMusic ? 'Yes' : 'No'}\n`;
         if (entry.audioInfo.languages?.length)
-          md += `- **Languages:** ${entry.audioInfo.languages.join(", ")}\n`;
+          md += `- **Languages:** ${entry.audioInfo.languages.join(', ')}\n`;
         if (entry.audioInfo.mood) md += `- **Mood:** ${entry.audioInfo.mood}\n`;
         if (entry.audioInfo.transcriptSummary)
           md += `- **Transcript Summary:** ${entry.audioInfo.transcriptSummary}\n`;
-        md += "\n";
+        md += '\n';
       }
 
       if (entry.scenes && entry.scenes.length > 0) {
@@ -784,14 +751,14 @@ ipcMain.handle(
         for (const scene of entry.scenes) {
           md += `- **[${scene.startTime.toFixed(1)}s - ${scene.endTime.toFixed(1)}s]** ${scene.description}\n`;
         }
-        md += "\n";
+        md += '\n';
       }
 
-      await fs.writeFile(mdPath, md, "utf-8");
+      await fs.writeFile(mdPath, md, 'utf-8');
       console.log(`[Memory] Saved analysis markdown: ${mdPath}`);
       return { success: true, path: mdPath };
     } catch (error) {
-      console.error("[Memory] Failed to save markdown:", error);
+      console.error('[Memory] Failed to save markdown:', error);
       return { success: false, error: String(error) };
     }
   },
@@ -813,7 +780,7 @@ ipcMain.handle(IPC_CHANNELS.youtube.isAuthenticated, async () => {
   try {
     return isAuthenticated();
   } catch (error) {
-    console.error("[YouTube] Error checking authentication:", error);
+    console.error('[YouTube] Error checking authentication:', error);
     return false;
   }
 });
@@ -822,12 +789,12 @@ ipcMain.handle(IPC_CHANNELS.youtube.isAuthenticated, async () => {
 ipcMain.handle(IPC_CHANNELS.youtube.authenticate, async () => {
   try {
     if (!mainWindow) {
-      throw new Error("Main window not available");
+      throw new Error('Main window not available');
     }
     const success = await authenticateUser(mainWindow);
     return success;
   } catch (error) {
-    console.error("[YouTube] Authentication error:", error);
+    console.error('[YouTube] Authentication error:', error);
     throw error;
   }
 });
@@ -837,7 +804,7 @@ ipcMain.handle(IPC_CHANNELS.youtube.logout, async () => {
   try {
     return youtubeLogout();
   } catch (error) {
-    console.error("[YouTube] Logout error:", error);
+    console.error('[YouTube] Logout error:', error);
     return false;
   }
 });
@@ -846,8 +813,8 @@ ipcMain.handle(IPC_CHANNELS.youtube.logout, async () => {
 ipcMain.handle(IPC_CHANNELS.youtube.uploadVideo, async (_event, rawPayload) => {
   try {
     const { filePath, metadata } = youtubeUploadRequestSchema.parse(rawPayload);
-    console.log("[YouTube] Starting upload:", filePath);
-    
+    console.log('[YouTube] Starting upload:', filePath);
+
     const videoId = await uploadVideo(filePath, metadata, (progress) => {
       // Send progress updates to renderer
       if (mainWindow) {
@@ -855,11 +822,11 @@ ipcMain.handle(IPC_CHANNELS.youtube.uploadVideo, async (_event, rawPayload) => {
       }
     });
 
-    console.log("[YouTube] Upload completed:", videoId);
+    console.log('[YouTube] Upload completed:', videoId);
     return { success: true, videoId };
   } catch (error: any) {
-    console.error("[YouTube] Upload error:", error);
-    return { success: false, error: error.message || "Upload failed" };
+    console.error('[YouTube] Upload error:', error);
+    return { success: false, error: error.message || 'Upload failed' };
   }
 });
 
@@ -872,7 +839,7 @@ app.whenReady().then(() => {
       callback({
         responseHeaders: {
           ...details.responseHeaders,
-          "Content-Security-Policy": [packagedCspPolicy()],
+          'Content-Security-Policy': [packagedCspPolicy()],
         },
       });
     });
@@ -891,14 +858,14 @@ app.whenReady().then(() => {
 
   ipcMain.handle(IPC_CHANNELS.update.check, async () => {
     if (!updateService) {
-      return { enabled: false, started: false, error: "Update service not initialized" };
+      return { enabled: false, started: false, error: 'Update service not initialized' };
     }
     return updateService.checkForUpdates();
   });
 
   ipcMain.handle(IPC_CHANNELS.update.download, async () => {
     if (!updateService) {
-      return { enabled: false, started: false, error: "Update service not initialized" };
+      return { enabled: false, started: false, error: 'Update service not initialized' };
     }
     return updateService.downloadUpdate();
   });
@@ -910,15 +877,15 @@ app.whenReady().then(() => {
     return updateService.installUpdate();
   });
 
-  app.on("activate", () => {
+  app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
   });
 });
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
     app.quit();
   }
 });

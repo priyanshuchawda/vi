@@ -14,7 +14,7 @@ class RequestCache {
   private readonly maxEntries: number;
   private readonly storageKey: string;
 
-  constructor(maxEntries: number = 200, storageKey: string = "qc_request_cache_v2") {
+  constructor(maxEntries: number = 200, storageKey: string = 'qc_request_cache_v2') {
     this.maxEntries = maxEntries;
     this.storageKey = storageKey;
     this.hydrate();
@@ -61,14 +61,14 @@ class RequestCache {
   }
 
   private hydrate(): void {
-    if (typeof window === "undefined") return;
+    if (typeof window === 'undefined') return;
     try {
       const raw = localStorage.getItem(this.storageKey);
       if (!raw) return;
       const parsed = JSON.parse(raw) as Array<[string, CacheEntry<unknown>]>;
       const now = Date.now();
       for (const [key, entry] of parsed) {
-        if (!entry || typeof entry !== "object") continue;
+        if (!entry || typeof entry !== 'object') continue;
         if (now > entry.expiresAt) continue;
         this.store.set(key, entry);
       }
@@ -79,7 +79,7 @@ class RequestCache {
   }
 
   private persist(): void {
-    if (typeof window === "undefined") return;
+    if (typeof window === 'undefined') return;
     try {
       const entries = Array.from(this.store.entries());
       localStorage.setItem(this.storageKey, JSON.stringify(entries));
@@ -113,7 +113,7 @@ export function hashString(value: string): string {
 }
 
 export function normalizeMessage(text: string): string {
-  return text.trim().replace(/\s+/g, " ").toLowerCase();
+  return text.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 export function buildCacheKey(parts: Array<string | number | boolean | undefined>): string {
@@ -121,7 +121,7 @@ export function buildCacheKey(parts: Array<string | number | boolean | undefined
     parts
       .filter((p) => p !== undefined)
       .map((p) => String(p))
-      .join("::"),
+      .join('::'),
   );
 }
 
@@ -136,7 +136,7 @@ export function buildSemanticCacheKey(input: {
   extra?: string;
 }): string {
   return buildCacheKey([
-    "semantic",
+    'semantic',
     input.intent,
     input.modelId,
     normalizeMessage(input.message),

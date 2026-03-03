@@ -1,6 +1,6 @@
 /**
  * Fallback Plan Generator
- * 
+ *
  * Generates safe, deterministic plans when LLM fails to return valid operations.
  * Ensures the system never shows "empty plan" errors to users.
  */
@@ -11,7 +11,7 @@ import type { AliasMap } from './clipAliasMapper';
 
 /**
  * Generate a safe fallback plan based on project state
- * 
+ *
  * Strategy:
  * - Never mutate timeline by default
  * - Use read-only inspection to recover context safely
@@ -86,7 +86,7 @@ export function buildFallbackExecutionPlan(
     },
     totalRounds: 1,
     estimatedDuration: operations.length * 0.5,
-    requiresApproval: operations.some(op => !op.isReadOnly),
+    requiresApproval: operations.some((op) => !op.isReadOnly),
     planReady: false,
     planReadyReason: 'Fallback inspection plan only. Rebuild or refine before execution.',
     riskNotes: ['Fallback mode active due to malformed or low-confidence planner output'],
@@ -106,9 +106,9 @@ export function shouldUseFallback(operations: PlannedOperation[] | undefined): b
  */
 export function getFallbackExplanation(clipCount: number): string {
   if (clipCount === 0) {
-    return "Your timeline is empty. Please add media files to start editing.";
+    return 'Your timeline is empty. Please add media files to start editing.';
   }
-  
+
   if (clipCount === 1) {
     return "I couldn't compile a safe edit plan. I prepared a read-only timeline inspection so we can rebuild an executable plan from current state.";
   }

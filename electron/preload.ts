@@ -29,7 +29,13 @@ type UpdateStatus =
   | { status: 'checking' }
   | { status: 'available'; version: string; notes?: string }
   | { status: 'not-available' }
-  | { status: 'downloading'; percent: number; transferred: number; total: number; bytesPerSecond: number }
+  | {
+      status: 'downloading';
+      percent: number;
+      transferred: number;
+      total: number;
+      bytesPerSecond: number;
+    }
   | { status: 'downloaded'; version: string }
   | { status: 'error'; message: string };
 type YouTubeUploadMetadata = {
@@ -49,9 +55,12 @@ const invokeIpc = <K extends keyof IpcInvokeContract>(
 contextBridge.exposeInMainWorld('electronAPI', {
   ping: () => invokeIpc(IPC_CHANNELS.ping),
   openFile: () => invokeIpc(IPC_CHANNELS.dialog.openFile),
-  getMetadata: (filePath: string) => invokeIpc(IPC_CHANNELS.media.getMetadata, filePathSchema.parse(filePath)),
-  getThumbnail: (filePath: string) => invokeIpc(IPC_CHANNELS.media.getThumbnail, filePathSchema.parse(filePath)),
-  getWaveform: (filePath: string) => invokeIpc(IPC_CHANNELS.media.getWaveform, filePathSchema.parse(filePath)),
+  getMetadata: (filePath: string) =>
+    invokeIpc(IPC_CHANNELS.media.getMetadata, filePathSchema.parse(filePath)),
+  getThumbnail: (filePath: string) =>
+    invokeIpc(IPC_CHANNELS.media.getThumbnail, filePathSchema.parse(filePath)),
+  getWaveform: (filePath: string) =>
+    invokeIpc(IPC_CHANNELS.media.getWaveform, filePathSchema.parse(filePath)),
   saveFile: (format?: string) =>
     invokeIpc(
       IPC_CHANNELS.dialog.saveFile,
@@ -67,7 +76,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ) =>
     invokeIpc(
       IPC_CHANNELS.media.exportVideo,
-      exportVideoRequestSchema.parse({ clips, outputPath, format, resolution, subtitles, subtitleStyle }),
+      exportVideoRequestSchema.parse({
+        clips,
+        outputPath,
+        format,
+        resolution,
+        subtitles,
+        subtitleStyle,
+      }),
     ),
   onExportProgress: (callback: (percent: number) => void) => {
     const listener = (_event: IpcRendererEvent, percent: number) => callback(percent);
@@ -87,7 +103,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   transcribeTimeline: (clips: Array<{ path: string; startTime: number; duration: number }>) =>
     invokeIpc(IPC_CHANNELS.transcription.transcribeTimeline, timelineClipListSchema.parse(clips)),
   onTranscriptionProgress: (callback: (progress: TranscriptionProgress) => void) => {
-    const listener = (_event: IpcRendererEvent, progress: TranscriptionProgress) => callback(progress);
+    const listener = (_event: IpcRendererEvent, progress: TranscriptionProgress) =>
+      callback(progress);
     ipcRenderer.on(IPC_CHANNELS.transcription.progress, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.transcription.progress, listener);
   },
@@ -131,14 +148,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       metadata: YouTubeUploadMetadata,
       onProgress?: (progress: YouTubeUploadProgress) => void,
     ) => {
-      const listener = (_event: IpcRendererEvent, progress: YouTubeUploadProgress) => onProgress?.(progress);
+      const listener = (_event: IpcRendererEvent, progress: YouTubeUploadProgress) =>
+        onProgress?.(progress);
       if (onProgress) {
         ipcRenderer.on(IPC_CHANNELS.youtube.uploadProgress, listener);
       }
       try {
         return await invokeIpc(
           IPC_CHANNELS.youtube.uploadVideo,
-          youtubeUploadRequestSchema.parse({ filePath, metadata: youtubeUploadMetadataSchema.parse(metadata) }),
+          youtubeUploadRequestSchema.parse({
+            filePath,
+            metadata: youtubeUploadMetadataSchema.parse(metadata),
+          }),
         );
       } finally {
         if (onProgress) {

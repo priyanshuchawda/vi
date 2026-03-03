@@ -74,7 +74,11 @@ const realSnapshot: AIProjectSnapshot = {
   },
   constraints: {
     approvalPolicy: { readOnlyNoApproval: true, mutatingRequiresApproval: true },
-    executionPolicy: { defaultMode: 'strict_sequential', maxReadOnlyBatchSize: 3, stopOnFailure: true },
+    executionPolicy: {
+      defaultMode: 'strict_sequential',
+      maxReadOnlyBatchSize: 3,
+      stopOnFailure: true,
+    },
     timelineBounds: { minTime: 0, maxTime: 10, maxClipEndById: { 'uuid-1': 10 } },
     supportedToolNames: [],
   },

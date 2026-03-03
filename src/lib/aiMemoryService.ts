@@ -11,16 +11,12 @@
  * The analysis runs in parallel with the normal import flow.
  */
 
-import {
-  converseBedrock,
-  MODEL_ID,
-  isBedrockConfigured,
-} from "./bedrockGateway";
-import { useAiMemoryStore } from "../stores/useAiMemoryStore";
-import type { AudioInfo, SceneInfo, VisualInfo } from "../types/aiMemory";
-import { MediaAnalysisSchema } from "./schemas/mediaAnalysis";
-import { waitForSlot } from "./rateLimiter";
-import { recordUsage } from "./tokenTracker";
+import { converseBedrock, MODEL_ID, isBedrockConfigured } from './bedrockGateway';
+import { useAiMemoryStore } from '../stores/useAiMemoryStore';
+import type { AudioInfo, SceneInfo, VisualInfo } from '../types/aiMemory';
+import { MediaAnalysisSchema } from './schemas/mediaAnalysis';
+import { waitForSlot } from './rateLimiter';
+import { recordUsage } from './tokenTracker';
 
 // Queue management for background analysis
 const analysisQueue: AnalysisTask[] = [];
@@ -41,7 +37,7 @@ interface AnalysisTask {
   entryId: string;
   filePath: string;
   fileName: string;
-  mediaType: "video" | "audio" | "image" | "document";
+  mediaType: 'video' | 'audio' | 'image' | 'document';
   mimeType: string;
   fileSize: number;
   duration?: number;
@@ -49,7 +45,7 @@ interface AnalysisTask {
   clipOptions?: VideoClipOptions;
 }
 
-export type AnalysisBudgetTier = "low" | "standard" | "high";
+export type AnalysisBudgetTier = 'low' | 'standard' | 'high';
 
 interface AnalysisTierConfig {
   maxTokens: number;
@@ -83,11 +79,7 @@ const ANALYSIS_TIER_CONFIG: Record<AnalysisBudgetTier, AnalysisTierConfig> = {
  * Get the appropriate analysis prompt based on media type
  * Nova Lite doesn't have responseSchema — we add JSON instructions to the prompt
  */
-function getAnalysisPrompt(
-  mediaType: string,
-  fileName: string,
-  tier: AnalysisBudgetTier,
-): string {
+function getAnalysisPrompt(mediaType: string, fileName: string, tier: AnalysisBudgetTier): string {
   const tierGuidance: Record<AnalysisBudgetTier, string> = {
     low: `<budget_mode>
 Tier: low
@@ -143,7 +135,7 @@ Use this exact structure:
 The "scenes", "audioInfo", and "visualInfo" fields are optional — include them only if relevant.
 </output_format>`;
 
-  if (mediaType === "video") {
+  if (mediaType === 'video') {
     return (
       baseInstruction +
       `
@@ -159,7 +151,7 @@ ${tierGuidance[tier]}
     );
   }
 
-  if (mediaType === "audio") {
+  if (mediaType === 'audio') {
     return (
       baseInstruction +
       `
@@ -175,7 +167,7 @@ ${tierGuidance[tier]}
     );
   }
 
-  if (mediaType === "image") {
+  if (mediaType === 'image') {
     return (
       baseInstruction +
       `
@@ -209,24 +201,24 @@ ${tierGuidance[tier]}
 /** Bedrock-compatible media format from MIME type */
 function getMediaFormat(mimeType: string): string {
   const map: Record<string, string> = {
-    "image/jpeg": "jpeg",
-    "image/jpg": "jpeg",
-    "image/png": "png",
-    "image/gif": "gif",
-    "image/webp": "webp",
-    "video/mp4": "mp4",
-    "video/quicktime": "mov",
-    "video/webm": "webm",
-    "video/x-matroska": "mkv",
+    'image/jpeg': 'jpeg',
+    'image/jpg': 'jpeg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'video/mp4': 'mp4',
+    'video/quicktime': 'mov',
+    'video/webm': 'webm',
+    'video/x-matroska': 'mkv',
   };
-  return map[mimeType] || mimeType.split("/")[1] || "jpeg";
+  return map[mimeType] || mimeType.split('/')[1] || 'jpeg';
 }
 
 // Max size for inline bytes in Bedrock: 25MB
 const MAX_INLINE_SIZE = 25 * 1024 * 1024;
 
 export function selectAnalysisTier(input: {
-  mediaType: AnalysisTask["mediaType"];
+  mediaType: AnalysisTask['mediaType'];
   fileSize: number;
   duration?: number;
   queueDepth: number;
@@ -236,24 +228,24 @@ export function selectAnalysisTier(input: {
   const largeFile = input.fileSize > MAX_INLINE_SIZE;
 
   if (largeFile || pressure >= 4) {
-    return "low";
+    return 'low';
   }
 
-  if (input.mediaType === "image" && input.fileSize <= 5 * 1024 * 1024) {
-    return "high";
+  if (input.mediaType === 'image' && input.fileSize <= 5 * 1024 * 1024) {
+    return 'high';
   }
 
   if (
-    input.mediaType === "video" &&
+    input.mediaType === 'video' &&
     input.fileSize <= 12 * 1024 * 1024 &&
     (input.duration ?? 0) > 0 &&
     (input.duration ?? 0) <= 60 &&
     pressure <= 1
   ) {
-    return "high";
+    return 'high';
   }
 
-  return "standard";
+  return 'standard';
 }
 
 /**
@@ -267,7 +259,7 @@ async function readFileAsBase64(filePath: string): Promise<string | null> {
     }
     return null;
   } catch (error) {
-    console.error("Error reading file for analysis:", error);
+    console.error('Error reading file for analysis:', error);
     return null;
   }
 }
@@ -296,10 +288,10 @@ function parseAnalysisResponse(responseText: string): {
   try {
     // Clean the response — remove markdown code blocks if present
     let cleaned = responseText.trim();
-    if (cleaned.startsWith("```json")) {
-      cleaned = cleaned.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-    } else if (cleaned.startsWith("```")) {
-      cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "");
+    if (cleaned.startsWith('```json')) {
+      cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
     }
 
     const parsed = JSON.parse(cleaned);
@@ -308,11 +300,11 @@ function parseAnalysisResponse(responseText: string): {
     const result = MediaAnalysisSchema.safeParse(parsed);
 
     if (!result.success) {
-      console.warn("Schema validation failed:", result.error.format());
+      console.warn('Schema validation failed:', result.error.format());
       return {
-        summary: parsed.summary || "No summary available",
+        summary: parsed.summary || 'No summary available',
         tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 10) : [],
-        analysis: parsed.analysis || "No detailed analysis available",
+        analysis: parsed.analysis || 'No detailed analysis available',
         scenes: Array.isArray(parsed.scenes) ? parsed.scenes : undefined,
         audioInfo: parsed.audioInfo || undefined,
         visualInfo: parsed.visualInfo || undefined,
@@ -321,9 +313,9 @@ function parseAnalysisResponse(responseText: string): {
 
     return result.data;
   } catch (error) {
-    console.error("Failed to parse analysis response:", error);
+    console.error('Failed to parse analysis response:', error);
     return {
-      summary: "Analysis parsing failed",
+      summary: 'Analysis parsing failed',
       tags: [],
       analysis: responseText.slice(0, 500),
     };
@@ -347,19 +339,19 @@ function sleep(ms: number): Promise<void> {
  */
 async function analyzeFile(task: AnalysisTask): Promise<void> {
   if (!isBedrockConfigured()) {
-    console.error(" [AI Memory] Bedrock client not configured!");
+    console.error(' [AI Memory] Bedrock client not configured!');
     useAiMemoryStore
       .getState()
       .updateStatus(
         task.entryId,
-        "failed",
-        "Bedrock gateway not available. Ensure Electron preload API is active.",
+        'failed',
+        'Bedrock gateway not available. Ensure Electron preload API is active.',
       );
     return;
   }
 
   const store = useAiMemoryStore.getState();
-  store.updateStatus(task.entryId, "analyzing");
+  store.updateStatus(task.entryId, 'analyzing');
 
   console.log(
     ` [AI Memory] Starting analysis for "${task.fileName}" (${(task.fileSize / 1024 / 1024).toFixed(2)} MB)`,
@@ -383,14 +375,12 @@ async function analyzeFile(task: AnalysisTask): Promise<void> {
       // Build Bedrock content blocks
       const content: Array<Record<string, any>> = [];
 
-      if (task.mediaType === "image") {
+      if (task.mediaType === 'image') {
         // Images: always inline bytes
         let base64Data: string | null = null;
 
         if (task.thumbnailDataUrl) {
-          const base64Match = task.thumbnailDataUrl.match(
-            /^data:[^;]+;base64,(.+)$/,
-          );
+          const base64Match = task.thumbnailDataUrl.match(/^data:[^;]+;base64,(.+)$/);
           if (base64Match) {
             base64Data = base64Match[1];
           }
@@ -407,7 +397,7 @@ async function analyzeFile(task: AnalysisTask): Promise<void> {
             image: { format, source: { bytes } },
           });
         }
-      } else if (task.mediaType === "video") {
+      } else if (task.mediaType === 'video') {
         // Videos: inline bytes (< 25MB recommended)
         if (task.fileSize > MAX_INLINE_SIZE) {
           console.warn(
@@ -417,7 +407,7 @@ async function analyzeFile(task: AnalysisTask): Promise<void> {
             text: `Large video metadata:
 - Name: ${task.fileName}
 - Size: ${(task.fileSize / 1024 / 1024).toFixed(1)}MB
-- Duration: ${task.duration?.toFixed(2) ?? "unknown"}s
+- Duration: ${task.duration?.toFixed(2) ?? 'unknown'}s
 Provide conservative analysis and explicitly mention limited confidence due to missing inline video bytes.`,
           });
         } else {
@@ -430,17 +420,15 @@ Provide conservative analysis and explicitly mention limited confidence due to m
             });
           }
         }
-      } else if (task.mediaType === "audio") {
+      } else if (task.mediaType === 'audio') {
         // Audio: Nova Lite doesn't support audio inline
         // If we have a thumbnail, send it as an image for visual context
         if (task.thumbnailDataUrl) {
-          const base64Match = task.thumbnailDataUrl.match(
-            /^data:[^;]+;base64,(.+)$/,
-          );
+          const base64Match = task.thumbnailDataUrl.match(/^data:[^;]+;base64,(.+)$/);
           if (base64Match) {
             const bytes = base64ToUint8Array(base64Match[1]);
             content.push({
-              image: { format: "jpeg", source: { bytes } },
+              image: { format: 'jpeg', source: { bytes } },
             });
           }
         }
@@ -487,7 +475,7 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
         modelId: MODEL_ID,
         messages: [
           {
-            role: "user",
+            role: 'user',
             content: content as any,
           },
         ],
@@ -507,30 +495,22 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
         });
       }
 
-      const responseText = response.output?.message?.content?.[0]?.text || "";
+      const responseText = response.output?.message?.content?.[0]?.text || '';
 
       if (!responseText) {
-        throw new Error("Empty response from Bedrock");
+        throw new Error('Empty response from Bedrock');
       }
 
       const parsed = parseAnalysisResponse(responseText);
 
       // Store the analysis
-      store.updateAnalysis(
-        task.entryId,
-        parsed.analysis,
-        parsed.tags,
-        parsed.summary,
-        {
-          scenes: parsed.scenes,
-          audioInfo: parsed.audioInfo,
-          visualInfo: parsed.visualInfo,
-        },
-      );
+      store.updateAnalysis(task.entryId, parsed.analysis, parsed.tags, parsed.summary, {
+        scenes: parsed.scenes,
+        audioInfo: parsed.audioInfo,
+        visualInfo: parsed.visualInfo,
+      });
 
-      console.log(
-        ` Analysis complete for "${task.fileName}": ${parsed.summary}`,
-      );
+      console.log(` Analysis complete for "${task.fileName}": ${parsed.summary}`);
       return; // Success — exit retry loop
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -538,17 +518,15 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
 
       // Check if this is a retryable error
       const isRetryable =
-        errorMsg.includes("500") ||
-        errorMsg.includes("InternalServerException") ||
-        errorMsg.includes("503") ||
-        errorMsg.includes("ServiceUnavailableException") ||
-        errorMsg.includes("ThrottlingException") ||
-        errorMsg.includes("overloaded");
+        errorMsg.includes('500') ||
+        errorMsg.includes('InternalServerException') ||
+        errorMsg.includes('503') ||
+        errorMsg.includes('ServiceUnavailableException') ||
+        errorMsg.includes('ThrottlingException') ||
+        errorMsg.includes('overloaded');
 
       if (isRetryable && attempt < MAX_RETRIES) {
-        const backoffMs =
-          Math.min(1000 * Math.pow(2, attempt - 1), 10000) +
-          Math.random() * 1000;
+        const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 10000) + Math.random() * 1000;
         console.warn(
           ` Retryable error for "${task.fileName}" (attempt ${attempt}/${MAX_RETRIES}), retrying in ${(backoffMs / 1000).toFixed(1)}s...`,
           errorMsg,
@@ -557,17 +535,14 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
         continue;
       }
 
-      console.error(
-        ` Analysis failed for "${task.fileName}" after ${attempt} attempt(s):`,
-        error,
-      );
-      store.updateStatus(task.entryId, "failed", errorMsg);
+      console.error(` Analysis failed for "${task.fileName}" after ${attempt} attempt(s):`, error);
+      store.updateStatus(task.entryId, 'failed', errorMsg);
       return;
     }
   }
 
   if (lastError) {
-    store.updateStatus(task.entryId, "failed", lastError.message);
+    store.updateStatus(task.entryId, 'failed', lastError.message);
   }
 }
 
@@ -575,7 +550,7 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
  * Memory is now saved with project files, not separately to disk
  */
 export function saveMemoryToDisk(): void {
-  console.log("[Memory Service] Memory is saved with project file");
+  console.log('[Memory Service] Memory is saved with project file');
 }
 
 /**
@@ -624,7 +599,7 @@ async function processQueue(): Promise<void> {
 export function queueMediaAnalysis(params: {
   filePath: string;
   fileName: string;
-  mediaType: "video" | "audio" | "image";
+  mediaType: 'video' | 'audio' | 'image';
   mimeType: string;
   fileSize: number;
   duration?: number;
@@ -635,7 +610,7 @@ export function queueMediaAnalysis(params: {
 
   // Check if this file has already been analyzed
   const existing = store.getEntryByFilePath(params.filePath);
-  if (existing && existing.status === "completed") {
+  if (existing && existing.status === 'completed') {
     console.log(` "${params.fileName}" already analyzed, skipping`);
     if (params.clipId && !existing.clipId) {
       store.linkClipId(existing.id, params.clipId);
@@ -646,25 +621,25 @@ export function queueMediaAnalysis(params: {
   // Determine mime type from extension if not provided
   let mimeType = params.mimeType;
   if (!mimeType) {
-    const ext = params.fileName.split(".").pop()?.toLowerCase() || "";
+    const ext = params.fileName.split('.').pop()?.toLowerCase() || '';
     const mimeMap: Record<string, string> = {
-      mp4: "video/mp4",
-      mov: "video/quicktime",
-      avi: "video/x-msvideo",
-      webm: "video/webm",
-      mp3: "audio/mpeg",
-      wav: "audio/wav",
-      aac: "audio/aac",
-      flac: "audio/flac",
-      ogg: "audio/ogg",
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      png: "image/png",
-      gif: "image/gif",
-      webp: "image/webp",
-      bmp: "image/bmp",
+      mp4: 'video/mp4',
+      mov: 'video/quicktime',
+      avi: 'video/x-msvideo',
+      webm: 'video/webm',
+      mp3: 'audio/mpeg',
+      wav: 'audio/wav',
+      aac: 'audio/aac',
+      flac: 'audio/flac',
+      ogg: 'audio/ogg',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      webp: 'image/webp',
+      bmp: 'image/bmp',
     };
-    mimeType = mimeMap[ext] || "application/octet-stream";
+    mimeType = mimeMap[ext] || 'application/octet-stream';
   }
 
   // Add entry to store
@@ -691,9 +666,7 @@ export function queueMediaAnalysis(params: {
     thumbnailDataUrl: params.thumbnailDataUrl,
   });
 
-  console.log(
-    ` Queued "${params.fileName}" for AI analysis (${analysisQueue.length} in queue)`,
-  );
+  console.log(` Queued "${params.fileName}" for AI analysis (${analysisQueue.length} in queue)`);
 
   processQueue();
 
@@ -708,7 +681,7 @@ export function retryAnalysis(entryId: string): void {
   const entry = store.entries.find((e) => e.id === entryId);
   if (!entry) return;
 
-  store.updateStatus(entryId, "pending");
+  store.updateStatus(entryId, 'pending');
 
   analysisQueue.push({
     entryId,

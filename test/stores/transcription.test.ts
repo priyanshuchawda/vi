@@ -26,7 +26,7 @@ describe('Transcription Feature - Store State Management', () => {
       result.current.isTranscribing = false;
       result.current.transcriptionProgress = null;
     });
-    
+
     // Reset mocks
     vi.clearAllMocks();
   });
@@ -38,7 +38,7 @@ describe('Transcription Feature - Store State Management', () => {
   describe('Store State', () => {
     it('should initialize with null transcription', () => {
       const { result } = renderHook(() => useProjectStore());
-      
+
       expect(result.current.transcription).toBeNull();
       expect(result.current.isTranscribing).toBe(false);
       expect(result.current.transcriptionProgress).toBeNull();
@@ -46,12 +46,10 @@ describe('Transcription Feature - Store State Management', () => {
 
     it('should set transcription result', () => {
       const { result } = renderHook(() => useProjectStore());
-      
+
       const mockTranscription = {
         text: 'Hello world',
-        segments: [
-          { id: 1, start: 0, end: 2, text: 'Hello world' }
-        ]
+        segments: [{ id: 1, start: 0, end: 2, text: 'Hello world' }],
       };
 
       act(() => {
@@ -64,10 +62,10 @@ describe('Transcription Feature - Store State Management', () => {
 
     it('should clear transcription', () => {
       const { result } = renderHook(() => useProjectStore());
-      
+
       const mockTranscription = {
         text: 'Hello world',
-        segments: []
+        segments: [],
       };
 
       act(() => {
@@ -86,11 +84,11 @@ describe('Transcription Feature - Store State Management', () => {
 
     it('should set transcription progress', () => {
       const { result } = renderHook(() => useProjectStore());
-      
+
       const mockProgress = {
         status: 'Transcribing...',
         progress: 50,
-        clip: 1
+        clip: 1,
       };
 
       act(() => {
@@ -111,7 +109,7 @@ describe('Transcription Feature - Store State Management', () => {
 
       expect(result.current.notification).toEqual({
         type: 'error',
-        message: 'No clip selected'
+        message: 'No clip selected',
       });
     });
 
@@ -146,7 +144,7 @@ describe('Transcription Feature - Store State Management', () => {
 
       expect(result.current.notification).toEqual({
         type: 'error',
-        message: 'No clips in timeline'
+        message: 'No clips in timeline',
       });
     });
 
@@ -180,10 +178,10 @@ describe('Transcription Feature - Store State Management', () => {
 
       // Verify clips were added
       expect(result.current.clips.length).toBe(3);
-      
+
       // Verify we have video and audio clips
       const videoAudioClips = result.current.clips.filter(
-        clip => clip.mediaType === 'video' || clip.mediaType === 'audio'
+        (clip) => clip.mediaType === 'video' || clip.mediaType === 'audio',
       );
       expect(videoAudioClips.length).toBe(2);
     });
@@ -215,7 +213,7 @@ describe('Transcription Feature - Store State Management', () => {
 
       expect(result.current.notification).toEqual({
         type: 'error',
-        message: 'No video/audio clips to transcribe'
+        message: 'No video/audio clips to transcribe',
       });
     });
   });
@@ -226,7 +224,7 @@ describe('Transcription Feature - Store State Management', () => {
 
       const mockTranscription = {
         text: 'Transcribed text',
-        segments: []
+        segments: [],
       };
 
       act(() => {
@@ -241,12 +239,12 @@ describe('Transcription Feature - Store State Management', () => {
 
       const mockTranscription = {
         text: 'Important transcription',
-        segments: [{ id: 1, start: 0, end: 5, text: 'Important transcription' }]
+        segments: [{ id: 1, start: 0, end: 5, text: 'Important transcription' }],
       };
 
       act(() => {
         result.current.setTranscription(mockTranscription);
-        
+
         // Add a clip (should not affect transcription)
         result.current.addClip({
           path: '/path/to/video.mp4',

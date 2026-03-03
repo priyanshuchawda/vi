@@ -19,21 +19,25 @@ test/
 ## Running Tests
 
 ### Run all tests
+
 ```bash
 npm test
 ```
 
 ### Run tests in watch mode
+
 ```bash
 npm run test:watch
 ```
 
 ### Run tests with coverage
+
 ```bash
 npm run test:coverage
 ```
 
 ### Run specific test file
+
 ```bash
 npx vitest test/stores/useProjectStore.test.ts
 ```
@@ -41,6 +45,7 @@ npx vitest test/stores/useProjectStore.test.ts
 ## Test Coverage
 
 ### Store Tests (`useProjectStore.test.ts`)
+
 - ✅ Add/remove clips
 - ✅ Split clips at time
 - ✅ Merge selected clips
@@ -50,6 +55,7 @@ npx vitest test/stores/useProjectStore.test.ts
 - ✅ Selection management
 
 ### Clip Operations Tests (`clipOperations.test.ts`)
+
 - ✅ Validate split positions
 - ✅ Split clip at specific time
 - ✅ Detect gaps between clips
@@ -57,6 +63,7 @@ npx vitest test/stores/useProjectStore.test.ts
 - ✅ Handle edge cases
 
 ### Export Helpers Tests (`exportHelpers.test.ts`)
+
 - ✅ Generate export segments
 - ✅ Handle merged clips
 - ✅ Detect overlaps
@@ -64,6 +71,7 @@ npx vitest test/stores/useProjectStore.test.ts
 - ✅ Timeline continuity checks
 
 ### Integration Tests (`video-editor.test.ts`)
+
 - ✅ Complete editing workflows
 - ✅ Import → Split → Merge → Export
 - ✅ Multiple imports and reordering
@@ -75,6 +83,7 @@ npx vitest test/stores/useProjectStore.test.ts
 ## Key Test Scenarios
 
 ### 1. Basic Clip Management
+
 ```typescript
 // Add clip
 addClip({ path: '/video.mp4', name: 'test', duration: 10 });
@@ -87,16 +96,18 @@ updateClip(clipId, { start: 2, end: 8 });
 ```
 
 ### 2. Splitting Workflow
+
 ```typescript
 // Valid split (middle of clip)
 splitClip(clipId, 5); // ✅ Creates 2 clips
 
 // Invalid splits
-splitClip(clipId, 0);  // ❌ At start
+splitClip(clipId, 0); // ❌ At start
 splitClip(clipId, 10); // ❌ At end
 ```
 
 ### 3. Merging Workflow
+
 ```typescript
 // Select clips
 toggleClipSelection(clip1Id, false);
@@ -109,6 +120,7 @@ mergeSelectedClips(); // ✅ Creates merged clip
 ## Mocked Dependencies
 
 All Electron APIs are mocked in `test/setup.ts`:
+
 - `openFile()` - File selection
 - `getMetadata()` - Video metadata
 - `getThumbnail()` - Thumbnail generation
@@ -147,6 +159,7 @@ describe('New Feature', () => {
 ## Continuous Integration
 
 Tests are automatically run on:
+
 - Every commit
 - Pull requests
 - Before builds
@@ -155,6 +168,7 @@ Tests are automatically run on:
 ## Coverage Goals
 
 Target coverage: **80%+**
+
 - Statements: 80%
 - Branches: 75%
 - Functions: 80%

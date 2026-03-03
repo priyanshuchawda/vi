@@ -94,11 +94,7 @@ function makeSnapshot(clipCount: number): AIProjectSnapshot {
 
 describe('fallbackPlanGenerator', () => {
   it('creates only read-only fallback operations', () => {
-    const plan = buildFallbackExecutionPlan(
-      makeSnapshot(3),
-      emptyAliasMap,
-      'yes do it',
-    );
+    const plan = buildFallbackExecutionPlan(makeSnapshot(3), emptyAliasMap, 'yes do it');
 
     expect(plan.operations).toHaveLength(1);
     expect(plan.operations[0].functionCall.name).toBe('get_timeline_info');

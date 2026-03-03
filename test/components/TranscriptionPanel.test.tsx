@@ -14,7 +14,7 @@ describe('TranscriptionPanel Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
-    
+
     // Default mock implementation
     (useProjectStore as any).mockReturnValue({
       transcription: null,
@@ -36,7 +36,7 @@ describe('TranscriptionPanel Component', () => {
       (useProjectStore as any).mockReturnValue({
         transcription: {
           text: 'Test transcription text',
-          segments: []
+          segments: [],
         },
         isTranscribing: false,
         transcriptionProgress: null,
@@ -72,7 +72,7 @@ describe('TranscriptionPanel Component', () => {
         isTranscribing: true,
         transcriptionProgress: {
           status: 'Transcribing...',
-          progress: 75
+          progress: 75,
         },
         clearTranscription: mockClearTranscription,
         setCurrentTime: mockSetCurrentTime,
@@ -80,9 +80,9 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       expect(screen.getByText('Transcribing...')).toBeInTheDocument();
-      
+
       // Check for progress bar (it should have width style)
       const progressBar = document.querySelector('[style*="width: 75%"]');
       expect(progressBar).toBeInTheDocument();
@@ -95,7 +95,7 @@ describe('TranscriptionPanel Component', () => {
         transcriptionProgress: {
           status: 'Processing clip',
           progress: 50,
-          clip: 2
+          clip: 2,
         },
         clearTranscription: mockClearTranscription,
         setCurrentTime: mockSetCurrentTime,
@@ -103,7 +103,7 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       expect(screen.getByText(/Clip 2/i)).toBeInTheDocument();
     });
   });
@@ -111,11 +111,11 @@ describe('TranscriptionPanel Component', () => {
   describe('Transcription Display', () => {
     it('should display full text in textarea', () => {
       const transcriptionText = 'This is the full transcription text';
-      
+
       (useProjectStore as any).mockReturnValue({
         transcription: {
           text: transcriptionText,
-          segments: []
+          segments: [],
         },
         isTranscribing: false,
         transcriptionProgress: null,
@@ -125,7 +125,7 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       const textarea = screen.getByDisplayValue(transcriptionText);
       expect(textarea).toBeInTheDocument();
       expect(textarea).toHaveAttribute('readonly');
@@ -137,8 +137,8 @@ describe('TranscriptionPanel Component', () => {
           text: 'Full text',
           segments: [
             { id: 1, start: 0, end: 2, text: 'Hello world' },
-            { id: 2, start: 2, end: 4, text: 'This is a test' }
-          ]
+            { id: 2, start: 2, end: 4, text: 'This is a test' },
+          ],
         },
         isTranscribing: false,
         transcriptionProgress: null,
@@ -148,7 +148,7 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       expect(screen.getByText('Hello world')).toBeInTheDocument();
       expect(screen.getByText('This is a test')).toBeInTheDocument();
     });
@@ -157,9 +157,7 @@ describe('TranscriptionPanel Component', () => {
       (useProjectStore as any).mockReturnValue({
         transcription: {
           text: 'Full transcription text',
-          segments: [
-            { id: 1, start: 0, end: 2, text: 'Segment text' }
-          ]
+          segments: [{ id: 1, start: 0, end: 2, text: 'Segment text' }],
         },
         isTranscribing: false,
         transcriptionProgress: null,
@@ -169,14 +167,14 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       // Initially shows segments
       expect(screen.getByText('Segment text')).toBeInTheDocument();
-      
+
       // Click toggle button
       const toggleButton = screen.getByTitle('Toggle view');
       fireEvent.click(toggleButton);
-      
+
       // Should now show full text view
       expect(screen.getByDisplayValue('Full transcription text')).toBeInTheDocument();
     });
@@ -187,7 +185,7 @@ describe('TranscriptionPanel Component', () => {
       (useProjectStore as any).mockReturnValue({
         transcription: {
           text: 'Test',
-          segments: []
+          segments: [],
         },
         isTranscribing: false,
         transcriptionProgress: null,
@@ -197,16 +195,16 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       const closeButton = screen.getByTitle('Close transcription');
       fireEvent.click(closeButton);
-      
+
       expect(mockClearTranscription).toHaveBeenCalled();
     });
 
     it('should copy text to clipboard when copy button is clicked', async () => {
       const transcriptionText = 'Text to copy';
-      
+
       // Mock clipboard
       Object.assign(navigator, {
         clipboard: {
@@ -217,7 +215,7 @@ describe('TranscriptionPanel Component', () => {
       (useProjectStore as any).mockReturnValue({
         transcription: {
           text: transcriptionText,
-          segments: []
+          segments: [],
         },
         isTranscribing: false,
         transcriptionProgress: null,
@@ -227,15 +225,15 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       const copyButton = screen.getByTitle('Copy to clipboard');
       fireEvent.click(copyButton);
-      
+
       await waitFor(() => {
         expect(navigator.clipboard.writeText).toHaveBeenCalledWith(transcriptionText);
         expect(mockSetNotification).toHaveBeenCalledWith({
           type: 'success',
-          message: 'Transcription copied to clipboard!'
+          message: 'Transcription copied to clipboard!',
         });
       });
     });
@@ -244,9 +242,7 @@ describe('TranscriptionPanel Component', () => {
       (useProjectStore as any).mockReturnValue({
         transcription: {
           text: 'Full text',
-          segments: [
-            { id: 1, start: 5.5, end: 8.2, text: 'Clickable segment' }
-          ]
+          segments: [{ id: 1, start: 5.5, end: 8.2, text: 'Clickable segment' }],
         },
         isTranscribing: false,
         transcriptionProgress: null,
@@ -256,10 +252,10 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       const segment = screen.getByText('Clickable segment');
       fireEvent.click(segment.closest('div')!);
-      
+
       expect(mockSetCurrentTime).toHaveBeenCalledWith(5.5);
     });
   });
@@ -267,18 +263,18 @@ describe('TranscriptionPanel Component', () => {
   describe('Export Functionality', () => {
     it('should export as TXT file', () => {
       const transcriptionText = 'Export this text';
-      
+
       // Mock URL and link creation
       global.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
       global.URL.revokeObjectURL = vi.fn();
-      
+
       const mockClick = vi.fn();
       vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(mockClick);
 
       (useProjectStore as any).mockReturnValue({
         transcription: {
           text: transcriptionText,
-          segments: []
+          segments: [],
         },
         isTranscribing: false,
         transcriptionProgress: null,
@@ -288,10 +284,10 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       const exportButton = screen.getByTitle('Export as text file');
       fireEvent.click(exportButton);
-      
+
       expect(mockClick).toHaveBeenCalled();
       expect(global.URL.createObjectURL).toHaveBeenCalled();
     });
@@ -300,7 +296,7 @@ describe('TranscriptionPanel Component', () => {
       // Mock URL and link creation
       global.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
       global.URL.revokeObjectURL = vi.fn();
-      
+
       const mockClick = vi.fn();
       vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(mockClick);
 
@@ -309,8 +305,8 @@ describe('TranscriptionPanel Component', () => {
           text: 'Full text',
           segments: [
             { id: 1, start: 0, end: 2, text: 'First segment' },
-            { id: 2, start: 2, end: 4, text: 'Second segment' }
-          ]
+            { id: 2, start: 2, end: 4, text: 'Second segment' },
+          ],
         },
         isTranscribing: false,
         transcriptionProgress: null,
@@ -320,14 +316,14 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       const srtButton = screen.getByTitle('Export as SRT subtitle file');
       fireEvent.click(srtButton);
-      
+
       expect(mockClick).toHaveBeenCalled();
       expect(mockSetNotification).toHaveBeenCalledWith({
         type: 'success',
-        message: 'SRT file exported!'
+        message: 'SRT file exported!',
       });
     });
 
@@ -335,7 +331,7 @@ describe('TranscriptionPanel Component', () => {
       (useProjectStore as any).mockReturnValue({
         transcription: {
           text: 'Text without segments',
-          segments: []
+          segments: [],
         },
         isTranscribing: false,
         transcriptionProgress: null,
@@ -345,7 +341,7 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       // SRT button should not be visible without segments
       const srtButton = screen.queryByTitle('Export as SRT subtitle file');
       expect(srtButton).not.toBeInTheDocument();
@@ -357,7 +353,7 @@ describe('TranscriptionPanel Component', () => {
       (useProjectStore as any).mockReturnValue({
         transcription: {
           text: 'Hello world test',
-          segments: []
+          segments: [],
         },
         isTranscribing: false,
         transcriptionProgress: null,
@@ -367,7 +363,7 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       // Should show 3 words
       expect(screen.getByText('3')).toBeInTheDocument();
       // Should show character count (16 characters)
@@ -381,8 +377,8 @@ describe('TranscriptionPanel Component', () => {
           segments: [
             { id: 1, start: 0, end: 1, text: 'Segment 1' },
             { id: 2, start: 1, end: 2, text: 'Segment 2' },
-            { id: 3, start: 2, end: 3, text: 'Segment 3' }
-          ]
+            { id: 3, start: 2, end: 3, text: 'Segment 3' },
+          ],
         },
         isTranscribing: false,
         transcriptionProgress: null,
@@ -392,7 +388,7 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       const segmentsRow = screen.getByText(/Segments:/i).closest('div');
       expect(segmentsRow).toHaveTextContent('Segments:');
       expect(segmentsRow).toHaveTextContent('3');
@@ -411,7 +407,7 @@ describe('TranscriptionPanel Component', () => {
       });
 
       render(<TranscriptionPanel />);
-      
+
       const closeButton = screen.getByTitle('Close transcription');
       expect(closeButton).toBeDisabled();
     });

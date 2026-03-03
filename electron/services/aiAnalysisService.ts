@@ -4,10 +4,7 @@
  * Runs in Electron main process (Node.js context).
  */
 
-import {
-  BedrockRuntimeClient,
-  ConverseCommand,
-} from "@aws-sdk/client-bedrock-runtime";
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 
 interface ChannelMetadata {
   channel_id: string;
@@ -45,10 +42,10 @@ export class AIAnalysisService {
   private modelId: string;
 
   constructor(
-    region: string = "us-east-1",
-    accessKeyId: string = "",
-    secretAccessKey: string = "",
-    modelId: string = "amazon.nova-lite-v1:0",
+    region: string = 'us-east-1',
+    accessKeyId: string = '',
+    secretAccessKey: string = '',
+    modelId: string = 'amazon.nova-lite-v1:0',
   ) {
     this.client = new BedrockRuntimeClient({
       region,
@@ -66,15 +63,11 @@ export class AIAnalysisService {
     recentVideos: VideoData[],
   ): Promise<AnalysisResult | null> {
     try {
-      const prompt = this.buildAnalysisPrompt(
-        channelMetadata,
-        topVideos,
-        recentVideos,
-      );
+      const prompt = this.buildAnalysisPrompt(channelMetadata, topVideos, recentVideos);
       const response = await this.callBedrock(prompt);
       return this.parseStructuredResponse(response);
     } catch (error) {
-      console.error("AI analysis error:", error);
+      console.error('AI analysis error:', error);
       return null;
     }
   }
@@ -94,14 +87,14 @@ export class AIAnalysisService {
         (v, i) =>
           `${i + 1}. "${v.title}" - ${v.view_count.toLocaleString()} views, ${v.like_count.toLocaleString()} likes`,
       )
-      .join("\n");
+      .join('\n');
 
     const recentVideosFormatted = recentVideos
       .map(
         (v, i) =>
           `${i + 1}. "${v.title}" - ${v.view_count.toLocaleString()} views, ${v.like_count.toLocaleString()} likes`,
       )
-      .join("\n");
+      .join('\n');
 
     return `<role>
 You are a YouTube strategy advisor specializing in content analysis and actionable recommendations for video creators.
@@ -114,7 +107,7 @@ Total Videos: ${channel.video_count}
 Total Views: ${channel.view_count.toLocaleString()}
 Average Views per Video: ${Math.round(avgViews).toLocaleString()}
 Active Since: ${channel.published_at}
-${channel.country ? `Country: ${channel.country}` : ""}
+${channel.country ? `Country: ${channel.country}` : ''}
 
 Top 5 Performing Videos (By Views):
 ${topVideosFormatted}
@@ -165,7 +158,7 @@ Based on the channel data provided above, generate your analysis:`;
       const response = await this.client.send(
         new ConverseCommand({
           modelId: this.modelId,
-          messages: [{ role: "user", content: [{ text: prompt }] }],
+          messages: [{ role: 'user', content: [{ text: prompt }] }],
           system: [
             {
               text: `<role>
@@ -192,9 +185,9 @@ You are precise, analytical, and data-driven.
         }),
       );
 
-      return response.output?.message?.content?.[0]?.text || "";
+      return response.output?.message?.content?.[0]?.text || '';
     } catch (error) {
-      console.error("Bedrock API call failed:", error);
+      console.error('Bedrock API call failed:', error);
       throw error;
     }
   }
@@ -205,10 +198,10 @@ You are precise, analytical, and data-driven.
   private parseStructuredResponse(response: string): AnalysisResult | null {
     try {
       let cleaned = response.trim();
-      if (cleaned.startsWith("```json")) {
-        cleaned = cleaned.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-      } else if (cleaned.startsWith("```")) {
-        cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "");
+      if (cleaned.startsWith('```json')) {
+        cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
       }
 
       const parsed = JSON.parse(cleaned);
@@ -221,7 +214,7 @@ You are precise, analytical, and data-driven.
         !Array.isArray(parsed.editing_style_recommendations) ||
         !Array.isArray(parsed.audience_insights)
       ) {
-        throw new Error("Invalid response structure");
+        throw new Error('Invalid response structure');
       }
 
       return {
@@ -233,8 +226,8 @@ You are precise, analytical, and data-driven.
         audience_insights: parsed.audience_insights,
       };
     } catch (error) {
-      console.error("Failed to parse AI response:", error);
-      console.error("Raw response:", response);
+      console.error('Failed to parse AI response:', error);
+      console.error('Raw response:', response);
       return null;
     }
   }

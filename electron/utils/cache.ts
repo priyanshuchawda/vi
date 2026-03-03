@@ -37,7 +37,7 @@ export class CacheManager {
 
   private initCache() {
     // Create cache directories if they don't exist
-    [this.cacheDir, this.thumbsDir, this.waveformsDir, this.metadataDir].forEach(dir => {
+    [this.cacheDir, this.thumbsDir, this.waveformsDir, this.metadataDir].forEach((dir) => {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
@@ -48,7 +48,7 @@ export class CacheManager {
       if (fs.existsSync(this.indexPath)) {
         const data = fs.readFileSync(this.indexPath, 'utf-8');
         const entries: CacheEntry[] = JSON.parse(data);
-        entries.forEach(entry => {
+        entries.forEach((entry) => {
           this.index.set(entry.key, entry);
         });
         console.log(`Cache initialized with ${this.index.size} entries`);
@@ -65,7 +65,8 @@ export class CacheManager {
   public getCacheKey(filePath: string): string {
     try {
       const stats = fs.statSync(filePath);
-      const hash = crypto.createHash('md5')
+      const hash = crypto
+        .createHash('md5')
         .update(filePath + stats.size + stats.mtimeMs)
         .digest('hex');
       return hash;
@@ -81,7 +82,7 @@ export class CacheManager {
   public getThumbnail(filePath: string): string | null {
     const key = this.getCacheKey(filePath);
     const entry = this.index.get(key);
-    
+
     if (entry && entry.type === 'thumbnail') {
       const cachePath = path.join(this.thumbsDir, `${key}.png`);
       if (fs.existsSync(cachePath)) {
@@ -94,7 +95,7 @@ export class CacheManager {
         }
       }
     }
-    
+
     return null;
   }
 
@@ -104,25 +105,25 @@ export class CacheManager {
   public setThumbnail(filePath: string, base64Data: string): void {
     const key = this.getCacheKey(filePath);
     const cachePath = path.join(this.thumbsDir, `${key}.png`);
-    
+
     try {
       // Extract base64 data (remove data:image/png;base64, prefix if present)
       const base64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
       const buffer = Buffer.from(base64, 'base64');
-      
+
       fs.writeFileSync(cachePath, buffer);
-      
+
       const entry: CacheEntry = {
         key,
         filePath,
         type: 'thumbnail',
         timestamp: Date.now(),
-        size: buffer.length
+        size: buffer.length,
       };
-      
+
       this.index.set(key, entry);
       this.saveIndex();
-      
+
       // Run cleanup if cache is getting large
       this.cleanupIfNeeded();
     } catch (error) {
@@ -136,7 +137,7 @@ export class CacheManager {
   public getWaveform(filePath: string): string | null {
     const key = this.getCacheKey(filePath);
     const entry = this.index.get(key);
-    
+
     if (entry && entry.type === 'waveform') {
       const cachePath = path.join(this.waveformsDir, `${key}.png`);
       if (fs.existsSync(cachePath)) {
@@ -149,7 +150,7 @@ export class CacheManager {
         }
       }
     }
-    
+
     return null;
   }
 
@@ -159,25 +160,25 @@ export class CacheManager {
   public setWaveform(filePath: string, base64Data: string): void {
     const key = this.getCacheKey(filePath);
     const cachePath = path.join(this.waveformsDir, `${key}.png`);
-    
+
     try {
       // Extract base64 data
       const base64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
       const buffer = Buffer.from(base64, 'base64');
-      
+
       fs.writeFileSync(cachePath, buffer);
-      
+
       const entry: CacheEntry = {
         key,
         filePath,
         type: 'waveform',
         timestamp: Date.now(),
-        size: buffer.length
+        size: buffer.length,
       };
-      
+
       this.index.set(key, entry);
       this.saveIndex();
-      
+
       this.cleanupIfNeeded();
     } catch (error) {
       console.warn('Failed to cache waveform:', error);
@@ -200,11 +201,10 @@ export class CacheManager {
    * Clean up old cache entries if cache size exceeds limit
    */
   private cleanupIfNeeded(): void {
-    const totalSize = Array.from(this.index.values())
-      .reduce((sum, entry) => sum + entry.size, 0);
-    
+    const totalSize = Array.from(this.index.values()).reduce((sum, entry) => sum + entry.size, 0);
+
     const totalSizeMB = totalSize / (1024 * 1024);
-    
+
     if (totalSizeMB > MAX_CACHE_SIZE_MB) {
       console.log(`Cache size (${totalSizeMB.toFixed(2)}MB) exceeds limit, cleaning up...`);
       this.cleanup(MAX_CACHE_SIZE_MB * 0.7); // Clean to 70% of max
@@ -216,20 +216,20 @@ export class CacheManager {
    */
   public cleanup(targetSizeMB: number = MAX_CACHE_SIZE_MB * 0.7): void {
     // Sort entries by timestamp (oldest first)
-    const entries = Array.from(this.index.values())
-      .sort((a, b) => a.timestamp - b.timestamp);
-    
+    const entries = Array.from(this.index.values()).sort((a, b) => a.timestamp - b.timestamp);
+
     let currentSize = entries.reduce((sum, entry) => sum + entry.size, 0);
     const targetSize = targetSizeMB * 1024 * 1024;
-    
+
     for (const entry of entries) {
       if (currentSize <= targetSize) break;
-      
+
       // Delete file
-      const cachePath = entry.type === 'thumbnail'
-        ? path.join(this.thumbsDir, `${entry.key}.png`)
-        : path.join(this.waveformsDir, `${entry.key}.png`);
-      
+      const cachePath =
+        entry.type === 'thumbnail'
+          ? path.join(this.thumbsDir, `${entry.key}.png`)
+          : path.join(this.waveformsDir, `${entry.key}.png`);
+
       try {
         if (fs.existsSync(cachePath)) {
           fs.unlinkSync(cachePath);
@@ -241,7 +241,7 @@ export class CacheManager {
         console.warn('Failed to delete cache file:', error);
       }
     }
-    
+
     this.saveIndex();
     console.log(`Cache cleanup complete. New size: ${(currentSize / (1024 * 1024)).toFixed(2)}MB`);
   }
@@ -254,20 +254,20 @@ export class CacheManager {
       // Delete all files in cache directories
       const deleteDir = (dir: string) => {
         if (fs.existsSync(dir)) {
-          fs.readdirSync(dir).forEach(file => {
+          fs.readdirSync(dir).forEach((file) => {
             const filePath = path.join(dir, file);
             fs.unlinkSync(filePath);
           });
         }
       };
-      
+
       deleteDir(this.thumbsDir);
       deleteDir(this.waveformsDir);
-      
+
       // Clear index
       this.index.clear();
       this.saveIndex();
-      
+
       console.log('Cache cleared');
     } catch (error) {
       console.error('Failed to clear cache:', error);
@@ -278,12 +278,11 @@ export class CacheManager {
    * Get cache statistics
    */
   public getStats(): { entries: number; sizeMB: number } {
-    const totalSize = Array.from(this.index.values())
-      .reduce((sum, entry) => sum + entry.size, 0);
-    
+    const totalSize = Array.from(this.index.values()).reduce((sum, entry) => sum + entry.size, 0);
+
     return {
       entries: this.index.size,
-      sizeMB: totalSize / (1024 * 1024)
+      sizeMB: totalSize / (1024 * 1024),
     };
   }
 }

@@ -22,7 +22,8 @@ QUICKCUT_DISABLE_AUTO_UPDATE=1
 
 ## Publish Pipeline
 
-`electron-builder` is configured to publish to GitHub Releases for `priyanshuchawda/vi`.
+`electron-builder` is configured to publish to GitHub Releases for
+`priyanshuchawda/vi`.
 
 Release commands:
 
@@ -31,7 +32,8 @@ npm run dist:linux
 npm run dist:publish
 ```
 
-The GitHub Actions `Release Desktop` workflow is tag-driven (`v*`) and builds Linux desktop artifacts.
+The GitHub Actions `Release Desktop` workflow is tag-driven (`v*`) and builds
+Linux desktop artifacts.
 
 ## Required Secrets and Environment
 
@@ -52,7 +54,9 @@ The GitHub Actions `Release Desktop` workflow is tag-driven (`v*`) and builds Li
 - `CSC_LINK`
 - `CSC_KEY_PASSWORD`
 
-These are intentionally documented as placeholders for production release infrastructure; values must come from CI secret storage, never from committed files.
+These are intentionally documented as placeholders for production release
+infrastructure; values must come from CI secret storage, never from committed
+files.
 
 ## Staging Update Test Plan
 
@@ -60,5 +64,6 @@ These are intentionally documented as placeholders for production release infras
 2. Build and publish artifacts/metadata to GitHub Releases.
 3. Install previous packaged app version.
 4. Start app and run `window.electronAPI.updates.check()` via renderer flow.
-5. Verify `update:status` transition sequence (`checking` -> `available` -> `downloading` -> `downloaded`).
+5. Verify `update:status` transition sequence (`checking` -> `available` ->
+   `downloading` -> `downloaded`).
 6. Trigger install and verify app relaunches into the newer version.

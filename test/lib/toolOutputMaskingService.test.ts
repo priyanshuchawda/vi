@@ -1,24 +1,24 @@
-import { describe, expect, it } from "vitest";
-import { maskToolOutputsInHistory } from "../../src/lib/toolOutputMaskingService";
+import { describe, expect, it } from 'vitest';
+import { maskToolOutputsInHistory } from '../../src/lib/toolOutputMaskingService';
 
-describe("toolOutputMaskingService", () => {
-  it("masks old bulky tool outputs", () => {
-    const largeOutput = "x".repeat(10_000);
+describe('toolOutputMaskingService', () => {
+  it('masks old bulky tool outputs', () => {
+    const largeOutput = 'x'.repeat(10_000);
     const history = [
       {
-        role: "assistant" as const,
+        role: 'assistant' as const,
         content: [
           {
             toolResult: {
-              toolUseId: "a",
+              toolUseId: 'a',
               content: [{ json: { output: largeOutput } }],
             },
           },
         ],
       },
       {
-        role: "assistant" as const,
-        content: [{ text: "recent message" }],
+        role: 'assistant' as const,
+        content: [{ text: 'recent message' }],
       },
     ];
 
@@ -30,18 +30,18 @@ describe("toolOutputMaskingService", () => {
     expect(result.maskedCount).toBe(1);
     expect(result.estimatedTokensSaved).toBeGreaterThan(0);
     const maskedText = result.history[0].content[0].text;
-    expect(maskedText).toContain("<tool_output_masked>");
+    expect(maskedText).toContain('<tool_output_masked>');
   });
 
-  it("does not mask protected recent messages", () => {
+  it('does not mask protected recent messages', () => {
     const history = [
       {
-        role: "assistant" as const,
+        role: 'assistant' as const,
         content: [
           {
             toolResult: {
-              toolUseId: "a",
-              content: [{ json: { output: "x".repeat(10_000) } }],
+              toolUseId: 'a',
+              content: [{ json: { output: 'x'.repeat(10_000) } }],
             },
           },
         ],
@@ -55,22 +55,22 @@ describe("toolOutputMaskingService", () => {
     expect(result.maskedCount).toBe(0);
   });
 
-  it("does not mask below threshold", () => {
+  it('does not mask below threshold', () => {
     const history = [
       {
-        role: "assistant" as const,
+        role: 'assistant' as const,
         content: [
           {
             toolResult: {
-              toolUseId: "a",
-              content: [{ json: { output: "tiny" } }],
+              toolUseId: 'a',
+              content: [{ json: { output: 'tiny' } }],
             },
           },
         ],
       },
       {
-        role: "assistant" as const,
-        content: [{ text: "recent message" }],
+        role: 'assistant' as const,
+        content: [{ text: 'recent message' }],
       },
     ];
 
@@ -81,4 +81,3 @@ describe("toolOutputMaskingService", () => {
     expect(result.maskedCount).toBe(0);
   });
 });
-

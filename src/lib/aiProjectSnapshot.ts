@@ -103,9 +103,7 @@ const NEVER_ASSUME_RULES = [
   'Never assume mutating operations succeeded without explicit tool success=true.',
 ];
 
-export function buildAIProjectSnapshot(
-  supportedToolNames: string[] = [],
-): AIProjectSnapshot {
+export function buildAIProjectSnapshot(supportedToolNames: string[] = []): AIProjectSnapshot {
   const project = useProjectStore.getState();
   const memory = useAiMemoryStore.getState();
   const completedEntries = memory.getCompletedEntries();
@@ -290,15 +288,16 @@ export function formatSnapshotForPrompt(
  * Replaces UUID clip IDs with stable aliases (clip_1, clip_2, etc.)
  * Returns both the aliased snapshot and the alias map for later resolution
  */
-export function buildAliasedSnapshotForPlanning(
-  supportedToolNames: string[] = [],
-): { snapshot: AIProjectSnapshot; aliasMap: AliasMap } {
+export function buildAliasedSnapshotForPlanning(supportedToolNames: string[] = []): {
+  snapshot: AIProjectSnapshot;
+  aliasMap: AliasMap;
+} {
   const fullSnapshot = buildAIProjectSnapshot(supportedToolNames);
   const project = useProjectStore.getState();
-  
+
   // Build alias map from real clips
   const aliasMap = buildClipAliasMap(project.clips);
-  
+
   // Create aliased clips array
   const aliasedClips = fullSnapshot.timeline.clips.map((clip, index) => {
     const alias = aliasMap.byUuid.get(clip.id) || `clip_${index + 1}`;
@@ -307,10 +306,10 @@ export function buildAliasedSnapshotForPlanning(
       id: alias, // Replace UUID with alias
     };
   });
-  
+
   // Create aliased selected IDs
   const aliasedSelectedIds = fullSnapshot.timeline.selectedClipIds
-    .map(uuid => aliasMap.byUuid.get(uuid))
+    .map((uuid) => aliasMap.byUuid.get(uuid))
     .filter((alias): alias is string => alias !== undefined);
 
   // Build aliased snapshot

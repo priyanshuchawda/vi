@@ -8,7 +8,14 @@ interface SubtitleManagerProps {
 }
 
 const SubtitleManager = ({ isOpen, onClose }: SubtitleManagerProps) => {
-  const { subtitles, subtitleStyle, setSubtitles, clearSubtitles, updateSubtitleStyle, setNotification } = useProjectStore();
+  const {
+    subtitles,
+    subtitleStyle,
+    setSubtitles,
+    clearSubtitles,
+    updateSubtitleStyle,
+    setNotification,
+  } = useProjectStore();
   const [fontSize, setFontSize] = useState(subtitleStyle.fontSize);
   const [fontFamily, setFontFamily] = useState(subtitleStyle.fontFamily);
   const [color, setColor] = useState(subtitleStyle.color);
@@ -27,7 +34,7 @@ const SubtitleManager = ({ isOpen, onClose }: SubtitleManagerProps) => {
       const filePaths = await window.electronAPI.openFile();
       if (filePaths && filePaths.length > 0) {
         const filePath = filePaths[0];
-        
+
         // Check if it's an SRT file
         if (!filePath.toLowerCase().endsWith('.srt')) {
           setNotification({ type: 'error', message: 'Please select an SRT file' });
@@ -38,14 +45,17 @@ const SubtitleManager = ({ isOpen, onClose }: SubtitleManagerProps) => {
         const result = await window.electronAPI.readTextFile(filePath);
         if (result.success && result.data) {
           const parsedSubtitles = parseSRT(result.data);
-          
+
           if (parsedSubtitles.length === 0) {
             setNotification({ type: 'error', message: 'No valid subtitles found in file' });
             return;
           }
-          
+
           setSubtitles(parsedSubtitles);
-          setNotification({ type: 'success', message: `Loaded ${parsedSubtitles.length} subtitles` });
+          setNotification({
+            type: 'success',
+            message: `Loaded ${parsedSubtitles.length} subtitles`,
+          });
         }
       }
     } catch (error) {
@@ -72,19 +82,40 @@ const SubtitleManager = ({ isOpen, onClose }: SubtitleManagerProps) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center" onClick={onClose}>
-      <div className="bg-bg-elevated border border-border-primary rounded-lg shadow-2xl w-[90%] max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-bg-elevated border border-border-primary rounded-lg shadow-2xl w-[90%] max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-border-primary flex items-center justify-between">
           <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
-            <svg className="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+            <svg
+              className="w-6 h-6 text-accent"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+              />
             </svg>
             Subtitle Manager
           </h2>
           <button onClick={onClose} className="text-text-muted hover:text-text-primary transition">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -100,7 +131,12 @@ const SubtitleManager = ({ isOpen, onClose }: SubtitleManagerProps) => {
                 className="flex-1 px-4 py-3 bg-accent hover:bg-accent-hover text-bg-primary rounded font-medium transition flex items-center justify-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
                 </svg>
                 Import SRT File
               </button>
@@ -116,7 +152,8 @@ const SubtitleManager = ({ isOpen, onClose }: SubtitleManagerProps) => {
             {subtitles.length > 0 && (
               <div className="mt-3 p-3 bg-bg-surface rounded border border-border-primary">
                 <div className="text-sm text-text-secondary">
-                  <span className="font-semibold text-accent">{subtitles.length}</span> subtitles loaded
+                  <span className="font-semibold text-accent">{subtitles.length}</span> subtitles
+                  loaded
                 </div>
               </div>
             )}
@@ -128,7 +165,9 @@ const SubtitleManager = ({ isOpen, onClose }: SubtitleManagerProps) => {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-2">Font Size</label>
+                  <label className="block text-sm font-medium text-text-secondary mb-2">
+                    Font Size
+                  </label>
                   <input
                     type="number"
                     value={fontSize}
@@ -140,7 +179,9 @@ const SubtitleManager = ({ isOpen, onClose }: SubtitleManagerProps) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-2">Font Family</label>
+                  <label className="block text-sm font-medium text-text-secondary mb-2">
+                    Font Family
+                  </label>
                   <select
                     value={fontFamily}
                     onChange={(e) => setFontFamily(e.target.value)}
@@ -158,7 +199,9 @@ const SubtitleManager = ({ isOpen, onClose }: SubtitleManagerProps) => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-2">Text Color</label>
+                  <label className="block text-sm font-medium text-text-secondary mb-2">
+                    Text Color
+                  </label>
                   <div className="flex gap-2">
                     <input
                       type="color"
@@ -176,7 +219,9 @@ const SubtitleManager = ({ isOpen, onClose }: SubtitleManagerProps) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-2">Background</label>
+                  <label className="block text-sm font-medium text-text-secondary mb-2">
+                    Background
+                  </label>
                   <div className="flex gap-2">
                     <input
                       type="color"
@@ -196,7 +241,9 @@ const SubtitleManager = ({ isOpen, onClose }: SubtitleManagerProps) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-2">Position</label>
+                <label className="block text-sm font-medium text-text-secondary mb-2">
+                  Position
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   {(['top', 'bottom'] as const).map((pos) => (
                     <button
@@ -216,9 +263,11 @@ const SubtitleManager = ({ isOpen, onClose }: SubtitleManagerProps) => {
 
               {/* Preview */}
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-2">Preview</label>
+                <label className="block text-sm font-medium text-text-secondary mb-2">
+                  Preview
+                </label>
                 <div className="relative w-full aspect-video bg-bg-primary rounded border border-border-primary overflow-hidden">
-                  <div 
+                  <div
                     className="absolute left-1/2 -translate-x-1/2 px-3 py-1.5 rounded"
                     style={{
                       [position]: '20px',

@@ -1,4 +1,4 @@
-import type { AIChatMessage } from "./aiService";
+import type { AIChatMessage } from './aiService';
 
 export interface ToolOutputMaskingOptions {
   protectLatestMessages?: number;
@@ -15,7 +15,7 @@ export interface ToolOutputMaskingResult {
 const DEFAULT_PROTECT_LATEST_MESSAGES = 8;
 const DEFAULT_MIN_TOKENS_PER_BLOCK = 800;
 const DEFAULT_PREVIEW_CHARS = 300;
-const MASK_TAG = "tool_output_masked";
+const MASK_TAG = 'tool_output_masked';
 
 function estimateTokens(value: string): number {
   return Math.ceil(value.length / 4);
@@ -23,7 +23,7 @@ function estimateTokens(value: string): number {
 
 function formatMaskedPreview(value: string, previewChars: number): string {
   const preview = value.slice(0, previewChars).trim();
-  const lines = value.split("\n").length;
+  const lines = value.split('\n').length;
   const sizeKb = (value.length / 1024).toFixed(1);
   return `<${MASK_TAG}>
 output masked for token efficiency
@@ -52,10 +52,8 @@ export function maskToolOutputsInHistory(
     return { history, maskedCount: 0, estimatedTokensSaved: 0 };
   }
 
-  const protectLatestMessages =
-    options.protectLatestMessages ?? DEFAULT_PROTECT_LATEST_MESSAGES;
-  const minTokensPerBlock =
-    options.minTokensPerBlock ?? DEFAULT_MIN_TOKENS_PER_BLOCK;
+  const protectLatestMessages = options.protectLatestMessages ?? DEFAULT_PROTECT_LATEST_MESSAGES;
+  const minTokensPerBlock = options.minTokensPerBlock ?? DEFAULT_MIN_TOKENS_PER_BLOCK;
   const maxPreviewChars = options.maxPreviewChars ?? DEFAULT_PREVIEW_CHARS;
 
   const cutoff = Math.max(0, history.length - protectLatestMessages);

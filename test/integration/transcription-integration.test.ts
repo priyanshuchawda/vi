@@ -4,10 +4,10 @@ import fs from 'fs';
 
 /**
  * Integration Tests for Transcription Feature
- * 
+ *
  * Note: These tests validate the structure and logic of the transcription system.
  * Full end-to-end testing with actual Whisper AI model requires running the Electron app.
- * 
+ *
  * For manual testing:
  * 1. Run: npm run dev
  * 2. Import test-media/test_video_red.mp4 (3 seconds, has audio)
@@ -21,12 +21,11 @@ const testMediaDir = path.join(process.cwd(), 'test-media');
 const integrationDescribe = fs.existsSync(testMediaDir) ? describe : describe.skip;
 
 integrationDescribe('Transcription Feature - Integration Tests', () => {
-
   describe('Test Media Files', () => {
     it('should have test video files with audio', () => {
       const testVideo = path.join(testMediaDir, 'test_video_red.mp4');
       expect(fs.existsSync(testVideo)).toBe(true);
-      
+
       const stats = fs.statSync(testVideo);
       expect(stats.size).toBeGreaterThan(1000); // At least 1KB
     });
@@ -34,14 +33,14 @@ integrationDescribe('Transcription Feature - Integration Tests', () => {
     it('should have test audio file', () => {
       const testAudio = path.join(testMediaDir, 'test_audio.m4a');
       expect(fs.existsSync(testAudio)).toBe(true);
-      
+
       const stats = fs.statSync(testAudio);
       expect(stats.size).toBeGreaterThan(1000);
     });
 
     it('should have transcription test files', () => {
       const transcriptionTest = path.join(testMediaDir, 'transcription_test.mp4');
-      
+
       // These files are created by the Python script
       if (fs.existsSync(transcriptionTest)) {
         const stats = fs.statSync(transcriptionTest);
@@ -54,7 +53,7 @@ integrationDescribe('Transcription Feature - Integration Tests', () => {
     it('should have transcription utility module', () => {
       const transcriptionModule = path.join(process.cwd(), 'electron/utils/transcription.ts');
       expect(fs.existsSync(transcriptionModule)).toBe(true);
-      
+
       const content = fs.readFileSync(transcriptionModule, 'utf-8');
       expect(content).toContain('transcribeVideo');
       expect(content).toContain('transcribeTimeline');
@@ -64,7 +63,7 @@ integrationDescribe('Transcription Feature - Integration Tests', () => {
     it('should have TranscriptionPanel component', () => {
       const componentPath = path.join(process.cwd(), 'src/components/ui/TranscriptionPanel.tsx');
       expect(fs.existsSync(componentPath)).toBe(true);
-      
+
       const content = fs.readFileSync(componentPath, 'utf-8');
       expect(content).toContain('TranscriptionPanel');
       expect(content).toContain('transcription');
@@ -93,7 +92,7 @@ integrationDescribe('Transcription Feature - Integration Tests', () => {
       const mockSegments = [
         { id: 1, start: 0, end: 2, text: 'Hello world' },
         { id: 2, start: 2, end: 4, text: 'This is a test' },
-        { id: 3, start: 4, end: 6.5, text: 'Transcription works' }
+        { id: 3, start: 4, end: 6.5, text: 'Transcription works' },
       ];
 
       const formatSRTTime = (seconds: number): string => {
@@ -140,11 +139,11 @@ integrationDescribe('Transcription Feature - Integration Tests', () => {
     it('should create valid text export', () => {
       const mockTranscription = {
         text: 'This is the full transcription text with multiple sentences. It should be exported correctly.',
-        segments: []
+        segments: [],
       };
 
       const textContent = mockTranscription.text;
-      
+
       expect(textContent.length).toBeGreaterThan(0);
       expect(textContent).toContain('transcription');
     });
@@ -152,7 +151,7 @@ integrationDescribe('Transcription Feature - Integration Tests', () => {
     it('should handle empty transcription gracefully', () => {
       const emptyTranscription = {
         text: '',
-        segments: []
+        segments: [],
       };
 
       expect(emptyTranscription.text).toBe('');
@@ -162,7 +161,7 @@ integrationDescribe('Transcription Feature - Integration Tests', () => {
     it('should count words and characters correctly', () => {
       const transcription = {
         text: 'Hello world test transcription',
-        segments: []
+        segments: [],
       };
 
       const wordCount = transcription.text.split(/\s+/).filter(Boolean).length;
@@ -183,7 +182,7 @@ integrationDescribe('Transcription Feature - Integration Tests', () => {
       ];
 
       const transcribableClips = clips.filter(
-        clip => clip.mediaType === 'video' || clip.mediaType === 'audio'
+        (clip) => clip.mediaType === 'video' || clip.mediaType === 'audio',
       );
 
       expect(transcribableClips).toHaveLength(2);
@@ -195,13 +194,13 @@ integrationDescribe('Transcription Feature - Integration Tests', () => {
       const clipStartTime = 10; // Clip starts at 10 seconds in timeline
       const segments = [
         { id: 1, start: 0, end: 2, text: 'First' },
-        { id: 2, start: 2, end: 4, text: 'Second' }
+        { id: 2, start: 2, end: 4, text: 'Second' },
       ];
 
-      const adjustedSegments = segments.map(seg => ({
+      const adjustedSegments = segments.map((seg) => ({
         ...seg,
         start: seg.start + clipStartTime,
-        end: seg.end + clipStartTime
+        end: seg.end + clipStartTime,
       }));
 
       expect(adjustedSegments[0].start).toBe(10);
@@ -214,9 +213,8 @@ integrationDescribe('Transcription Feature - Integration Tests', () => {
   describe('Error Handling', () => {
     it('should handle missing electronAPI gracefully', () => {
       // Simulate browser environment (no electron)
-      const hasElectronAPI = typeof window !== 'undefined' && 
-                            window.electronAPI !== undefined;
-      
+      const hasElectronAPI = typeof window !== 'undefined' && window.electronAPI !== undefined;
+
       // In browser, transcription should not be available
       if (typeof window !== 'undefined' && !window.electronAPI) {
         expect(hasElectronAPI).toBe(false);
@@ -224,13 +222,9 @@ integrationDescribe('Transcription Feature - Integration Tests', () => {
     });
 
     it('should validate file paths', () => {
-      const validPaths = [
-        '/home/user/video.mp4',
-        'C:\\Users\\video.mp4',
-        '/path/to/audio.mp3',
-      ];
+      const validPaths = ['/home/user/video.mp4', 'C:\\Users\\video.mp4', '/path/to/audio.mp3'];
 
-      validPaths.forEach(filePath => {
+      validPaths.forEach((filePath) => {
         expect(filePath.length).toBeGreaterThan(0);
         expect(filePath).toMatch(/\.(mp4|mp3|wav|m4a|avi|mkv|webm)$/i);
       });

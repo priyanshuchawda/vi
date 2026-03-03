@@ -52,17 +52,11 @@ export interface TimelineExportData {
 
 const EPSILON = 0.001;
 
-export const validateSplitPosition = (
-  clip: ClipSegment,
-  splitTime: number
-): boolean => {
+export const validateSplitPosition = (clip: ClipSegment, splitTime: number): boolean => {
   return splitTime > clip.start + EPSILON && splitTime < clip.end - EPSILON;
 };
 
-export const splitClipAtTime = (
-  clip: ClipSegment,
-  splitTime: number
-): SplitResult | null => {
+export const splitClipAtTime = (clip: ClipSegment, splitTime: number): SplitResult | null => {
   if (!validateSplitPosition(clip, splitTime)) {
     return null;
   }
@@ -87,7 +81,7 @@ export const splitClipAtTime = (
 export const splitLinkedClips = (
   videoClip: ClipSegment,
   audioClip: ClipSegment,
-  splitTime: number
+  splitTime: number,
 ): { video: SplitResult; audio: SplitResult } | null => {
   const videoResult = splitClipAtTime(videoClip, splitTime);
   const audioResult = splitClipAtTime(audioClip, splitTime);
@@ -106,7 +100,7 @@ export const splitLinkedClips = (
 
 export const validateClipsAdjacent = (
   clips: ClipSegment[],
-  gapTolerance: number = 0.1
+  gapTolerance: number = 0.1,
 ): boolean => {
   if (clips.length < 2) return true;
 
@@ -189,7 +183,7 @@ export const mergeDifferentSourceClips = (clips: ClipSegment[]): ClipSegment[] =
 export const generateRenderSegments = (
   clips: ClipSegment[],
   startTime?: number,
-  endTime?: number
+  endTime?: number,
 ): RenderSegment[] => {
   const sorted = [...clips].sort((a, b) => a.start - b.start);
   let outputTime = 0;
@@ -225,7 +219,7 @@ export const prepareTimelineExport = (
   videoTracks: Track[],
   audioTracks: Track[],
   startTime?: number,
-  endTime?: number
+  endTime?: number,
 ): TimelineExportData => {
   const allVideoClips = videoTracks.flatMap((t) => t.clips);
   const allAudioClips = audioTracks.flatMap((t) => t.clips);
@@ -234,13 +228,10 @@ export const prepareTimelineExport = (
   const audioSegments = generateRenderSegments(allAudioClips, startTime, endTime);
 
   const allSegments = [...videoSegments, ...audioSegments].sort(
-    (a, b) => a.outputStart - b.outputStart
+    (a, b) => a.outputStart - b.outputStart,
   );
 
-  const totalDuration = Math.max(
-    ...allSegments.map((s) => s.outputEnd),
-    0
-  );
+  const totalDuration = Math.max(...allSegments.map((s) => s.outputEnd), 0);
 
   return {
     segments: allSegments,
@@ -251,7 +242,7 @@ export const prepareTimelineExport = (
 };
 
 export const buildRenderList = (
-  segments: RenderSegment[]
+  segments: RenderSegment[],
 ): Array<{ sourcePath: string; sourceIn: number; sourceOut: number }> => {
   return segments.map((seg) => ({
     sourcePath: seg.sourcePath,
@@ -290,9 +281,7 @@ export const mergeAdjacentClips = (clips: ClipSegment[]): ClipSegment[] => {
   return merged;
 };
 
-export const splitClipsByTrack = (
-  clips: ClipSegment[]
-): Map<string, ClipSegment[]> => {
+export const splitClipsByTrack = (clips: ClipSegment[]): Map<string, ClipSegment[]> => {
   const trackMap = new Map<string, ClipSegment[]>();
 
   for (const clip of clips) {
@@ -304,10 +293,7 @@ export const splitClipsByTrack = (
   return trackMap;
 };
 
-export const rippleDelete = (
-  clips: ClipSegment[],
-  deletedClip: ClipSegment
-): ClipSegment[] => {
+export const rippleDelete = (clips: ClipSegment[], deletedClip: ClipSegment): ClipSegment[] => {
   const sorted = [...clips].sort((a, b) => a.start - b.start);
   const deleteIndex = sorted.findIndex((c) => c.id === deletedClip.id);
 
@@ -328,7 +314,7 @@ export const rippleDelete = (
 export const rippleInsert = (
   clips: ClipSegment[],
   insertClip: ClipSegment,
-  insertTime: number
+  insertTime: number,
 ): ClipSegment[] => {
   const sorted = [...clips].sort((a, b) => a.start - b.start);
 

@@ -12,14 +12,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules/',
-        'test/',
-        'dist/',
-        'dist-electron/',
-        '**/*.d.ts',
-        '**/*.config.*',
-      ],
+      exclude: ['node_modules/', 'test/', 'dist/', 'dist-electron/', '**/*.d.ts', '**/*.config.*'],
     },
   },
   resolve: {

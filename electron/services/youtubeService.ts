@@ -77,10 +77,10 @@ export class YouTubeService {
   private async resolveHandleToChannelId(handle: string): Promise<string | null> {
     try {
       const response = await fetch(
-        `${this.baseUrl}/search?part=snippet&q=@${handle}&type=channel&maxResults=1&key=${this.apiKey}`
+        `${this.baseUrl}/search?part=snippet&q=@${handle}&type=channel&maxResults=1&key=${this.apiKey}`,
       );
       const data = await response.json();
-      
+
       if (data.items && data.items.length > 0) {
         return data.items[0].snippet.channelId;
       }
@@ -97,10 +97,10 @@ export class YouTubeService {
   private async resolveCustomUrlToChannelId(customName: string): Promise<string | null> {
     try {
       const response = await fetch(
-        `${this.baseUrl}/search?part=snippet&q=${customName}&type=channel&maxResults=1&key=${this.apiKey}`
+        `${this.baseUrl}/search?part=snippet&q=${customName}&type=channel&maxResults=1&key=${this.apiKey}`,
       );
       const data = await response.json();
-      
+
       if (data.items && data.items.length > 0) {
         return data.items[0].snippet.channelId;
       }
@@ -117,10 +117,10 @@ export class YouTubeService {
   private async resolveUsernameToChannelId(username: string): Promise<string | null> {
     try {
       const response = await fetch(
-        `${this.baseUrl}/channels?part=id&forUsername=${username}&key=${this.apiKey}`
+        `${this.baseUrl}/channels?part=id&forUsername=${username}&key=${this.apiKey}`,
       );
       const data = await response.json();
-      
+
       if (data.items && data.items.length > 0) {
         return data.items[0].id;
       }
@@ -137,7 +137,7 @@ export class YouTubeService {
   async getChannelMetadata(channelId: string): Promise<ChannelMetadata | null> {
     try {
       const response = await fetch(
-        `${this.baseUrl}/channels?part=snippet,statistics,contentDetails&id=${channelId}&key=${this.apiKey}`
+        `${this.baseUrl}/channels?part=snippet,statistics,contentDetails&id=${channelId}&key=${this.apiKey}`,
       );
       const data = await response.json();
 
@@ -160,7 +160,7 @@ export class YouTubeService {
         thumbnail_url: snippet.thumbnails?.high?.url,
         published_at: snippet.publishedAt || '',
         country: snippet.country,
-        upload_playlist_id: contentDetails.relatedPlaylists?.uploads || ''
+        upload_playlist_id: contentDetails.relatedPlaylists?.uploads || '',
       };
     } catch (error) {
       console.error('Error fetching channel metadata:', error);
@@ -174,7 +174,7 @@ export class YouTubeService {
   async getVideoIds(playlistId: string, maxResults: number = 50): Promise<string[]> {
     try {
       const response = await fetch(
-        `${this.baseUrl}/playlistItems?part=contentDetails&playlistId=${playlistId}&maxResults=${maxResults}&key=${this.apiKey}`
+        `${this.baseUrl}/playlistItems?part=contentDetails&playlistId=${playlistId}&maxResults=${maxResults}&key=${this.apiKey}`,
       );
       const data = await response.json();
 
@@ -204,7 +204,7 @@ export class YouTubeService {
 
       for (const chunk of chunks) {
         const response = await fetch(
-          `${this.baseUrl}/videos?part=snippet,statistics,contentDetails&id=${chunk.join(',')}&key=${this.apiKey}`
+          `${this.baseUrl}/videos?part=snippet,statistics,contentDetails&id=${chunk.join(',')}&key=${this.apiKey}`,
         );
         const data = await response.json();
 
@@ -219,7 +219,7 @@ export class YouTubeService {
             published_at: video.snippet?.publishedAt || '',
             duration: video.contentDetails?.duration || '',
             tags: video.snippet?.tags || [],
-            thumbnail_url: video.snippet?.thumbnails?.high?.url || ''
+            thumbnail_url: video.snippet?.thumbnails?.high?.url || '',
           }));
 
           allVideos.push(...videos);
@@ -237,9 +237,7 @@ export class YouTubeService {
    * Get top performing videos by views
    */
   getTopVideos(videos: VideoData[], limit: number = 5): VideoData[] {
-    return [...videos]
-      .sort((a, b) => b.view_count - a.view_count)
-      .slice(0, limit);
+    return [...videos].sort((a, b) => b.view_count - a.view_count).slice(0, limit);
   }
 
   /**

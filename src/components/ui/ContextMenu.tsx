@@ -54,12 +54,16 @@ const ContextMenu = ({ x, y, onClose, items }: ContextMenuProps) => {
           }}
           disabled={item.disabled}
           className="w-full px-3 py-2 text-left text-sm flex items-center space-x-2 hover:bg-accent/10 hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 hover:scale-[1.02] active:scale-95 rounded-md mx-1 first:mt-1 last:mb-1"
-          style={{ 
+          style={{
             animationDelay: `${index * 0.03}s`,
-            animationFillMode: 'both'
+            animationFillMode: 'both',
           }}
         >
-          {item.icon && <span className="w-4 h-4 transition-transform duration-150 group-hover:scale-110">{item.icon}</span>}
+          {item.icon && (
+            <span className="w-4 h-4 transition-transform duration-150 group-hover:scale-110">
+              {item.icon}
+            </span>
+          )}
           <span>{item.label}</span>
         </button>
       ))}

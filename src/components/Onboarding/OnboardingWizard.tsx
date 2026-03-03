@@ -68,30 +68,27 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
         {/* Step Content */}
         <div className="bg-gray-800 rounded-lg shadow-xl p-8 max-h-[calc(100vh-250px)] overflow-y-auto flex flex-col custom-scrollbar">
           {step === 'youtube' && (
-            <YouTubeChannelStep
-              onSubmit={handleYouTubeSubmit}
-              onSkip={handleSkip}
-              error={error}
-            />
+            <YouTubeChannelStep onSubmit={handleYouTubeSubmit} onSkip={handleSkip} error={error} />
           )}
 
-          {step === 'analysis' && (
-            <AnalysisProgress channelUrl={channelUrl} />
-          )}
+          {step === 'analysis' && <AnalysisProgress channelUrl={channelUrl} />}
 
           {step === 'results' && analysisData && (
-            <AnalysisResults
-              data={analysisData}
-              onComplete={handleComplete}
-            />
+            <AnalysisResults data={analysisData} onComplete={handleComplete} />
           )}
         </div>
 
         {/* Progress Indicator */}
         <div className="mt-6 flex justify-center gap-2">
-          <div className={`h-2 w-16 rounded ${step === 'youtube' ? 'bg-blue-500' : 'bg-gray-600'}`} />
-          <div className={`h-2 w-16 rounded ${step === 'analysis' ? 'bg-blue-500' : 'bg-gray-600'}`} />
-          <div className={`h-2 w-16 rounded ${step === 'results' ? 'bg-blue-500' : 'bg-gray-600'}`} />
+          <div
+            className={`h-2 w-16 rounded ${step === 'youtube' ? 'bg-blue-500' : 'bg-gray-600'}`}
+          />
+          <div
+            className={`h-2 w-16 rounded ${step === 'analysis' ? 'bg-blue-500' : 'bg-gray-600'}`}
+          />
+          <div
+            className={`h-2 w-16 rounded ${step === 'results' ? 'bg-blue-500' : 'bg-gray-600'}`}
+          />
         </div>
       </div>
     </div>

@@ -36,9 +36,12 @@ export function initRendererObservability(): void {
   });
 
   window.addEventListener('unhandledrejection', (event) => {
-    captureRendererException(event.reason instanceof Error ? event.reason : new Error(String(event.reason)), {
-      kind: 'unhandledrejection',
-    });
+    captureRendererException(
+      event.reason instanceof Error ? event.reason : new Error(String(event.reason)),
+      {
+        kind: 'unhandledrejection',
+      },
+    );
   });
 }
 

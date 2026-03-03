@@ -36,30 +36,22 @@ const VisualInfoSchema = z.object({
  * Main schema for media analysis response
  */
 export const MediaAnalysisSchema = z.object({
-  summary: z.string()
-    .min(10)
-    .describe('A 1-2 sentence summary describing the content'),
-  
-  tags: z.array(z.string())
-    .min(1)
-    .max(10)
-    .describe('5-10 relevant tags for quick reference'),
-  
-  analysis: z.string()
+  summary: z.string().min(10).describe('A 1-2 sentence summary describing the content'),
+
+  tags: z.array(z.string()).min(1).max(10).describe('5-10 relevant tags for quick reference'),
+
+  analysis: z
+    .string()
     .min(20)
-    .describe('A detailed paragraph (3-5 sentences) describing the content, style, quality, pacing, and notable elements'),
-  
-  scenes: z.array(SceneSchema)
-    .optional()
-    .describe('Array of scene breakdowns with timestamps'),
-  
-  audioInfo: AudioInfoSchema
-    .optional()
-    .describe('Audio analysis information'),
-  
-  visualInfo: VisualInfoSchema
-    .optional()
-    .describe('Visual analysis information'),
+    .describe(
+      'A detailed paragraph (3-5 sentences) describing the content, style, quality, pacing, and notable elements',
+    ),
+
+  scenes: z.array(SceneSchema).optional().describe('Array of scene breakdowns with timestamps'),
+
+  audioInfo: AudioInfoSchema.optional().describe('Audio analysis information'),
+
+  visualInfo: VisualInfoSchema.optional().describe('Visual analysis information'),
 });
 
 /**

@@ -1,40 +1,25 @@
-import { z } from "zod";
-import type { NormalizedIntent } from "./intentNormalizer";
+import { z } from 'zod';
+import type { NormalizedIntent } from './intentNormalizer';
 
 export const STRATEGY_SCHEMA = z.object({
   segment_strategy: z
     .enum([
-      "keep_high_activity",
-      "keep_dialogue_priority",
-      "remove_silence_first",
-      "preserve_full_clips",
-      "balanced_compact",
+      'keep_high_activity',
+      'keep_dialogue_priority',
+      'remove_silence_first',
+      'preserve_full_clips',
+      'balanced_compact',
     ])
-    .default("balanced_compact"),
+    .default('balanced_compact'),
   ordering: z
-    .enum([
-      "chronological",
-      "narrative",
-      "highlight_first",
-      "source_order",
-    ])
-    .default("chronological"),
+    .enum(['chronological', 'narrative', 'highlight_first', 'source_order'])
+    .default('chronological'),
   transition: z
-    .enum([
-      "cut",
-      "crossfade_200ms",
-      "crossfade_300ms",
-      "smooth_dissolve_400ms",
-    ])
-    .default("crossfade_300ms"),
+    .enum(['cut', 'crossfade_200ms', 'crossfade_300ms', 'smooth_dissolve_400ms'])
+    .default('crossfade_300ms'),
   style_profile: z
-    .enum([
-      "clean_modern",
-      "cinematic_soft",
-      "social_fast",
-      "minimal_neutral",
-    ])
-    .default("clean_modern"),
+    .enum(['clean_modern', 'cinematic_soft', 'social_fast', 'minimal_neutral'])
+    .default('clean_modern'),
   global_constraints: z
     .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
     .default({}),
@@ -49,11 +34,11 @@ interface BuildFallbackInput {
   normalizedIntent?: NormalizedIntent;
 }
 
-function inferStyleProfile(message: string): StrategyPlan["style_profile"] {
-  if (/\bcinematic\b/i.test(message)) return "cinematic_soft";
-  if (/\breel|shorts|tiktok|viral|fast\b/i.test(message)) return "social_fast";
-  if (/\bminimal|simple|clean\b/i.test(message)) return "minimal_neutral";
-  return "clean_modern";
+function inferStyleProfile(message: string): StrategyPlan['style_profile'] {
+  if (/\bcinematic\b/i.test(message)) return 'cinematic_soft';
+  if (/\breel|shorts|tiktok|viral|fast\b/i.test(message)) return 'social_fast';
+  if (/\bminimal|simple|clean\b/i.test(message)) return 'minimal_neutral';
+  return 'clean_modern';
 }
 
 export function buildFallbackStrategy(input: BuildFallbackInput): StrategyPlan {
@@ -62,31 +47,28 @@ export function buildFallbackStrategy(input: BuildFallbackInput): StrategyPlan {
   const constraints = { ...(input.normalizedIntent?.constraints || {}) };
   const requestedOutputs = input.normalizedIntent?.requestedOutputs || [];
 
-  const segmentStrategy: StrategyPlan["segment_strategy"] =
-    mode === "delete"
-      ? "remove_silence_first"
-      : operationHint === "trim"
-        ? "balanced_compact"
-        : "keep_high_activity";
+  const segmentStrategy: StrategyPlan['segment_strategy'] =
+    mode === 'delete'
+      ? 'remove_silence_first'
+      : operationHint === 'trim'
+        ? 'balanced_compact'
+        : 'keep_high_activity';
 
-  const transition: StrategyPlan["transition"] =
-    mode === "delete" ? "cut" : "crossfade_300ms";
+  const transition: StrategyPlan['transition'] = mode === 'delete' ? 'cut' : 'crossfade_300ms';
 
   return {
     segment_strategy: segmentStrategy,
-    ordering: mode === "create" ? "chronological" : "source_order",
+    ordering: mode === 'create' ? 'chronological' : 'source_order',
     transition,
     style_profile: inferStyleProfile(input.message),
     global_constraints: {
       ...constraints,
-      script_outline_required: requestedOutputs.includes("short_script_outline"),
+      script_outline_required: requestedOutputs.includes('short_script_outline'),
     },
     confidence: 0.62,
     notes: [
-      "fallback_strategy_generated",
-      ...(requestedOutputs.includes("short_script_outline")
-        ? ["script_companion_requested"]
-        : []),
+      'fallback_strategy_generated',
+      ...(requestedOutputs.includes('short_script_outline') ? ['script_companion_requested'] : []),
     ],
   };
 }
@@ -96,7 +78,7 @@ export function parseStrategyResponse(
 ): { ok: true; strategy: StrategyPlan } | { ok: false; error: string } {
   const trimmed = responseText.trim();
   if (!trimmed) {
-    return { ok: false, error: "empty_strategy_response" };
+    return { ok: false, error: 'empty_strategy_response' };
   }
 
   const tryParse = (raw: string) => {
@@ -109,20 +91,20 @@ export function parseStrategyResponse(
 
   let parsed = tryParse(trimmed);
   if (!parsed) {
-    const firstBrace = trimmed.indexOf("{");
-    const lastBrace = trimmed.lastIndexOf("}");
+    const firstBrace = trimmed.indexOf('{');
+    const lastBrace = trimmed.lastIndexOf('}');
     if (firstBrace >= 0 && lastBrace > firstBrace) {
       parsed = tryParse(trimmed.slice(firstBrace, lastBrace + 1));
     }
   }
 
   if (!parsed) {
-    return { ok: false, error: "invalid_json_strategy_response" };
+    return { ok: false, error: 'invalid_json_strategy_response' };
   }
 
   const result = STRATEGY_SCHEMA.safeParse(parsed);
   if (!result.success) {
-    return { ok: false, error: "strategy_schema_validation_failed" };
+    return { ok: false, error: 'strategy_schema_validation_failed' };
   }
 
   return { ok: true, strategy: result.data };
@@ -136,7 +118,7 @@ export function buildStrategyPrompt(input: {
 }): string {
   const normalizedIntent = input.normalizedIntent
     ? JSON.stringify(input.normalizedIntent, null, 2)
-    : "{}";
+    : '{}';
 
   return `<strategy_planner_task>
 Generate ONLY JSON matching this schema:

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { getStoredJson, getStoredString, setStoredJson, setStoredString, storageKeys } from '../../src/lib/storage';
+import {
+  getStoredJson,
+  getStoredString,
+  setStoredJson,
+  setStoredString,
+  storageKeys,
+} from '../../src/lib/storage';
 
 describe('storage utility', () => {
   it('stores and retrieves string values', () => {

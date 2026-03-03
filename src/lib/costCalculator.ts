@@ -16,15 +16,15 @@
  * Pricing structure for Amazon Nova models (per 1M tokens)
  */
 const PRICING = {
-  "amazon.nova-lite-v1:0": {
+  'amazon.nova-lite-v1:0': {
     input: 0.06, // $0.06 per 1M input tokens
     output: 0.24, // $0.24 per 1M output tokens
   },
-  "amazon.nova-micro-v1:0": {
+  'amazon.nova-micro-v1:0': {
     input: 0.035, // $0.035 per 1M input tokens
     output: 0.14, // $0.14 per 1M output tokens
   },
-  "amazon.nova-pro-v1:0": {
+  'amazon.nova-pro-v1:0': {
     input: 0.8, // $0.80 per 1M input tokens
     output: 3.2, // $3.20 per 1M output tokens
   },
@@ -59,10 +59,10 @@ export interface TokenUsage {
  * Calculate cost for a specific model and token usage.
  */
 export function calculateCost(
-  model: ModelId = "amazon.nova-lite-v1:0",
+  model: ModelId = 'amazon.nova-lite-v1:0',
   tokens: TokenUsage,
 ): number {
-  const pricing = PRICING[model] || PRICING["amazon.nova-lite-v1:0"];
+  const pricing = PRICING[model] || PRICING['amazon.nova-lite-v1:0'];
 
   const inputCost = (tokens.input / 1_000_000) * pricing.input;
   const outputCost = (tokens.output / 1_000_000) * pricing.output;
@@ -85,7 +85,7 @@ export function formatCost(cost: number): string {
  */
 export function calculateVideoTokens(
   durationSeconds: number,
-  mediaResolution: "low" | "medium" | "high" = "low",
+  mediaResolution: 'low' | 'medium' | 'high' = 'low',
   fps: number = 1,
 ): {
   videoTokens: number;
@@ -100,7 +100,7 @@ export function calculateVideoTokens(
   const audioTokens = durationSeconds * audioTokensPerSec;
   const totalTokens = videoTokens + audioTokens;
 
-  const cost = calculateCost("amazon.nova-lite-v1:0", {
+  const cost = calculateCost('amazon.nova-lite-v1:0', {
     input: totalTokens,
     output: 1000,
   });
@@ -114,7 +114,7 @@ export function calculateVideoTokens(
 export function estimateVideoAnalysisCost(
   durationSeconds: number,
   options: {
-    mediaResolution?: "low" | "medium" | "high";
+    mediaResolution?: 'low' | 'medium' | 'high';
     fps?: number;
     startTime?: number;
     endTime?: number;
@@ -127,7 +127,7 @@ export function estimateVideoAnalysisCost(
     actualDuration = options.endTime;
   }
 
-  const resolution = options.mediaResolution || "low";
+  const resolution = options.mediaResolution || 'low';
   const fps = options.fps || 1;
 
   const estimate = calculateVideoTokens(actualDuration, resolution, fps);
@@ -153,14 +153,11 @@ export function estimateVideoAnalysisCost(
 export function calculateOptimizationSavings(
   originalDuration: number,
   optimizedDuration: number,
-  originalResolution: "low" | "medium" | "high" = "medium",
-  optimizedResolution: "low" | "medium" | "high" = "low",
+  originalResolution: 'low' | 'medium' | 'high' = 'medium',
+  optimizedResolution: 'low' | 'medium' | 'high' = 'low',
 ): { savedTokens: number; savedCost: string; savingsPercentage: number } {
   const original = calculateVideoTokens(originalDuration, originalResolution);
-  const optimized = calculateVideoTokens(
-    optimizedDuration,
-    optimizedResolution,
-  );
+  const optimized = calculateVideoTokens(optimizedDuration, optimizedResolution);
 
   const savedTokens = original.totalTokens - optimized.totalTokens;
   const savedCost = original.cost - optimized.cost;
@@ -190,16 +187,16 @@ export function formatTokens(tokens: number): string {
  */
 export function getCostBreakdown(
   tokens: TokenUsage,
-  model: ModelId = "amazon.nova-lite-v1:0",
+  model: ModelId = 'amazon.nova-lite-v1:0',
 ): string {
   const cost = calculateCost(model, tokens);
-  const pricing = PRICING[model] || PRICING["amazon.nova-lite-v1:0"];
+  const pricing = PRICING[model] || PRICING['amazon.nova-lite-v1:0'];
   const lines = [
-    " Cost Breakdown:",
+    ' Cost Breakdown:',
     `   Input tokens: ${formatTokens(tokens.input)} = ${formatCost((tokens.input / 1_000_000) * pricing.input)}`,
     `   Output tokens: ${formatTokens(tokens.output)} = ${formatCost((tokens.output / 1_000_000) * pricing.output)}`,
     `   Total cost: ${formatCost(cost)}`,
   ];
 
-  return lines.join("\n");
+  return lines.join('\n');
 }

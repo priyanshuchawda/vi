@@ -36,8 +36,18 @@ const SettingsTab = () => {
         {/* Auto-Save Settings */}
         <div>
           <h4 className="text-xs font-bold text-text-primary mb-3 flex items-center gap-2">
-            <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+            <svg
+              className="w-4 h-4 text-accent"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+              />
             </svg>
             Auto-Save
           </h4>
@@ -82,8 +92,18 @@ const SettingsTab = () => {
         {/* Timeline Settings */}
         <div>
           <h4 className="text-xs font-bold text-text-primary mb-3 flex items-center gap-2">
-            <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-4 h-4 text-accent"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
             Timeline
           </h4>
@@ -128,8 +148,18 @@ const SettingsTab = () => {
         {/* Subtitle Settings */}
         <div>
           <h4 className="text-xs font-bold text-text-primary mb-3 flex items-center gap-2">
-            <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+            <svg
+              className="w-4 h-4 text-accent"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+              />
             </svg>
             Subtitles
           </h4>
@@ -138,7 +168,9 @@ const SettingsTab = () => {
               <label className="text-xs text-text-primary block mb-2">Display Mode</label>
               <select
                 value={subtitleStyle.displayMode}
-                onChange={(e) => updateSubtitleStyle({ displayMode: e.target.value as 'instant' | 'progressive' })}
+                onChange={(e) =>
+                  updateSubtitleStyle({ displayMode: e.target.value as 'instant' | 'progressive' })
+                }
                 className="w-full px-3 py-2 bg-bg-elevated border border-border-primary rounded text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
               >
                 <option value="progressive">Progressive (word-by-word)</option>
@@ -150,7 +182,9 @@ const SettingsTab = () => {
               <label className="text-xs text-text-primary block mb-2">Position</label>
               <select
                 value={subtitleStyle.position}
-                onChange={(e) => updateSubtitleStyle({ position: e.target.value as 'top' | 'bottom' })}
+                onChange={(e) =>
+                  updateSubtitleStyle({ position: e.target.value as 'top' | 'bottom' })
+                }
                 className="w-full px-3 py-2 bg-bg-elevated border border-border-primary rounded text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
               >
                 <option value="bottom">Bottom</option>
@@ -179,8 +213,18 @@ const SettingsTab = () => {
         {/* Transcript Edit Settings */}
         <div>
           <h4 className="text-xs font-bold text-text-primary mb-3 flex items-center gap-2">
-            <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            <svg
+              className="w-4 h-4 text-accent"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              />
             </svg>
             Transcript Editing
           </h4>
@@ -195,7 +239,9 @@ const SettingsTab = () => {
                 max="200"
                 step="10"
                 value={transcriptEditSettings.cutPadding * 1000}
-                onChange={(e) => updateTranscriptEditSettings({ cutPadding: Number(e.target.value) / 1000 })}
+                onChange={(e) =>
+                  updateTranscriptEditSettings({ cutPadding: Number(e.target.value) / 1000 })
+                }
                 className="w-full h-1.5 bg-bg-elevated rounded-lg appearance-none cursor-pointer accent-accent"
               />
               <p className="text-[10px] text-text-muted mt-1">
@@ -213,7 +259,9 @@ const SettingsTab = () => {
                 max="1000"
                 step="50"
                 value={transcriptEditSettings.mergeTolerance * 1000}
-                onChange={(e) => updateTranscriptEditSettings({ mergeTolerance: Number(e.target.value) / 1000 })}
+                onChange={(e) =>
+                  updateTranscriptEditSettings({ mergeTolerance: Number(e.target.value) / 1000 })
+                }
                 className="w-full h-1.5 bg-bg-elevated rounded-lg appearance-none cursor-pointer accent-accent"
               />
               <p className="text-[10px] text-text-muted mt-1">
@@ -229,9 +277,15 @@ const SettingsTab = () => {
                 </p>
               </div>
               <button
-                onClick={() => updateTranscriptEditSettings({ snapToSilence: !transcriptEditSettings.snapToSilence })}
+                onClick={() =>
+                  updateTranscriptEditSettings({
+                    snapToSilence: !transcriptEditSettings.snapToSilence,
+                  })
+                }
                 className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
-                  transcriptEditSettings.snapToSilence ? 'bg-accent' : 'bg-bg-elevated border border-border-primary'
+                  transcriptEditSettings.snapToSilence
+                    ? 'bg-accent'
+                    : 'bg-bg-elevated border border-border-primary'
                 }`}
               >
                 <span
@@ -250,9 +304,15 @@ const SettingsTab = () => {
                 </p>
               </div>
               <button
-                onClick={() => updateTranscriptEditSettings({ snapToFrames: !transcriptEditSettings.snapToFrames })}
+                onClick={() =>
+                  updateTranscriptEditSettings({
+                    snapToFrames: !transcriptEditSettings.snapToFrames,
+                  })
+                }
                 className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
-                  transcriptEditSettings.snapToFrames ? 'bg-accent' : 'bg-bg-elevated border border-border-primary'
+                  transcriptEditSettings.snapToFrames
+                    ? 'bg-accent'
+                    : 'bg-bg-elevated border border-border-primary'
                 }`}
               >
                 <span

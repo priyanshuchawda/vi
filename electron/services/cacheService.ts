@@ -3,9 +3,9 @@
  * For storing analysis results and preventing redundant API calls
  */
 
-import fs from "fs";
-import path from "path";
-import os from "os";
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 interface CacheEntry<T> {
   value: T;
@@ -18,8 +18,8 @@ export class CacheManager {
 
   constructor() {
     this.cache = new Map();
-    const baseDir = path.join(os.homedir(), ".quickcut");
-    this.cacheFilePath = path.join(baseDir, "analysis_cache.json");
+    const baseDir = path.join(os.homedir(), '.quickcut');
+    this.cacheFilePath = path.join(baseDir, 'analysis_cache.json');
     this.loadFromDisk();
   }
 
@@ -32,17 +32,17 @@ export class CacheManager {
         return;
       }
 
-      const raw = fs.readFileSync(this.cacheFilePath, "utf-8");
+      const raw = fs.readFileSync(this.cacheFilePath, 'utf-8');
       const parsed = JSON.parse(raw) as Record<string, CacheEntry<any>>;
       const now = Date.now();
 
       for (const [key, entry] of Object.entries(parsed)) {
-        if (entry && typeof entry.expiresAt === "number" && entry.expiresAt > now) {
+        if (entry && typeof entry.expiresAt === 'number' && entry.expiresAt > now) {
           this.cache.set(key, entry);
         }
       }
     } catch (error) {
-      console.warn("Cache load error:", error);
+      console.warn('Cache load error:', error);
     }
   }
 
@@ -57,9 +57,9 @@ export class CacheManager {
         }
       }
 
-      fs.writeFileSync(this.cacheFilePath, JSON.stringify(serializable, null, 2), "utf-8");
+      fs.writeFileSync(this.cacheFilePath, JSON.stringify(serializable, null, 2), 'utf-8');
     } catch (error) {
-      console.warn("Cache save error:", error);
+      console.warn('Cache save error:', error);
     }
   }
 
@@ -68,7 +68,7 @@ export class CacheManager {
    */
   get<T>(key: string): T | null {
     const entry = this.cache.get(key);
-    
+
     if (!entry) {
       return null;
     }
@@ -88,7 +88,7 @@ export class CacheManager {
    */
   set<T>(key: string, value: T, ttlSeconds: number): boolean {
     try {
-      const expiresAt = Date.now() + (ttlSeconds * 1000);
+      const expiresAt = Date.now() + ttlSeconds * 1000;
       this.cache.set(key, { value, expiresAt });
       this.saveToDisk();
       return true;
@@ -214,12 +214,15 @@ export class AnalysisCacheService {
   /**
    * Set analysis job status
    */
-  setAnalysisStatus(analysisId: string, status: {
-    status: 'pending' | 'completed' | 'failed';
-    progress: number;
-    result?: any;
-    error?: string;
-  }): boolean {
+  setAnalysisStatus(
+    analysisId: string,
+    status: {
+      status: 'pending' | 'completed' | 'failed';
+      progress: number;
+      result?: any;
+      error?: string;
+    },
+  ): boolean {
     return this.cache.set(`analysis:status:${analysisId}`, status, 3600); // 1 hour
   }
 

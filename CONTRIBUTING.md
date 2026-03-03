@@ -27,15 +27,18 @@ QuickCut uses only AWS Bedrock.
 ## PR Policy
 
 - Long PRs and long changes are allowed when needed.
-- But for **every change**, you must add/update tests in the relevant test file(s).
+- But for **every change**, you must add/update tests in the relevant test
+  file(s).
 - A PR is not ready unless quality checks pass.
-- Avoid mixing unrelated refactors with functional changes unless explicitly planned.
+- Avoid mixing unrelated refactors with functional changes unless explicitly
+  planned.
 
 ## Required Quality Gates (Must Pass)
 
 Run these before opening/updating a PR:
 
 ```bash
+npm run format:check
 npm run typecheck
 npm run build
 npm run test
@@ -63,13 +66,23 @@ npm run test:watch
 npm run test:memory
 ```
 
+## Pre-commit
+
+- Husky pre-commit hook runs `npm run pre-commit` (lint-staged).
+- To install hooks after clone:
+
+```bash
+npm install
+```
+
 ## Testing Requirements
 
 - Every behavior change must have test coverage.
 - Every bug fix should include a regression test.
 - Update existing tests when behavior intentionally changes.
 - Prefer deterministic tests (no network dependency in unit tests).
-- Integration tests using local fixtures should skip gracefully when fixtures are missing.
+- Integration tests using local fixtures should skip gracefully when fixtures
+  are missing.
 
 ### Minimum Test Types to Consider
 
@@ -88,7 +101,8 @@ npm run test:memory
 
 - Never hardcode credentials or API tokens.
 - Keep secrets in `.env` only.
-- Validate and constrain IPC usage; avoid exposing broad generic IPC invoke surfaces.
+- Validate and constrain IPC usage; avoid exposing broad generic IPC invoke
+  surfaces.
 - Prefer typed APIs/contracts for renderer ↔ main communication.
 
 ## Code Organization

@@ -12,7 +12,8 @@ This matrix maps automated tests to runtime risk areas.
 ### Electron security regressions
 
 - `test/electron/securityPolicy.test.ts`
-- Covers external URL allowlist, navigation blocking, permission default-deny, CSP baseline output.
+- Covers external URL allowlist, navigation blocking, permission default-deny,
+  CSP baseline output.
 
 ### Persistence regressions
 
@@ -30,6 +31,7 @@ This matrix maps automated tests to runtime risk areas.
 An optional Playwright smoke path validates top-level editor shell availability.
 
 Files:
+
 - `playwright.config.ts`
 - `test/e2e/smoke.spec.ts`
 

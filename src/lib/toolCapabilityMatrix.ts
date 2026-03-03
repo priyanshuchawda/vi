@@ -168,9 +168,7 @@ export function getSupportedToolNames(): string[] {
     .filter((name: string | undefined): name is string => Boolean(name));
 }
 
-export function buildToolCapabilityMatrix(
-  toolNames?: string[],
-): {
+export function buildToolCapabilityMatrix(toolNames?: string[]): {
   tools: ToolCapability[];
   unsupportedOperations: string[];
 } {
@@ -182,12 +180,8 @@ export function buildToolCapabilityMatrix(
     .map((toolSpec: any): ToolCapability => {
       const schema = toolSpec.inputSchema?.json || {};
       const properties = schema.properties || {};
-      const requiredArgs: string[] = Array.isArray(schema.required)
-        ? schema.required
-        : [];
-      const optionalArgs = Object.keys(properties).filter(
-        (name) => !requiredArgs.includes(name),
-      );
+      const requiredArgs: string[] = Array.isArray(schema.required) ? schema.required : [];
+      const optionalArgs = Object.keys(properties).filter((name) => !requiredArgs.includes(name));
       const safety: ToolSafety = READ_ONLY_TOOLS.has(toolSpec.name)
         ? 'read_only'
         : 'state_mutation';

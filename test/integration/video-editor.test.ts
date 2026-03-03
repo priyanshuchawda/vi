@@ -18,7 +18,7 @@ describe('Video Editor Integration Tests', () => {
 
   describe('Complete editing workflow', () => {
     it('should handle import -> split -> merge -> export workflow', () => {
-      const { addClip, setActiveClip, splitClip, toggleClipSelection, mergeSelectedClips } = 
+      const { addClip, setActiveClip, splitClip, toggleClipSelection, mergeSelectedClips } =
         useProjectStore.getState();
 
       // Step 1: Import video
@@ -130,7 +130,7 @@ describe('Video Editor Integration Tests', () => {
       });
 
       const clipId = useProjectStore.getState().clips[0].id;
-      
+
       // Select and copy
       toggleClipSelection(clipId, false);
       copyClips();

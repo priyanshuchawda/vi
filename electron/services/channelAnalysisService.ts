@@ -3,12 +3,9 @@
  * Coordinates YouTube data fetching, AI analysis (Bedrock), and caching
  */
 
-import { YouTubeService } from "./youtubeService.js";
-import {
-  AIAnalysisService,
-  AnalysisResult,
-} from "./aiAnalysisService.js";
-import { analysisCacheService } from "./cacheService.js";
+import { YouTubeService } from './youtubeService.js';
+import { AIAnalysisService, AnalysisResult } from './aiAnalysisService.js';
+import { analysisCacheService } from './cacheService.js';
 
 export interface AnalysisResponse {
   success: boolean;
@@ -41,9 +38,9 @@ export class ChannelAnalysisService {
 
   constructor(
     youtubeApiKey: string,
-    awsRegion: string = "us-east-1",
-    awsAccessKeyId: string = "",
-    awsSecretAccessKey: string = "",
+    awsRegion: string = 'us-east-1',
+    awsAccessKeyId: string = '',
+    awsSecretAccessKey: string = '',
     bedrockModelId?: string,
   ) {
     this.youtubeService = new YouTubeService(youtubeApiKey);
@@ -62,14 +59,14 @@ export class ChannelAnalysisService {
   async analyzeChannel(channelUrl: string): Promise<AnalysisResponse> {
     try {
       // Step 1: Extract channel ID
-      console.log("[Analysis] Extracting channel ID from URL...");
+      console.log('[Analysis] Extracting channel ID from URL...');
       const channelId = await this.youtubeService.extractChannelId(channelUrl);
 
       if (!channelId) {
         return {
           success: false,
-          error: "Invalid YouTube channel URL",
-          error_code: "INVALID_URL",
+          error: 'Invalid YouTube channel URL',
+          error_code: 'INVALID_URL',
         };
       }
 
@@ -78,7 +75,7 @@ export class ChannelAnalysisService {
       // Step 2: Check cache first
       const cachedAnalysis = analysisCacheService.getChannelAnalysis(channelId);
       if (cachedAnalysis) {
-        console.log("[Analysis] Cache hit! Returning cached analysis");
+        console.log('[Analysis] Cache hit! Returning cached analysis');
         return {
           success: true,
           data: {
@@ -92,22 +89,21 @@ export class ChannelAnalysisService {
       }
 
       // Step 3: Fetch channel metadata
-      console.log("[Analysis] Fetching channel metadata...");
-      const channelMetadata =
-        await this.youtubeService.getChannelMetadata(channelId);
+      console.log('[Analysis] Fetching channel metadata...');
+      const channelMetadata = await this.youtubeService.getChannelMetadata(channelId);
 
       if (!channelMetadata) {
         return {
           success: false,
-          error: "Channel not found or API error",
-          error_code: "CHANNEL_NOT_FOUND",
+          error: 'Channel not found or API error',
+          error_code: 'CHANNEL_NOT_FOUND',
         };
       }
 
       console.log(`[Analysis] Channel: ${channelMetadata.title}`);
 
       // Step 4: Fetch video list
-      console.log("[Analysis] Fetching videos from uploads playlist...");
+      console.log('[Analysis] Fetching videos from uploads playlist...');
       const videoIds = await this.youtubeService.getVideoIds(
         channelMetadata.upload_playlist_id,
         50,
@@ -116,22 +112,22 @@ export class ChannelAnalysisService {
       if (videoIds.length === 0) {
         return {
           success: false,
-          error: "No videos found on channel",
-          error_code: "NO_VIDEOS",
+          error: 'No videos found on channel',
+          error_code: 'NO_VIDEOS',
         };
       }
 
       console.log(`[Analysis] Found ${videoIds.length} videos`);
 
       // Step 5: Get detailed video data
-      console.log("[Analysis] Fetching detailed video data...");
+      console.log('[Analysis] Fetching detailed video data...');
       const allVideos = await this.youtubeService.getVideoDetails(videoIds);
 
       if (allVideos.length === 0) {
         return {
           success: false,
-          error: "Failed to fetch video details",
-          error_code: "VIDEO_FETCH_ERROR",
+          error: 'Failed to fetch video details',
+          error_code: 'VIDEO_FETCH_ERROR',
         };
       }
 
@@ -144,7 +140,7 @@ export class ChannelAnalysisService {
       );
 
       // Step 7: Call AI for analysis
-      console.log("[Analysis] Calling AI for analysis...");
+      console.log('[Analysis] Calling AI for analysis...');
       const analysisResult = await this.aiService.analyzeChannel(
         channelMetadata,
         topVideos,
@@ -154,12 +150,12 @@ export class ChannelAnalysisService {
       if (!analysisResult) {
         return {
           success: false,
-          error: "AI analysis failed",
-          error_code: "ANALYSIS_FAILED",
+          error: 'AI analysis failed',
+          error_code: 'ANALYSIS_FAILED',
         };
       }
 
-      console.log("[Analysis] AI analysis completed successfully");
+      console.log('[Analysis] AI analysis completed successfully');
 
       // Step 8: Build response
       const response: AnalysisResponse = {
@@ -179,23 +175,23 @@ export class ChannelAnalysisService {
           meta: {
             analyzed_at: new Date().toISOString(),
             videos_analyzed: topVideos.length + recentVideos.length,
-            freshness: "fresh",
+            freshness: 'fresh',
             cache_hit: false,
           },
         },
       };
 
       // Step 9: Cache the result
-      console.log("[Analysis] Caching analysis result...");
+      console.log('[Analysis] Caching analysis result...');
       analysisCacheService.setChannelAnalysis(channelId, response.data);
 
       return response;
     } catch (error) {
-      console.error("[Analysis] Error:", error);
+      console.error('[Analysis] Error:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        error_code: "INTERNAL_ERROR",
+        error: error instanceof Error ? error.message : 'Unknown error',
+        error_code: 'INTERNAL_ERROR',
       };
     }
   }
@@ -203,10 +199,7 @@ export class ChannelAnalysisService {
   /**
    * Link analysis to a user
    */
-  async linkAnalysisToUser(
-    userId: string,
-    channelUrl: string,
-  ): Promise<boolean> {
+  async linkAnalysisToUser(userId: string, channelUrl: string): Promise<boolean> {
     try {
       const channelId = await this.youtubeService.extractChannelId(channelUrl);
       if (!channelId) {
@@ -215,7 +208,7 @@ export class ChannelAnalysisService {
 
       return analysisCacheService.linkUserToChannel(userId, channelId);
     } catch (error) {
-      console.error("Error linking analysis to user:", error);
+      console.error('Error linking analysis to user:', error);
       return false;
     }
   }

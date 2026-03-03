@@ -12,8 +12,15 @@ interface ProfileModalProps {
 }
 
 export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
-  const { profile, isAnalyzing, analysisError, createProfile, updateProfile, analyzeYouTubeChannel } = useProfileStore();
-  
+  const {
+    profile,
+    isAnalyzing,
+    analysisError,
+    createProfile,
+    updateProfile,
+    analyzeYouTubeChannel,
+  } = useProfileStore();
+
   const [userName, setUserName] = useState(profile?.userName || '');
   const [email, setEmail] = useState(profile?.email || '');
   const [youtubeUrl, setYoutubeUrl] = useState(profile?.youtubeChannelUrl || '');
@@ -56,14 +63,30 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="bg-bg-elevated border border-border-primary rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl animate-scale-in" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-bg-elevated border border-border-primary rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border-primary bg-bg-secondary">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center">
-              <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              <svg
+                className="w-5 h-5 text-accent"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
               </svg>
             </div>
             <div>
@@ -77,7 +100,12 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
             aria-label="Close modal"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -88,16 +116,19 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
           <div className="space-y-4">
             <h3 className="text-lg font-medium text-text-primary flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
               </svg>
               Basic Information
             </h3>
-            
+
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-2">
-                  Name
-                </label>
+                <label className="block text-sm font-medium text-text-secondary mb-2">Name</label>
                 <input
                   type="text"
                   value={userName}
@@ -110,7 +141,12 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-2 flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                    />
                   </svg>
                   Email
                 </label>
@@ -129,7 +165,7 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
           <div className="space-y-4 pt-4 border-t border-border-primary">
             <h3 className="text-lg font-medium text-text-primary flex items-center gap-2">
               <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
               </svg>
               YouTube Channel
             </h3>
@@ -154,8 +190,18 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
                   >
                     {isAnalyzingChannel || isAnalyzing ? (
                       <>
-                        <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        <svg
+                          className="w-4 h-4 animate-spin"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
                         </svg>
                         Analyzing...
                       </>
@@ -172,8 +218,18 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
               {/* Analysis Status */}
               {analysisError && (
                 <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                  <svg className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                   <div className="flex-1">
                     <p className="text-sm text-red-500 font-medium">Analysis Failed</p>
@@ -186,8 +242,18 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
               {profile?.channelAnalysis && (
                 <div className="space-y-3 p-4 bg-bg-primary border border-border-primary rounded-lg">
                   <div className="flex items-start gap-3">
-                    <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg
+                      className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
                     <div className="flex-1">
                       <p className="text-sm font-medium text-text-primary">Channel Analyzed</p>
@@ -211,8 +277,13 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
                         {profile.channelAnalysis.channel.title}
                       </h4>
                       <div className="flex items-center gap-4 mt-2 text-xs text-text-muted">
-                        <span>{profile.channelAnalysis.channel.subscriber_count.toLocaleString()} subscribers</span>
-                        <span>{profile.channelAnalysis.channel.video_count.toLocaleString()} videos</span>
+                        <span>
+                          {profile.channelAnalysis.channel.subscriber_count.toLocaleString()}{' '}
+                          subscribers
+                        </span>
+                        <span>
+                          {profile.channelAnalysis.channel.video_count.toLocaleString()} videos
+                        </span>
                       </div>
                     </div>
                   </div>

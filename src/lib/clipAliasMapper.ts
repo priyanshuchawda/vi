@@ -1,6 +1,6 @@
 /**
  * Clip Alias Mapper - Maps human-readable aliases to UUIDs
- * 
+ *
  * Prevents LLM from hallucinating UUIDs by providing stable aliases.
  * The LLM only sees: clip_1, clip_2, etc.
  * We internally map these back to real UUIDs during execution.
@@ -9,18 +9,18 @@
 import type { Clip } from '../stores/useProjectStore';
 
 export interface ClipAlias {
-  alias: string;          // "clip_1", "clip_2", etc.
-  uuid: string;           // Real clip UUID
-  name: string;           // User-facing name
-  duration: number;       // Clip duration
-  mediaType: string;      // "video", "audio", "image"
-  timelineStart: number;  // Position on timeline
-  trackIndex: number;     // Track number
+  alias: string; // "clip_1", "clip_2", etc.
+  uuid: string; // Real clip UUID
+  name: string; // User-facing name
+  duration: number; // Clip duration
+  mediaType: string; // "video", "audio", "image"
+  timelineStart: number; // Position on timeline
+  trackIndex: number; // Track number
 }
 
 export interface AliasMap {
-  byAlias: Map<string, string>;     // alias → uuid
-  byUuid: Map<string, string>;      // uuid → alias
+  byAlias: Map<string, string>; // alias → uuid
+  byUuid: Map<string, string>; // uuid → alias
   metadata: Map<string, ClipAlias>; // alias → full metadata
 }
 
@@ -38,10 +38,10 @@ export function buildClipAliasMap(clips: Clip[]): AliasMap {
 
   sortedClips.forEach((clip, index) => {
     const alias = `clip_${index + 1}`;
-    
+
     byAlias.set(alias, clip.id);
     byUuid.set(clip.id, alias);
-    
+
     metadata.set(alias, {
       alias,
       uuid: clip.id,
@@ -84,7 +84,7 @@ export function getAliasMetadata(alias: string, aliasMap: AliasMap): ClipAlias |
  */
 export function formatAliasMapForPrompt(aliasMap: AliasMap): string {
   const entries = Array.from(aliasMap.metadata.values());
-  
+
   if (entries.length === 0) {
     return 'No clips on timeline.';
   }
@@ -113,9 +113,15 @@ export function aliasArgsToUuid(
   const errors: string[] = [];
 
   // Tools that take clip_id
-  if (toolName === 'split_clip' || toolName === 'move_clip' || toolName === 'get_clip_details' || 
-      toolName === 'update_clip_bounds' || toolName === 'set_clip_speed' || toolName === 'apply_clip_effect' ||
-      toolName === 'transcribe_clip') {
+  if (
+    toolName === 'split_clip' ||
+    toolName === 'move_clip' ||
+    toolName === 'get_clip_details' ||
+    toolName === 'update_clip_bounds' ||
+    toolName === 'set_clip_speed' ||
+    toolName === 'apply_clip_effect' ||
+    toolName === 'transcribe_clip'
+  ) {
     if (args.clip_id) {
       const uuid = resolveAlias(args.clip_id, aliasMap);
       if (uuid) {
@@ -127,8 +133,14 @@ export function aliasArgsToUuid(
   }
 
   // Tools that take clip_ids array
-  if (toolName === 'delete_clips' || toolName === 'merge_clips' || toolName === 'copy_clips' || 
-      toolName === 'select_clips' || toolName === 'set_clip_volume' || toolName === 'toggle_clip_mute') {
+  if (
+    toolName === 'delete_clips' ||
+    toolName === 'merge_clips' ||
+    toolName === 'copy_clips' ||
+    toolName === 'select_clips' ||
+    toolName === 'set_clip_volume' ||
+    toolName === 'toggle_clip_mute'
+  ) {
     if (Array.isArray(args.clip_ids)) {
       const resolvedIds: string[] = [];
       for (const alias of args.clip_ids) {

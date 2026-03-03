@@ -28,6 +28,9 @@ build/
 coverage/
 test-media/
 create_test_media.py
+gemini-cli/
+.geminicli/*
+vscode/
 
 # Python virtual environment
 .venv/

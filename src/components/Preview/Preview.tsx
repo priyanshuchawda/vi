@@ -22,7 +22,7 @@ const Preview = () => {
     getClipAtTime,
     getActiveClips,
     subtitles,
-    subtitleStyle
+    subtitleStyle,
   } = useProjectStore(
     useShallow((state) => ({
       clips: state.clips,
@@ -46,18 +46,21 @@ const Preview = () => {
 
   // Filter for audio-containing clips (audio files or videos with audio)
   // We exclude the main video clip if it's currently being displayed, as the <video> element handles its audio
-  const backgroundAudioClips = activeClips.filter(clip =>
-    (clip.mediaType === 'audio' || (clip.mediaType === 'video' && clip.id !== currentVideoClip?.id)) &&
-    !clip.muted
+  const backgroundAudioClips = activeClips.filter(
+    (clip) =>
+      (clip.mediaType === 'audio' ||
+        (clip.mediaType === 'video' && clip.id !== currentVideoClip?.id)) &&
+      !clip.muted,
   );
 
   const totalDuration = getTotalDuration();
 
   // Get all text clips that should be visible at current time
-  const activeTextClips = clips.filter(clip =>
-    clip.mediaType === 'text' &&
-    currentTime >= clip.startTime &&
-    currentTime < clip.startTime + clip.duration
+  const activeTextClips = clips.filter(
+    (clip) =>
+      clip.mediaType === 'text' &&
+      currentTime >= clip.startTime &&
+      currentTime < clip.startTime + clip.duration,
   );
 
   // Get active subtitle
@@ -66,18 +69,18 @@ const Preview = () => {
   // Calculate progressive word display for real-time effect
   const getProgressiveSubtitleText = (subtitle: typeof activeSubtitle): string => {
     if (!subtitle) return '';
-    
+
     // If instant mode, return full text immediately
     if (subtitleStyle.displayMode === 'instant') {
       return subtitle.text;
     }
-    
+
     // Progressive mode: show words over time
     const words = subtitle.text.split(' ');
     const subtitleDuration = subtitle.endTime - subtitle.startTime;
     const timeInSubtitle = currentTime - subtitle.startTime;
     const progressRatio = Math.min(timeInSubtitle / subtitleDuration, 1);
-    
+
     // Show words progressively based on time
     const wordsToShow = Math.ceil(words.length * progressRatio);
     return words.slice(0, Math.max(1, wordsToShow)).join(' ');
@@ -101,7 +104,6 @@ const Preview = () => {
     clipsLengthRef.current = clips.length;
   }, [clips.length]);
 
-
   // Sync Play/Pause and handle timeline playback
   useEffect(() => {
     if (isPlaying) {
@@ -112,7 +114,6 @@ const Preview = () => {
 
       // Start playback loop
       // Start playback loop
-
 
       let lastFrameTime = Date.now();
 
@@ -158,7 +159,7 @@ const Preview = () => {
       }
 
       if (isPlaying && videoRef.current.paused) {
-        videoRef.current.play().catch(e => e.name !== 'AbortError' && console.log(e));
+        videoRef.current.play().catch((e) => e.name !== 'AbortError' && console.log(e));
       } else if (!isPlaying && !videoRef.current.paused) {
         videoRef.current.pause();
       }
@@ -167,7 +168,7 @@ const Preview = () => {
     }
 
     // 2. Sync Background Audio Clips
-    backgroundAudioClips.forEach(clip => {
+    backgroundAudioClips.forEach((clip) => {
       const audioEl = audioRefs.current.get(clip.id);
 
       // If we don't have a ref but should, we rely on the render to create it
@@ -181,7 +182,7 @@ const Preview = () => {
         }
 
         if (isPlaying && audioEl.paused) {
-          audioEl.play().catch(e => e.name !== 'AbortError' && console.log(e));
+          audioEl.play().catch((e) => e.name !== 'AbortError' && console.log(e));
         } else if (!isPlaying && !audioEl.paused) {
           audioEl.pause();
         }
@@ -192,11 +193,10 @@ const Preview = () => {
 
     // 3. Pause audio clips that are no longer active
     audioRefs.current.forEach((audioEl, id) => {
-      if (!backgroundAudioClips.find(c => c.id === id)) {
+      if (!backgroundAudioClips.find((c) => c.id === id)) {
         audioEl.pause();
       }
     });
-
   }, [currentTime, isPlaying, currentVideoClip, backgroundAudioClips]); // Re-run on every frame update
 
   // Helper to manage audio refs
@@ -235,8 +235,18 @@ const Preview = () => {
         <div className="flex-1 flex items-center justify-center text-text-secondary">
           <div className="text-center space-y-6">
             <div className="w-32 h-32 mx-auto bg-gradient-to-br from-accent/5 to-accent/10 rounded-3xl flex items-center justify-center backdrop-blur-sm">
-              <svg className="w-16 h-16 text-accent/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              <svg
+                className="w-16 h-16 text-accent/60"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                />
               </svg>
             </div>
             <div>
@@ -249,7 +259,9 @@ const Preview = () => {
         {/* Transport Controls */}
         <div className="h-20 bg-bg-elevated/50 backdrop-blur-sm flex items-center px-8 gap-6 border-t border-white/5">
           <button disabled className="text-text-muted opacity-20 cursor-not-allowed">
-            <svg className="w-9 h-9" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+            <svg className="w-9 h-9" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"></path>
+            </svg>
           </button>
           <div className="flex items-center gap-3 bg-bg-primary/50 px-4 py-2 rounded-xl">
             <div className="text-sm font-mono text-text-muted">0:00:00</div>
@@ -278,7 +290,6 @@ const Preview = () => {
     <div className="w-full h-full flex flex-col rounded-2xl overflow-hidden">
       {/* Media Display Area */}
       <div className="flex-1 flex items-center justify-center relative overflow-hidden">
-
         {/* Main Video Element */}
         {currentVideoClip && displayMediaType === 'video' && (
           <video
@@ -304,19 +315,33 @@ const Preview = () => {
         {currentVideoClip && displayMediaType === 'audio' && (
           <div className="flex flex-col items-center justify-center space-y-8 p-8">
             <div className="w-56 h-56 bg-gradient-to-br from-accent/10 via-accent/5 to-transparent rounded-full flex items-center justify-center shadow-2xl animate-pulse ring-4 ring-accent/10">
-              <svg className="w-28 h-28 text-accent/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+              <svg
+                className="w-28 h-28 text-accent/70"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                  d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+                />
               </svg>
             </div>
             <div className="text-center">
-              <div className="text-xl font-semibold text-text-primary mb-2">{currentVideoClip.name}</div>
-              <div className="text-sm text-text-muted bg-bg-elevated/50 px-4 py-1.5 rounded-full">Audio Track</div>
+              <div className="text-xl font-semibold text-text-primary mb-2">
+                {currentVideoClip.name}
+              </div>
+              <div className="text-sm text-text-muted bg-bg-elevated/50 px-4 py-1.5 rounded-full">
+                Audio Track
+              </div>
             </div>
           </div>
         )}
 
         {/* Hidden Audio Elements for Multi-track Mixing */}
-        {backgroundAudioClips.map(clip => (
+        {backgroundAudioClips.map((clip) => (
           <audio
             key={clip.id}
             ref={(el) => setAudioRef(clip.id, el)}
@@ -342,7 +367,7 @@ const Preview = () => {
         )}
 
         {/* Text Overlays */}
-        {activeTextClips.map(textClip => {
+        {activeTextClips.map((textClip) => {
           const textProps = textClip.textProperties;
           if (!textProps) return null;
 
@@ -362,7 +387,7 @@ const Preview = () => {
               positionStyle = {
                 top: `${textProps.y ?? 50}%`,
                 left: `${textProps.x ?? 50}%`,
-                transform: 'translate(-50%, -50%)'
+                transform: 'translate(-50%, -50%)',
               };
               break;
           }
@@ -392,11 +417,7 @@ const Preview = () => {
           };
 
           return (
-            <div
-              key={textClip.id}
-              className="absolute pointer-events-none z-10"
-              style={textStyle}
-            >
+            <div key={textClip.id} className="absolute pointer-events-none z-10" style={textStyle}>
               {textProps.text}
             </div>
           );
@@ -412,7 +433,7 @@ const Preview = () => {
               fontFamily: subtitleStyle.fontFamily,
               color: subtitleStyle.color,
               backgroundColor: subtitleStyle.backgroundColor,
-              textShadow: '1px 1px 2px rgba(0,0,0,0.8)'
+              textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
             }}
           >
             {displayedSubtitleText}
@@ -426,18 +447,32 @@ const Preview = () => {
           onClick={togglePlay}
           disabled={clips.length === 0}
           className="w-11 h-11 flex items-center justify-center text-white bg-accent hover:bg-accent-hover focus:outline-none disabled:opacity-30 disabled:cursor-not-allowed disabled:bg-bg-surface transition-all rounded-xl shadow-lg shadow-accent/20 hover:shadow-accent/30"
-          title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+          title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
         >
           {isPlaying ? (
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"></path></svg>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"></path>
+            </svg>
           ) : (
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"></path>
+            </svg>
           )}
         </button>
 
         <div className="flex items-center gap-3 bg-bg-primary/50 px-4 py-2.5 rounded-xl backdrop-blur-sm ring-1 ring-white/5">
-          <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            className="w-4 h-4 text-accent"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
           <div className="text-sm font-mono text-accent font-semibold min-w-[84px]">
             {formatTime(currentTime)}

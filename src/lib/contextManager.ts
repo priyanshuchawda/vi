@@ -11,7 +11,7 @@
  *   { role: 'user' | 'assistant', content: [{ text }, { image }, ...] }
  */
 
-import type { AIChatMessage } from "./aiService";
+import type { AIChatMessage } from './aiService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -30,16 +30,15 @@ export const SUMMARIZE_THRESHOLD = 20;
 const CONTEXT_PATTERNS: Array<{ regex: RegExp; placeholder: string }> = [
   {
     regex: /=== TIMELINE STATE ===[\s\S]*?===========================/g,
-    placeholder: "(Timeline State Removed — see current message)",
+    placeholder: '(Timeline State Removed — see current message)',
   },
   {
-    regex:
-      /=== USER'S YOUTUBE CHANNEL CONTEXT ===[\s\S]*?===================================/g,
-    placeholder: "(Channel Context Removed — see current message)",
+    regex: /=== USER'S YOUTUBE CHANNEL CONTEXT ===[\s\S]*?===================================/g,
+    placeholder: '(Channel Context Removed — see current message)',
   },
   {
     regex: /\[Memory Context[^\]]*\][\s\S]*?(?=\n\[|\n===|$)/g,
-    placeholder: "(Memory Context Removed — see current message)",
+    placeholder: '(Memory Context Removed — see current message)',
   },
 ];
 
@@ -64,10 +63,7 @@ export interface OptimizationMetrics {
 function countChars(history: AIChatMessage[]): number {
   return history.reduce((total, msg) => {
     if (!msg.content || !Array.isArray(msg.content)) return total;
-    return (
-      total +
-      msg.content.reduce((sum, block) => sum + (block.text?.length ?? 0), 0)
-    );
+    return total + msg.content.reduce((sum, block) => sum + (block.text?.length ?? 0), 0);
   }, 0);
 }
 
@@ -95,21 +91,19 @@ function stripContextBlocks(msg: AIChatMessage): AIChatMessage {
  * Scans all user messages except the last one and strips large context blocks.
  * The LAST user message always keeps its context (it's the "current" state).
  */
-export function eliminateDuplicateContexts(
-  history: AIChatMessage[],
-): AIChatMessage[] {
+export function eliminateDuplicateContexts(history: AIChatMessage[]): AIChatMessage[] {
   if (history.length === 0) return history;
 
   let lastUserIndex = -1;
   for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].role === "user") {
+    if (history[i].role === 'user') {
       lastUserIndex = i;
       break;
     }
   }
 
   return history.map((msg, i) => {
-    if (msg.role === "user" && i !== lastUserIndex) {
+    if (msg.role === 'user' && i !== lastUserIndex) {
       return stripContextBlocks(msg);
     }
     return msg;
@@ -118,10 +112,7 @@ export function eliminateDuplicateContexts(
 
 // ─── Step 2: 30% savings threshold ────────────────────────────────────────────
 
-export function calculateDedupSavings(
-  originalChars: number,
-  afterDedupChars: number,
-): number {
+export function calculateDedupSavings(originalChars: number, afterDedupChars: number): number {
   if (originalChars === 0) return 0;
   return (originalChars - afterDedupChars) / originalChars;
 }
@@ -156,11 +147,11 @@ export function shouldSummarize(rawHistory: AIChatMessage[]): boolean {
 export function buildSummarizePrompt(history: AIChatMessage[]): string {
   const historyText = history
     .map((msg) => {
-      const role = msg.role === "user" ? "User" : "Assistant";
-      const text = (msg.content || []).map((b) => b.text ?? "").join(" ");
+      const role = msg.role === 'user' ? 'User' : 'Assistant';
+      const text = (msg.content || []).map((b) => b.text ?? '').join(' ');
       return `${role}: ${text}`;
     })
-    .join("\n\n");
+    .join('\n\n');
 
   return `<summarize_task>
 You are a conversation compressor. Compress the following conversation into a STRUCTURED SUMMARY.
@@ -191,18 +182,14 @@ ${historyText}
  * Collapse a full history into a single-pair pseudo-history:
  *   [ { role: 'user', content: [...] }, { role: 'assistant', content: [...] } ]
  */
-export function buildCondensedHistory(
-  summaryText: string,
-): AIChatMessage[] {
+export function buildCondensedHistory(summaryText: string): AIChatMessage[] {
   return [
     {
-      role: "user",
-      content: [
-        { text: "[Conversation Summary — context compressed to save tokens]" },
-      ],
+      role: 'user',
+      content: [{ text: '[Conversation Summary — context compressed to save tokens]' }],
     },
     {
-      role: "assistant",
+      role: 'assistant',
       content: [{ text: summaryText }],
     },
   ];

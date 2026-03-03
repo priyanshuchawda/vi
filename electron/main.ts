@@ -115,6 +115,14 @@ app.setName('QuickCut');
 let mainWindow: BrowserWindow | null = null;
 let updateService: ReturnType<typeof setupAutoUpdates> | null = null;
 
+function ipcFailure(error: unknown, code: string) {
+  return {
+    success: false as const,
+    error: error instanceof Error ? error.message : String(error),
+    code,
+  };
+}
+
 function registerMediaProtocol() {
   protocol.handle(APP_MEDIA_SCHEME, async (request) => {
     try {
@@ -383,7 +391,7 @@ ipcMain.handle(IPC_CHANNELS.project.writeProjectFile, async (_, rawPayload) => {
     return { success: true };
   } catch (error) {
     console.error('Failed to write project file:', error);
-    return { success: false, error: String(error) };
+    return ipcFailure(error, 'PROJECT_WRITE_FAILED');
   }
 });
 
@@ -407,7 +415,7 @@ ipcMain.handle(IPC_CHANNELS.project.readProjectFile, async (_, rawFilePath) => {
     return { success: true, data: JSON.parse(data) };
   } catch (error) {
     console.error('Failed to read project file:', error);
-    return { success: false, error: String(error) };
+    return ipcFailure(error, 'PROJECT_READ_FAILED');
   }
 });
 
@@ -418,7 +426,7 @@ ipcMain.handle(IPC_CHANNELS.file.readTextFile, async (_, rawFilePath) => {
     return { success: true, data };
   } catch (error) {
     console.error('Failed to read text file:', error);
-    return { success: false, error: String(error) };
+    return ipcFailure(error, 'FILE_READ_TEXT_FAILED');
   }
 });
 
@@ -458,7 +466,7 @@ ipcMain.handle(IPC_CHANNELS.transcription.transcribeVideo, async (event, rawVide
     return { success: true, result };
   } catch (error) {
     console.error('Transcription failed:', error);
-    return { success: false, error: String(error) };
+    return ipcFailure(error, 'TRANSCRIBE_VIDEO_FAILED');
   }
 });
 
@@ -471,7 +479,7 @@ ipcMain.handle(IPC_CHANNELS.transcription.transcribeTimeline, async (event, rawC
     return { success: true, result };
   } catch (error) {
     console.error('Timeline transcription failed:', error);
-    return { success: false, error: String(error) };
+    return ipcFailure(error, 'TRANSCRIBE_TIMELINE_FAILED');
   }
 });
 
@@ -502,7 +510,7 @@ ipcMain.handle(IPC_CHANNELS.analysis.analyzeChannel, async (_event, rawChannelUr
 
 ipcMain.handle(IPC_CHANNELS.analysis.getUserAnalysis, async (_event, rawUserId: string) => {
   if (!analysisService) {
-    return { success: false, error: 'Analysis service not initialized' };
+    return ipcFailure('Analysis service not initialized', 'ANALYSIS_SERVICE_UNAVAILABLE');
   }
 
   try {
@@ -511,11 +519,11 @@ ipcMain.handle(IPC_CHANNELS.analysis.getUserAnalysis, async (_event, rawUserId: 
     if (analysis) {
       return { success: true, data: analysis };
     } else {
-      return { success: false, error: 'No analysis found for user' };
+      return ipcFailure('No analysis found for user', 'ANALYSIS_NOT_FOUND');
     }
   } catch (error) {
     console.error('[IPC] Get user analysis error:', error);
-    return { success: false, error: String(error) };
+    return ipcFailure(error, 'ANALYSIS_GET_USER_FAILED');
   }
 });
 
@@ -523,17 +531,19 @@ ipcMain.handle(
   IPC_CHANNELS.analysis.linkToUser,
   async (_event, rawUserId: string, rawChannelUrl: string) => {
     if (!analysisService) {
-      return { success: false };
+      return ipcFailure('Analysis service not initialized', 'ANALYSIS_SERVICE_UNAVAILABLE');
     }
 
     try {
       const userId = nonEmptyStringSchema.parse(rawUserId);
       const channelUrl = nonEmptyStringSchema.parse(rawChannelUrl);
       const linked = await analysisService.linkAnalysisToUser(userId, channelUrl);
-      return { success: linked };
+      return linked
+        ? { success: true }
+        : ipcFailure('Failed to link analysis', 'ANALYSIS_LINK_FAILED');
     } catch (error) {
       console.error('[IPC] Link analysis error:', error);
-      return { success: false };
+      return ipcFailure(error, 'ANALYSIS_LINK_FAILED');
     }
   },
 );
@@ -639,7 +649,7 @@ ipcMain.handle(IPC_CHANNELS.memory.save, async (_, rawData) => {
     return { success: true, path: paths.index };
   } catch (error) {
     console.error('[Memory] Failed to save:', error);
-    return { success: false, error: String(error) };
+    return ipcFailure(error, 'MEMORY_SAVE_FAILED');
   }
 });
 
@@ -664,7 +674,7 @@ ipcMain.handle(IPC_CHANNELS.memory.load, async (_, projectId?: string) => {
       return { success: true, data: { entries: [] } };
     }
     console.error('[Memory] Failed to load:', error);
-    return { success: false, error: String(error) };
+    return ipcFailure(error, 'MEMORY_LOAD_FAILED');
   }
 });
 
@@ -693,7 +703,7 @@ ipcMain.handle(IPC_CHANNELS.memory.readMemoryFiles, async (_, rawMemoryDir: stri
     }
   } catch (error) {
     console.error('[TESTING MODE] Failed to read memory files:', error);
-    return { success: false, error: String(error), entries: [] };
+    return { ...ipcFailure(error, 'MEMORY_READ_FILES_FAILED'), entries: [] };
   }
 });
 
@@ -765,7 +775,7 @@ ipcMain.handle(
       return { success: true, path: mdPath };
     } catch (error) {
       console.error('[Memory] Failed to save markdown:', error);
-      return { success: false, error: String(error) };
+      return ipcFailure(error, 'MEMORY_SAVE_MARKDOWN_FAILED');
     }
   },
 );

@@ -147,6 +147,17 @@ export const youtubeUploadRequestSchema = z.object({
 });
 
 export const bedrockConverseInputSchema = z.record(z.string(), z.unknown());
+export const ipcErrorEnvelopeSchema = z.object({
+  success: z.literal(false),
+  error: z.string(),
+  code: z.string().optional(),
+});
+
+export type IpcErrorResult = {
+  success: false;
+  error: string;
+  code?: string;
+};
 
 export type IpcInvokeContract = {
   ping: { args: []; result: string };
@@ -174,46 +185,46 @@ export type IpcInvokeContract = {
   'project:loadProject': { args: []; result: string | null };
   'project:writeProjectFile': {
     args: [payload: z.infer<typeof projectWriteSchema>];
-    result: { success: boolean; error?: string };
+    result: { success: boolean; error?: string; code?: string };
   };
   'project:readProjectFile': {
     args: [filePath: string];
-    result: { success: boolean; data?: unknown; error?: string };
+    result: { success: boolean; data?: unknown; error?: string; code?: string };
   };
   'file:readTextFile': {
     args: [filePath: string];
-    result: { success: boolean; data?: string; error?: string };
+    result: { success: boolean; data?: string; error?: string; code?: string };
   };
   'transcription:transcribeVideo': {
     args: [videoPath: string];
-    result: { success: boolean; result?: unknown; error?: string };
+    result: { success: boolean; result?: unknown; error?: string; code?: string };
   };
   'transcription:transcribeTimeline': {
     args: [clips: Array<z.infer<typeof timelineClipSchema>>];
-    result: { success: boolean; result?: unknown; error?: string };
+    result: { success: boolean; result?: unknown; error?: string; code?: string };
   };
   'analysis:analyzeChannel': { args: [channelUrl: string]; result: unknown };
   'analysis:getUserAnalysis': {
     args: [userId: string];
-    result: { success: boolean; data?: unknown; error?: string };
+    result: { success: boolean; data?: unknown; error?: string; code?: string };
   };
   'analysis:linkToUser': {
     args: [userId: string, channelUrl: string];
-    result: { success: boolean };
+    result: { success: boolean; error?: string; code?: string };
   };
   'file:readFileAsBase64': { args: [filePath: string]; result: string };
   'file:getFileSize': { args: [filePath: string]; result: number };
   'memory:save': {
     args: [payload: z.infer<typeof memoryStateSchema>];
-    result: { success: boolean; path?: string; error?: string };
+    result: { success: boolean; path?: string; error?: string; code?: string };
   };
   'memory:load': {
     args: [projectId?: string];
-    result: { success: boolean; data?: unknown; error?: string };
+    result: { success: boolean; data?: unknown; error?: string; code?: string };
   };
   'memory:saveAnalysisMarkdown': {
     args: [entry: z.infer<typeof memoryMarkdownEntrySchema>, projectId?: string];
-    result: { success: boolean; path?: string; error?: string };
+    result: { success: boolean; path?: string; error?: string; code?: string };
   };
   'memory:getDir': { args: []; result: { dir: string; index: string; analyses: string } };
   'bedrock:converse': { args: [input: Record<string, unknown>]; result: unknown };

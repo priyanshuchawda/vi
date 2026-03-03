@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bedrockConverseInputSchema,
   exportVideoRequestSchema,
+  ipcErrorEnvelopeSchema,
   memoryMarkdownEntrySchema,
   memoryStateSchema,
   projectWriteSchema,
@@ -70,5 +71,25 @@ describe('IPC contract schemas', () => {
     const bad = bedrockConverseInputSchema.safeParse('not-an-object');
     expect(ok.success).toBe(true);
     expect(bad.success).toBe(false);
+  });
+
+  it('accepts standardized IPC error envelopes with optional code', () => {
+    const withCode = ipcErrorEnvelopeSchema.safeParse({
+      success: false,
+      error: 'Something failed',
+      code: 'TEST_CODE',
+    });
+    const withoutCode = ipcErrorEnvelopeSchema.safeParse({
+      success: false,
+      error: 'Something failed',
+    });
+    const invalid = ipcErrorEnvelopeSchema.safeParse({
+      success: false,
+      message: 'wrong field',
+    });
+
+    expect(withCode.success).toBe(true);
+    expect(withoutCode.success).toBe(true);
+    expect(invalid.success).toBe(false);
   });
 });

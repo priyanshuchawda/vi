@@ -93,6 +93,7 @@ const Preview = () => {
   const isSeeking = useRef(false);
   const currentTimeRef = useRef(currentTime);
   const clipsLengthRef = useRef(clips.length);
+  const lastVideoClipIdRef = useRef<string | null>(null);
 
   const animationFrameRef = useRef<number | null>(null);
 
@@ -154,10 +155,14 @@ const Preview = () => {
       const timeInClip = currentTime - currentVideoClip.startTime;
       const sourceTime = currentVideoClip.start + timeInClip;
       const drift = Math.abs(videoRef.current.currentTime - sourceTime);
-      const shouldHardSync = !isPlaying || isSeeking.current;
+      const clipChanged = lastVideoClipIdRef.current !== currentVideoClip.id;
+      if (clipChanged) {
+        lastVideoClipIdRef.current = currentVideoClip.id;
+      }
+      const shouldHardSync = !isPlaying || isSeeking.current || clipChanged;
 
-      // Avoid frequent seeks during playback to prevent decoder flicker/black frames.
-      if ((shouldHardSync && drift > 0.05) || (!shouldHardSync && drift > 1)) {
+      // Never force-seek during normal playback; only hard-sync on clip switches, explicit seeks, or pause.
+      if (shouldHardSync && drift > 0.05) {
         videoRef.current.currentTime = sourceTime;
       }
 
@@ -170,6 +175,7 @@ const Preview = () => {
       videoRef.current.volume = currentVideoClip.muted ? 0 : (currentVideoClip.volume ?? 1);
     } else if (videoRef.current && !videoRef.current.paused) {
       videoRef.current.pause();
+      lastVideoClipIdRef.current = null;
     }
 
     // 2. Sync Background Audio Clips

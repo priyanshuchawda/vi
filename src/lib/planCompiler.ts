@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Plan Compiler - Deterministic layer between LLM output and execution
  *
@@ -163,12 +162,12 @@ function compileOperation(
  */
 function validateAndNormalizeBounds(
   toolName: string,
-  args: Record<string, any>,
+  args: Record<string, unknown>,
   _aliasMap: AliasMap,
   snapshot: AIProjectSnapshot,
 ): {
   valid: boolean;
-  normalizedArgs: Record<string, any>;
+  normalizedArgs: Record<string, unknown>;
   error?: string;
   suggestion?: string;
   warnings: string[];

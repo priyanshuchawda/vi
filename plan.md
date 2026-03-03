@@ -239,6 +239,17 @@ Acceptance:
 - For script/caption tasks, compiler rejects destructive ops unless explicit
   user intent includes destructive terms.
 
+Status (2026-03-03):
+
+- Implemented compiler guardrails + repair pass:
+  - non-destructive default blocks destructive ops unless explicitly requested
+  - preserve clip order default blocks `move_clip` unless explicit reorder
+    intent
+  - script/caption semantic guard blocks non-caption timeline mutations
+  - deterministic bounds repairs (e.g., out-of-range `split_clip` clamped)
+- Wired compiler context with `normalizedIntent` + user message in planning
+  service.
+
 ---
 
 ## Phase 5 - Execution Controller and Auto-Recovery Ladder

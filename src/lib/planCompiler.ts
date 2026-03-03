@@ -13,11 +13,17 @@ import type { PlannedOperation } from './aiPlanningService';
 import type { AliasMap } from './clipAliasMapper';
 import { aliasArgsToUuid, validateAliasReferences } from './clipAliasMapper';
 import type { AIProjectSnapshot } from './aiProjectSnapshot';
+import type { NormalizedIntent } from './intentNormalizer';
 
 export interface CompilationResult {
   operations: PlannedOperation[];
   errors: CompilationError[];
   warnings: string[];
+}
+
+export interface CompilePlanOptions {
+  normalizedIntent?: NormalizedIntent;
+  userMessage?: string;
 }
 
 export interface CompilationError {
@@ -45,6 +51,7 @@ export function compilePlan(
   rawOperations: PlannedOperation[],
   aliasMap: AliasMap,
   snapshot: AIProjectSnapshot,
+  options?: CompilePlanOptions,
 ): CompilationResult {
   const compiled: PlannedOperation[] = [];
   const errors: CompilationError[] = [];
@@ -64,7 +71,10 @@ export function compilePlan(
     }
   }
 
-  return { operations: compiled, errors, warnings };
+  const repaired = applyCompilerGuardrails(compiled, options);
+  warnings.push(...repaired.warnings);
+
+  return { operations: repaired.operations, errors, warnings };
 }
 
 /**
@@ -189,14 +199,19 @@ function validateAndNormalizeBounds(
     }
 
     const time = Number(args.time_in_clip);
-    if (!Number.isFinite(time) || time <= 0 || time >= clip.duration) {
+    if (!Number.isFinite(time)) {
       return {
         valid: false,
         normalizedArgs,
-        error: `time_in_clip ${time}s is invalid for clip duration ${clip.duration}s`,
+        error: `time_in_clip ${String(args.time_in_clip)} is not a finite number`,
         suggestion: `Use time between 0 and ${clip.duration}`,
         warnings: [],
       };
+    }
+    if (time <= 0 || time >= clip.duration) {
+      const clamped = Math.max(0.05, Math.min(clip.duration - 0.05, time));
+      warnings.push(`time_in_clip ${time}s clamped to ${clamped.toFixed(2)}s`);
+      normalizedArgs.time_in_clip = Number(clamped.toFixed(2));
     }
   }
 
@@ -269,14 +284,18 @@ function validateAndNormalizeBounds(
   // move_clip: validate start_time
   if (toolName === 'move_clip' && args.start_time !== undefined) {
     const startTime = Number(args.start_time);
-    if (!Number.isFinite(startTime) || startTime < 0) {
+    if (!Number.isFinite(startTime)) {
       return {
         valid: false,
         normalizedArgs,
         error: `Invalid start_time: ${args.start_time}`,
-        suggestion: 'Use start_time >= 0',
+        suggestion: 'Use a numeric start_time >= 0',
         warnings: [],
       };
+    }
+    if (startTime < 0) {
+      warnings.push(`start_time ${startTime}s clamped to 0s`);
+      normalizedArgs.start_time = 0;
     }
   }
 
@@ -323,9 +342,82 @@ function isKnownTool(name: string): boolean {
     'apply_clip_effect',
     'find_highlights',
     'generate_chapters',
+    'generate_intro_script_from_timeline',
+    'apply_script_as_captions',
+    'preview_caption_fit',
   ];
 
   return knownTools.includes(name);
+}
+
+const NON_DESTRUCTIVE_BLOCKED_TOOLS = new Set(['delete_clips', 'clear_all_subtitles']);
+const CLIP_ORDER_MUTATION_TOOLS = new Set(['move_clip']);
+const SCRIPT_CAPTION_SAFE_TOOLS = new Set([
+  'get_timeline_info',
+  'get_clip_details',
+  'get_subtitles',
+  'get_transcription',
+  'get_project_info',
+  'get_clip_analysis',
+  'get_all_media_analysis',
+  'search_clips_by_content',
+  'ask_clarification',
+  'add_subtitle',
+  'update_subtitle',
+  'delete_subtitle',
+  'update_subtitle_style',
+  'clear_all_subtitles',
+  'generate_intro_script_from_timeline',
+  'apply_script_as_captions',
+  'preview_caption_fit',
+]);
+
+function applyCompilerGuardrails(
+  operations: PlannedOperation[],
+  options?: CompilePlanOptions,
+): { operations: PlannedOperation[]; warnings: string[] } {
+  const warnings: string[] = [];
+  const userMessage = String(options?.userMessage || '').toLowerCase();
+  const normalizedIntent = options?.normalizedIntent;
+
+  const explicitDestructiveIntent =
+    /\b(delete|remove|cut out|discard|erase|drop|clear all)\b/.test(userMessage) ||
+    normalizedIntent?.mode === 'delete';
+  const explicitReorderIntent =
+    /\b(reorder|swap|change order|move .* (before|after)|shift clip order)\b/.test(userMessage) ||
+    normalizedIntent?.operationHint === 'reorder';
+  const scriptCaptionIntent =
+    Boolean(
+      normalizedIntent?.goals?.includes('script_generation') ||
+      normalizedIntent?.operationHint === 'script_outline' ||
+      normalizedIntent?.requestedOutputs?.includes('short_script_outline') ||
+      normalizedIntent?.requestedOutputs?.includes('subtitle_plan'),
+    ) || /\b(script|voiceover|narration|caption|subtitle|on-screen text)\b/.test(userMessage);
+
+  const repaired = operations.filter((operation, index) => {
+    const name = operation.functionCall.name;
+
+    if (scriptCaptionIntent && !SCRIPT_CAPTION_SAFE_TOOLS.has(name)) {
+      warnings.push(
+        `Op ${index + 1}: Dropped ${name} due to script/caption intent (non-caption timeline mutation blocked).`,
+      );
+      return false;
+    }
+
+    if (!explicitDestructiveIntent && NON_DESTRUCTIVE_BLOCKED_TOOLS.has(name)) {
+      warnings.push(`Op ${index + 1}: Dropped ${name} due to non-destructive-default policy.`);
+      return false;
+    }
+
+    if (!explicitReorderIntent && CLIP_ORDER_MUTATION_TOOLS.has(name)) {
+      warnings.push(`Op ${index + 1}: Dropped ${name} to preserve clip order by default.`);
+      return false;
+    }
+
+    return true;
+  });
+
+  return { operations: repaired, warnings };
 }
 
 /**

@@ -133,4 +133,165 @@ describe('planCompiler', () => {
     expect(invalid.valid).toBe(false);
     expect(invalid.errors.some((error) => error.includes('planReady'))).toBe(true);
   });
+
+  it('enforces non-destructive-default by dropping delete operations without explicit delete intent', () => {
+    const operations: PlannedOperation[] = [
+      {
+        round: 1,
+        functionCall: {
+          name: 'delete_clips',
+          args: {
+            clip_ids: ['clip_1'],
+          },
+        },
+        description: 'delete',
+        isReadOnly: false,
+      },
+    ];
+
+    const result = compilePlan(operations, aliasMap, realSnapshot, {
+      userMessage: 'make the flow smoother',
+      normalizedIntent: {
+        intent_type: 'multi_video_edit',
+        mode: 'modify',
+        goals: ['smooth_transitions'],
+        requestedOutputs: ['edit_plan'],
+        constraints: {},
+        ambiguities: [],
+        operationHint: null,
+        confidence: 0.7,
+        requiresPlanning: true,
+      },
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.operations).toHaveLength(0);
+    expect(result.warnings.some((w) => w.includes('non-destructive-default policy'))).toBe(true);
+  });
+
+  it('allows delete operations when user intent is explicitly destructive', () => {
+    const operations: PlannedOperation[] = [
+      {
+        round: 1,
+        functionCall: {
+          name: 'delete_clips',
+          args: {
+            clip_ids: ['clip_1'],
+          },
+        },
+        description: 'delete',
+        isReadOnly: false,
+      },
+    ];
+
+    const result = compilePlan(operations, aliasMap, realSnapshot, {
+      userMessage: 'delete first clip',
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.operations).toHaveLength(1);
+  });
+
+  it('preserves clip order by default by dropping move_clip unless reorder is explicit', () => {
+    const operations: PlannedOperation[] = [
+      {
+        round: 1,
+        functionCall: {
+          name: 'move_clip',
+          args: {
+            clip_id: 'clip_1',
+            start_time: 4,
+          },
+        },
+        description: 'move',
+        isReadOnly: false,
+      },
+    ];
+
+    const implicit = compilePlan(operations, aliasMap, realSnapshot, {
+      userMessage: 'make this better',
+    });
+    expect(implicit.errors).toHaveLength(0);
+    expect(implicit.operations).toHaveLength(0);
+    expect(implicit.warnings.some((w) => w.includes('preserve clip order'))).toBe(true);
+
+    const explicit = compilePlan(operations, aliasMap, realSnapshot, {
+      userMessage: 'reorder clips and move clip 1 after intro',
+    });
+    expect(explicit.errors).toHaveLength(0);
+    expect(explicit.operations).toHaveLength(1);
+  });
+
+  it('auto-repairs out-of-range split bounds by clamping time_in_clip', () => {
+    const operations: PlannedOperation[] = [
+      {
+        round: 1,
+        functionCall: {
+          name: 'split_clip',
+          args: {
+            clip_id: 'clip_1',
+            time_in_clip: 100,
+          },
+        },
+        description: 'split',
+        isReadOnly: false,
+      },
+    ];
+
+    const result = compilePlan(operations, aliasMap, realSnapshot);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.operations).toHaveLength(1);
+    expect(result.operations[0].functionCall.args.time_in_clip).toBeCloseTo(9.95, 2);
+    expect(result.warnings.some((w) => w.includes('time_in_clip'))).toBe(true);
+  });
+
+  it('blocks non-caption timeline mutations for script/caption intents', () => {
+    const operations: PlannedOperation[] = [
+      {
+        round: 1,
+        functionCall: {
+          name: 'update_clip_bounds',
+          args: {
+            clip_id: 'clip_1',
+            new_start: 2,
+            new_end: 6,
+          },
+        },
+        description: 'trim clip',
+        isReadOnly: false,
+      },
+      {
+        round: 1,
+        functionCall: {
+          name: 'apply_script_as_captions',
+          args: {
+            script_blocks: [{ start_time: 0, end_time: 2, text: 'Hackathon Victory' }],
+          },
+        },
+        description: 'apply script',
+        isReadOnly: false,
+      },
+    ];
+
+    const result = compilePlan(operations, aliasMap, realSnapshot, {
+      userMessage: 'create script and captions for this timeline',
+      normalizedIntent: {
+        intent_type: 'chat_or_guidance',
+        mode: 'modify',
+        goals: ['script_generation'],
+        requestedOutputs: ['short_script_outline', 'subtitle_plan'],
+        constraints: {},
+        ambiguities: [],
+        operationHint: 'script_outline',
+        confidence: 0.72,
+        requiresPlanning: false,
+      },
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.operations).toHaveLength(1);
+    expect(result.operations[0].functionCall.name).toBe('apply_script_as_captions');
+    expect(result.warnings.some((w) => w.includes('script/caption intent'))).toBe(true);
+  });
 });

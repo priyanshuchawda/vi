@@ -183,4 +183,51 @@ describe('ToolExecutor planning guard + policy execution', () => {
     expect(results[0].result.data?.question).toContain('Which clip');
     expect(results[0].result.data?.options).toHaveLength(2);
   });
+
+  it('recovers invalid split bounds via constraint repair retry', async () => {
+    const execution = await ToolExecutor.executeWithRecovery(
+      [{ name: 'split_clip', args: { clip_id: 'clip-1', time_in_clip: 100 } }],
+      {
+        mode: 'strict_sequential',
+        stopOnFailure: true,
+        maxAttemptsPerOperation: 4,
+      },
+    );
+
+    expect(execution.results).toHaveLength(1);
+    expect(execution.results[0].result.success).toBe(true);
+    expect(execution.results[0].result.recovery?.recovered).toBe(true);
+    expect(execution.results[0].result.recovery?.reasonCodes).toContain(
+      'constraint_recompile_retry',
+    );
+    expect(
+      execution.recoveryEvents.some(
+        (event) => event.code === 'constraint_recompile_retry' && event.success,
+      ),
+    ).toBe(true);
+  });
+
+  it('records recovery exhaustion when operation cannot be repaired', async () => {
+    const execution = await ToolExecutor.executeWithRecovery(
+      [
+        { name: 'update_clip_bounds', args: { clip_id: 'missing-clip', new_start: 1, new_end: 2 } },
+        { name: 'get_timeline_info', args: {} },
+      ],
+      {
+        mode: 'strict_sequential',
+        stopOnFailure: true,
+        maxAttemptsPerOperation: 4,
+      },
+    );
+
+    expect(execution.results).toHaveLength(1);
+    expect(execution.results[0].result.success).toBe(false);
+    expect(execution.results[0].result.recovery?.reasonCodes).toContain(
+      'fallback_readonly_recovery',
+    );
+    expect(execution.results[0].result.recovery?.reasonCodes).toContain('recovery_exhausted');
+    expect(execution.recoveryEvents.some((event) => event.code === 'recovery_exhausted')).toBe(
+      true,
+    );
+  });
 });

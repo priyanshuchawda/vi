@@ -907,6 +907,13 @@ export async function executePlan(
   const operationsByRound = groupOperationsByRound(executableOperations);
   let completedOperations = 0;
   const allResults: ToolResult[] = [];
+  const recoveryEvents: Array<{
+    index: number;
+    name: string;
+    code: string;
+    success: boolean;
+    message: string;
+  }> = [];
   let budgetExhaustionCount = 0;
 
   // Execute operations round by round
@@ -915,12 +922,13 @@ export async function executePlan(
 
     // Default: strict sequential with output check after each operation.
     // Optional: hybrid mode allows read-only micro-batching (max 3) when safe.
-    const results = await ToolExecutor.executeWithPolicy(
+    const recoveryExecution = await ToolExecutor.executeWithRecovery(
       functionCalls as FunctionCall[],
       {
         mode: executionPolicy.mode,
         maxReadOnlyBatchSize: executionPolicy.maxReadOnlyBatchSize,
         stopOnFailure: executionPolicy.stopOnFailure,
+        maxAttemptsPerOperation: 4,
       },
       (index) => {
         const operationIndex = index - 1;
@@ -935,11 +943,22 @@ export async function executePlan(
         onLifecycle: onToolLifecycle,
       },
     );
+    const results = recoveryExecution.results;
+    recoveryEvents.push(...recoveryExecution.recoveryEvents);
     allResults.push(...results);
 
     // Check for any failed operations
     const failedOps = results.filter((r) => !r.result.success);
     if (failedOps.length > 0) {
+      const recoverySummary = recoveryExecution.recoveryEvents
+        .filter((event) => event.index >= 0)
+        .map(
+          (event) =>
+            `${event.name} -> ${event.code}${event.success ? ' (success)' : ''}${
+              event.message ? `: ${event.message}` : ''
+            }`,
+        )
+        .join('\n');
       const errorMessages = failedOps
         .map(
           (op) =>
@@ -948,7 +967,16 @@ export async function executePlan(
             }${op.result.recoveryHint ? ` | Next: ${op.result.recoveryHint}` : ''}`,
         )
         .join('\n');
-      throw new Error(`Some operations failed:\n${errorMessages}`);
+      throw new Error(
+        [
+          'Some operations failed.',
+          errorMessages,
+          recoverySummary ? `Recovery ladder attempts:\n${recoverySummary}` : '',
+          'Undo is available for any successful operations.',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      );
     }
 
     // Build assistant message with toolUse blocks (Bedrock format)
@@ -1035,6 +1063,12 @@ export async function executePlan(
     `- Removed clips: ${diff.removedClipNames.length > 0 ? diff.removedClipNames.join(', ') : 'none'}`,
     '',
     'Rollback: Use Undo to revert the changes if needed.',
+    ...(recoveryEvents.length > 0
+      ? [
+          '',
+          `Recovery: Applied ${recoveryEvents.length} recovery-step event(s) while executing operations.`,
+        ]
+      : []),
     ...(budgetExhaustionCount > 0
       ? [
           '',

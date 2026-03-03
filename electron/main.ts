@@ -449,13 +449,13 @@ ipcMain.handle(IPC_CHANNELS.media.exportVideo, async (event, rawPayload) => {
       subtitleStyle,
     } = exportVideoRequestSchema.parse(rawPayload);
     await exportVideo(
-      clips,
+      clips as Parameters<typeof exportVideo>[0],
       event.sender,
       outputPath,
       format,
       resolution,
-      subtitles,
-      subtitleStyle,
+      subtitles as Parameters<typeof exportVideo>[5],
+      subtitleStyle as Parameters<typeof exportVideo>[6],
     );
     return true;
   } catch (error) {

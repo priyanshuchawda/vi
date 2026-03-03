@@ -1,7 +1,6 @@
 # Existing technical-debt baseline for file-level no-explicit-any disables.
 # New entries are not allowed; reduce this list over time.
 
-electron/ffmpeg/processor.ts
 src/components/Chat/ChatPanel.tsx
 src/lib/aiPlanningService.ts
 src/lib/aiService.ts

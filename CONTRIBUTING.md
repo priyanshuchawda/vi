@@ -119,3 +119,4 @@ When behavior or workflow changes, update docs in the same PR:
 - `docs/release-and-updates.md` for packaging/update/signing pipeline changes
 - `docs/observability-and-telemetry.md` for logging/error-tracking changes
 - `docs/storage-strategy.md` for persistence/storage behavior changes
+- `docs/electron-security-checklist.md` for Electron security policy changes

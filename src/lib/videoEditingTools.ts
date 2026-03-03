@@ -818,6 +818,123 @@ export const generateChaptersDeclaration = {
   },
 };
 
+// ==================== PHASE 3 MACRO TOOLS ====================
+
+export const generateIntroScriptFromTimelineDeclaration = {
+  toolSpec: {
+    name: 'generate_intro_script_from_timeline',
+    description:
+      'Generates a timestamped intro script grounded in the current timeline and analyzed media memory. Use for requests like "make a 16s hackathon intro script".',
+    inputSchema: {
+      json: {
+        type: 'object',
+        properties: {
+          target_duration: {
+            type: 'number',
+            description: 'Target script duration in seconds (recommended 8-30).',
+          },
+          objective: {
+            type: 'string',
+            description:
+              'Core message objective, for example "how I won the hackathon" or "product launch teaser".',
+          },
+          tone: {
+            type: 'string',
+            description: 'Optional tone style (e.g., energetic, cinematic, confident).',
+          },
+          format: {
+            type: 'string',
+            description:
+              'Optional script format: "voiceover_with_captions" or "on_screen_text_only".',
+          },
+          beat_count: {
+            type: 'number',
+            description: 'Optional number of beats/segments to split the script into.',
+          },
+        },
+        required: ['target_duration', 'objective'],
+      },
+    },
+  },
+};
+
+export const applyScriptAsCaptionsDeclaration = {
+  toolSpec: {
+    name: 'apply_script_as_captions',
+    description:
+      'Applies a structured script directly as timeline captions/subtitles in one deterministic operation.',
+    inputSchema: {
+      json: {
+        type: 'object',
+        properties: {
+          script_blocks: {
+            type: 'array',
+            description: 'Timestamped script lines to convert into subtitles.',
+            items: {
+              type: 'object',
+              properties: {
+                start_time: { type: 'number' },
+                end_time: { type: 'number' },
+                text: { type: 'string' },
+                voiceover: { type: 'string' },
+                on_screen_text: { type: 'string' },
+              },
+            },
+          },
+          style_preset: {
+            type: 'string',
+            description: 'Optional style preset: clean_modern, bold_hype, minimal.',
+          },
+          replace_existing: {
+            type: 'boolean',
+            description: 'Whether to replace existing subtitles before applying new ones.',
+          },
+        },
+        required: ['script_blocks'],
+      },
+    },
+  },
+};
+
+export const previewCaptionFitDeclaration = {
+  toolSpec: {
+    name: 'preview_caption_fit',
+    description:
+      'Checks caption/script fit before applying: overlap, overflow, and reading-speed violations.',
+    inputSchema: {
+      json: {
+        type: 'object',
+        properties: {
+          script_blocks: {
+            type: 'array',
+            description:
+              'Optional script blocks to validate. If omitted, validates current timeline subtitles.',
+            items: {
+              type: 'object',
+              properties: {
+                start_time: { type: 'number' },
+                end_time: { type: 'number' },
+                text: { type: 'string' },
+                voiceover: { type: 'string' },
+                on_screen_text: { type: 'string' },
+              },
+            },
+          },
+          max_chars_per_second: {
+            type: 'number',
+            description: 'Optional reading speed ceiling (default 17 chars/sec).',
+          },
+          min_caption_duration: {
+            type: 'number',
+            description: 'Optional minimum caption duration in seconds (default 1.0s).',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+};
+
 /**
  * Export all video editing tool declarations
  * Passed as `toolConfig: { tools: allVideoEditingTools }` in ConverseCommand
@@ -865,6 +982,10 @@ export const allVideoEditingTools = [
   applyClipEffectDeclaration,
   findHighlightsDeclaration,
   generateChaptersDeclaration,
+  // Phase 3 Macros
+  generateIntroScriptFromTimelineDeclaration,
+  applyScriptAsCaptionsDeclaration,
+  previewCaptionFitDeclaration,
 ];
 
 /**

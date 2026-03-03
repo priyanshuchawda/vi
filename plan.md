@@ -198,6 +198,17 @@ Acceptance:
 
 - Script-to-caption use case executes with 1 macro call + deterministic sub-ops.
 
+Status (2026-03-03):
+
+- Implemented:
+  - `generate_intro_script_from_timeline`
+  - `apply_script_as_captions`
+  - `preview_caption_fit`
+- Added layman-prompt optimizer for script lane to enforce structured outputs.
+- Added Phase 3 tests:
+  - `test/lib/toolExecutor.phase3.macroTools.test.ts`
+  - `test/lib/promptOptimizer.phase3.test.ts`
+
 ---
 
 ## Phase 4 - Deterministic Plan Compiler v2 (Guardrails as Brain)

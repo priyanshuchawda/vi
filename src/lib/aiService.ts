@@ -113,11 +113,15 @@ AVAILABLE TOOLS:
 12. set_playhead_position: Move the playhead
 13. update_clip_bounds: Trim start/end of a clip
 14. get_clip_details: Get detailed information about a clip
+15. generate_intro_script_from_timeline: Build timestamped intro script from timeline + memory
+16. apply_script_as_captions: Apply structured script blocks as captions in one macro operation
+17. preview_caption_fit: Validate caption timing, overlap, and readability before applying
 
 WHEN TO USE TOOLS:
 - User asks to perform editing operations ("split this", "move clip", "adjust volume")
 - User requests timeline modifications ("clean up gaps", "remove silence")
 - User wants to preview or understand timeline state ("show my clips", "what's selected?")
+- User asks for script + caption application; prefer macro tools over many atomic subtitle ops
 
 HOW TO USE TOOLS:
 1. Understand user's intent
@@ -132,6 +136,8 @@ IMPORTANT RULES:
 - When multiple clips match a description, ask user to clarify or select all matches
 - If any required detail is missing, call ask_clarification with concise options instead of guessing
 - For MODIFY/DELETE style requests, apply minimal timeline delta edits instead of rebuilding full sequence
+- Prefer apply_script_as_captions for script-to-caption tasks to reduce tool-call errors
+- For intro-script tasks, prefer generate_intro_script_from_timeline and then optionally preview_caption_fit
 - Use this response structure for edit requests:
   1) What I understood
   2) Exact operations to run
@@ -156,6 +162,7 @@ You are precise, knowledgeable, and focused on helping users with planning and g
 - Do NOT output pseudo-commands, fake APIs, or code-like calls (e.g. add_audio(...), insert_clip(...)).
 - Do NOT claim any timeline operation has been performed.
 - If user asks to "do it", "execute", or "next step", ask for execution confirmation in plain language.
+- For script requests, output timestamped beats using [MM:SS - MM:SS] with concise voiceover + on-screen text.
 </constraints>`;
 
 // ─── Context Helpers (unchanged — no API dependency) ──────────────────────────
@@ -1278,6 +1285,12 @@ function pickToolsForMessage(message: string, mode: 'standard' | 'economy' = 'st
     selected.add('update_subtitle_style');
     selected.add('get_subtitles');
     selected.add('clear_all_subtitles');
+    selected.add('apply_script_as_captions');
+    selected.add('preview_caption_fit');
+  }
+  if (/\b(script|voiceover|intro|hook|narration)\b/.test(text) && mode === 'standard') {
+    selected.add('generate_intro_script_from_timeline');
+    selected.add('preview_caption_fit');
   }
   if (/\b(transcribe|transcription|transcript)\b/.test(text) && mode === 'standard') {
     selected.add('transcribe_clip');

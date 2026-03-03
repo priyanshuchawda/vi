@@ -34,6 +34,8 @@ const READ_ONLY_TOOLS = new Set<string>([
   'get_clip_analysis',
   'get_all_media_analysis',
   'search_clips_by_content',
+  'generate_intro_script_from_timeline',
+  'preview_caption_fit',
 ]);
 
 const TOOL_CONSTRAINTS: Record<string, Record<string, string>> = {
@@ -67,6 +69,18 @@ const TOOL_CONSTRAINTS: Record<string, Record<string, string>> = {
     add_as: 'Allowed: subtitles, text_clips',
     min_chapter_duration: 'Recommended >= 10 seconds',
   },
+  generate_intro_script_from_timeline: {
+    target_duration: 'Range: > 0 and <= 180 seconds',
+    beat_count: 'Recommended range: 4 to 8 beats',
+  },
+  apply_script_as_captions: {
+    script_blocks: 'Must contain at least one text block with valid timing',
+    style_preset: 'Allowed: clean_modern, bold_hype, minimal',
+  },
+  preview_caption_fit: {
+    max_chars_per_second: 'Recommended range: 10 to 24 chars/sec',
+    min_caption_duration: 'Recommended range: 0.6 to 4.0 seconds',
+  },
 };
 
 const TOOL_SIDE_EFFECTS: Record<string, string[]> = {
@@ -78,6 +92,11 @@ const TOOL_SIDE_EFFECTS: Record<string, string[]> = {
   get_clip_analysis: ['No state changes; returns AI memory analysis for one clip'],
   get_all_media_analysis: ['No state changes; returns AI memory summary'],
   search_clips_by_content: ['No state changes; searches analyzed memory entries'],
+  generate_intro_script_from_timeline: [
+    'No state changes; generates structured script artifact from timeline + memory context',
+  ],
+  preview_caption_fit: ['No state changes; validates caption timing/readability fit'],
+  apply_script_as_captions: ['Replaces or appends subtitle entries on timeline'],
   save_project: ['Triggers async project save'],
   transcribe_clip: ['Starts async transcription workflow'],
   transcribe_timeline: ['Starts async timeline transcription workflow'],

@@ -26,7 +26,11 @@ The following checks must be required on `main`:
 - `Markdown lint`
 - `Link check`
 - `Analyze (JavaScript/TypeScript)`
-- `E2E Smoke (mocked)`
+- `Package Smoke (ubuntu-latest)`
+- `Package Smoke (macos-latest)`
+- `Package Smoke (windows-latest)`
+
+All workflow `uses:` references must be pinned to immutable commit SHAs.
 
 ## Merge Strategy
 

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Enhanced Error Handling for AI API
  *
@@ -48,12 +47,11 @@ export class AIErrorHandler {
    * Type guard to check if error is an API error with status
    */
   private static isApiError(error: unknown): error is { status: number; message: string } {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'status' in error &&
-      typeof (error as any).status === 'number'
-    );
+    if (typeof error !== 'object' || error === null) {
+      return false;
+    }
+    const candidate = error as { status?: unknown; message?: unknown };
+    return typeof candidate.status === 'number' && typeof candidate.message === 'string';
   }
 
   /**
@@ -221,11 +219,25 @@ export interface SafetyCheckResult {
   category?: string;
 }
 
+interface SafetyRating {
+  blocked?: boolean;
+  category?: string;
+}
+
+interface SafetyCandidate {
+  finishReason?: string;
+  safetyRatings?: SafetyRating[];
+}
+
+interface SafetyResponse {
+  candidates?: SafetyCandidate[];
+}
+
 /**
  * Check if a response was blocked by safety filters
  */
-export function checkResponseSafety(response: any): SafetyCheckResult {
-  const candidate = response.candidates?.[0];
+export function checkResponseSafety(response: unknown): SafetyCheckResult {
+  const candidate = (response as SafetyResponse)?.candidates?.[0];
 
   if (!candidate) {
     return { blocked: true, reason: 'No candidates returned' };
@@ -235,7 +247,7 @@ export function checkResponseSafety(response: any): SafetyCheckResult {
 
   if (finishReason === 'SAFETY') {
     const safetyRatings = candidate.safetyRatings || [];
-    const blocked = safetyRatings.find((r: any) => r.blocked);
+    const blocked = safetyRatings.find((rating) => rating.blocked);
     return {
       blocked: true,
       reason: 'Content was blocked by safety filters',

@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface BedrockTokenEstimateInput {
-  messages: Array<{ role: string; content: Array<Record<string, any>> }>;
+  messages: Array<{ role: string; content: Array<Record<string, unknown>> }>;
   systemTexts?: string[];
   toolCount?: number;
   maxOutputTokens?: number;
@@ -35,6 +34,10 @@ const VIDEO_TOKENS = 12_000;
 const AUDIO_TOKENS = 4_000;
 const DOCUMENT_TOKENS = 25_800;
 
+function hasKey(record: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(record, key);
+}
+
 function estimateTextTokens(text: string): number {
   if (!text) return 0;
   if (text.length > MAX_CHARS_FOR_FULL_HEURISTIC) {
@@ -48,20 +51,20 @@ function estimateTextTokens(text: string): number {
   return Math.ceil(tokens);
 }
 
-function estimatePartTokens(part: Record<string, any>): number {
-  if (typeof part?.text === 'string') {
+function estimatePartTokens(part: Record<string, unknown>): number {
+  if (typeof part.text === 'string') {
     return estimateTextTokens(part.text);
   }
 
-  if (part?.image) return IMAGE_TOKENS;
-  if (part?.video) return VIDEO_TOKENS;
-  if (part?.audio) return AUDIO_TOKENS;
-  if (part?.document) return DOCUMENT_TOKENS;
+  if (hasKey(part, 'image')) return IMAGE_TOKENS;
+  if (hasKey(part, 'video')) return VIDEO_TOKENS;
+  if (hasKey(part, 'audio')) return AUDIO_TOKENS;
+  if (hasKey(part, 'document')) return DOCUMENT_TOKENS;
 
-  if (part?.toolResult) {
+  if (hasKey(part, 'toolResult')) {
     return Math.ceil(JSON.stringify(part.toolResult).length / 4);
   }
-  if (part?.toolUse) {
+  if (hasKey(part, 'toolUse')) {
     return Math.ceil(JSON.stringify(part.toolUse).length / 4);
   }
 
@@ -69,7 +72,7 @@ function estimatePartTokens(part: Record<string, any>): number {
 }
 
 function estimateMessagesTokens(
-  messages: Array<{ role: string; content: Array<Record<string, any>> }>,
+  messages: Array<{ role: string; content: Array<Record<string, unknown>> }>,
 ): number {
   let total = 0;
   for (const message of messages) {

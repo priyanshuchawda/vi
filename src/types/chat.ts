@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type ChatTurnMode = 'ask' | 'plan' | 'edit';
 export type ChatTurnStatus =
@@ -16,7 +15,7 @@ export type TurnPart =
   | {
       type: 'tool_call';
       name: string;
-      args: Record<string, any>;
+      args: Record<string, unknown>;
       state: 'pending' | 'running' | 'completed' | 'error';
       timestamp: number;
     }

@@ -1,11 +1,23 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface RetryClassification {
   retryable: boolean;
   reason: string;
 }
 
+function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string') {
+      return message;
+    }
+  }
+  return String(error ?? '');
+}
+
 export function classifyTransientError(error: unknown): RetryClassification {
-  const message = String((error as any)?.message || error || '').toLowerCase();
+  const message = extractErrorMessage(error).toLowerCase();
 
   const retryablePatterns = [
     /\b429\b/,

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Clip Alias Mapper - Maps human-readable aliases to UUIDs
  *
@@ -103,11 +102,11 @@ export function formatAliasMapForPrompt(aliasMap: AliasMap): string {
  */
 export function aliasArgsToUuid(
   toolName: string,
-  args: Record<string, any>,
+  args: Record<string, unknown>,
   aliasMap: AliasMap,
 ): {
   success: boolean;
-  args: Record<string, any>;
+  args: Record<string, unknown>;
   errors: string[];
 } {
   const newArgs = { ...args };
@@ -123,7 +122,7 @@ export function aliasArgsToUuid(
     toolName === 'apply_clip_effect' ||
     toolName === 'transcribe_clip'
   ) {
-    if (args.clip_id) {
+    if (typeof args.clip_id === 'string') {
       const uuid = resolveAlias(args.clip_id, aliasMap);
       if (uuid) {
         newArgs.clip_id = uuid;
@@ -147,6 +146,10 @@ export function aliasArgsToUuid(
       for (const alias of args.clip_ids) {
         if (alias === 'all' && (toolName === 'select_clips' || toolName === 'set_clip_volume')) {
           resolvedIds.push(alias);
+          continue;
+        }
+        if (typeof alias !== 'string') {
+          errors.push('Invalid non-string clip alias in array');
           continue;
         }
         const uuid = resolveAlias(alias, aliasMap);
@@ -175,7 +178,7 @@ export function aliasArgsToUuid(
  */
 export function validateAliasReferences(
   _toolName: string,
-  args: Record<string, any>,
+  args: Record<string, unknown>,
   aliasMap: AliasMap,
 ): string[] {
   const errors: string[] = [];

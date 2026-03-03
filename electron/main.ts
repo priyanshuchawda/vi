@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, dialog, nativeImage } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, nativeImage, protocol, net } from "electron";
 import path from "path";
 import fs from "fs/promises";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { config } from "dotenv";
+import { z } from "zod";
 import {
   BedrockRuntimeClient,
   ConverseCommand,
@@ -23,6 +24,95 @@ import { uploadVideo } from "./services/youtubeUploadService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const APP_MEDIA_SCHEME = "app-media";
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APP_MEDIA_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+]);
+
+const filePathSchema = z.string().min(1);
+const nonEmptyStringSchema = z.string().trim().min(1);
+const saveFormatSchema = z.enum(["mp4", "mov", "avi", "webm"]);
+const projectWriteSchema = z.object({
+  filePath: filePathSchema,
+  data: z.unknown(),
+});
+const exportVideoRequestSchema = z.object({
+  clips: z.array(z.unknown()),
+  outputPath: filePathSchema,
+  format: saveFormatSchema.optional(),
+  resolution: z.string().optional(),
+  subtitles: z.array(z.unknown()).optional(),
+  subtitleStyle: z.unknown().optional(),
+});
+const timelineClipSchema = z.object({
+  path: filePathSchema,
+  startTime: z.number(),
+  duration: z.number(),
+});
+const memoryStateSchema = z.object({
+  projectId: z.string().optional(),
+  entries: z.array(z.unknown()).optional(),
+});
+const memoryMarkdownEntrySchema = z.object({
+  fileName: z.string().min(1),
+  mediaType: z.string().optional(),
+  filePath: z.string().optional(),
+  mimeType: z.string().optional(),
+  duration: z.number().optional(),
+  status: z.string().optional(),
+  updatedAt: z.union([z.string(), z.number()]).optional(),
+  summary: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  analysis: z.string().optional(),
+  visualInfo: z
+    .object({
+      subjects: z.array(z.string()).optional(),
+      style: z.string().optional(),
+      dominantColors: z.array(z.string()).optional(),
+      composition: z.string().optional(),
+      quality: z.string().optional(),
+    })
+    .optional(),
+  audioInfo: z
+    .object({
+      hasSpeech: z.boolean().optional(),
+      hasMusic: z.boolean().optional(),
+      languages: z.array(z.string()).optional(),
+      mood: z.string().optional(),
+      transcriptSummary: z.string().optional(),
+    })
+    .optional(),
+  scenes: z
+    .array(
+      z.object({
+        startTime: z.number(),
+        endTime: z.number(),
+        description: z.string(),
+      }),
+    )
+    .optional(),
+});
+const youtubeUploadRequestSchema = z.object({
+  filePath: filePathSchema,
+  metadata: z.object({
+    title: nonEmptyStringSchema,
+    description: z.string().optional().default(""),
+    tags: z.array(z.string()).optional(),
+    categoryId: z.string().optional(),
+    privacyStatus: z.enum(["public", "private", "unlisted"]),
+    madeForKids: z.boolean().optional(),
+  }),
+});
 
 // Load environment variables from .env file
 config({ path: path.join(__dirname, "../.env") });
@@ -74,6 +164,32 @@ app.setName("QuickCut");
 
 let mainWindow: BrowserWindow | null = null;
 
+function registerMediaProtocol() {
+  protocol.handle(APP_MEDIA_SCHEME, async (request) => {
+    try {
+      const url = new URL(request.url);
+      if (url.hostname !== "local") {
+        return new Response("Invalid host", { status: 400 });
+      }
+
+      const encodedPath = url.pathname.startsWith("/")
+        ? url.pathname.slice(1)
+        : url.pathname;
+      const decodedPath = decodeURIComponent(encodedPath);
+      const parsedPath = filePathSchema.parse(decodedPath);
+
+      if (!path.isAbsolute(parsedPath)) {
+        return new Response("Path must be absolute", { status: 400 });
+      }
+
+      return net.fetch(pathToFileURL(parsedPath).toString());
+    } catch (error) {
+      console.error("[MediaProtocol] Failed to serve media:", error);
+      return new Response("Not found", { status: 404 });
+    }
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     title: "QuickCut",
@@ -87,8 +203,8 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false, // allow loading local files
-      sandbox: false,
+      webSecurity: true,
+      sandbox: true,
     },
   });
 
@@ -166,7 +282,8 @@ ipcMain.handle("dialog:openFile", async () => {
   }
 });
 
-ipcMain.handle("media:getMetadata", async (_, filePath) => {
+ipcMain.handle("media:getMetadata", async (_, rawFilePath) => {
+  const filePath = filePathSchema.parse(rawFilePath);
   // Check if the file is an image
   const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
   const ext = path.extname(filePath).toLowerCase();
@@ -224,7 +341,8 @@ ipcMain.handle("media:getMetadata", async (_, filePath) => {
   });
 });
 
-ipcMain.handle("media:getThumbnail", async (_, filePath) => {
+ipcMain.handle("media:getThumbnail", async (_, rawFilePath) => {
+  const filePath = filePathSchema.parse(rawFilePath);
   try {
     const base64 = await generateThumbnail(filePath);
     return base64;
@@ -234,7 +352,8 @@ ipcMain.handle("media:getThumbnail", async (_, filePath) => {
   }
 });
 
-ipcMain.handle("media:getWaveform", async (_, filePath) => {
+ipcMain.handle("media:getWaveform", async (_, rawFilePath) => {
+  const filePath = filePathSchema.parse(rawFilePath);
   try {
     const base64 = await generateWaveform(filePath);
     return base64;
@@ -244,7 +363,8 @@ ipcMain.handle("media:getWaveform", async (_, filePath) => {
   }
 });
 
-ipcMain.handle("dialog:saveFile", async (_, format = "mp4") => {
+ipcMain.handle("dialog:saveFile", async (_, rawFormat = "mp4") => {
+  const format = saveFormatSchema.catch("mp4").parse(rawFormat);
   const extensions: { [key: string]: string } = {
     mp4: "MP4",
     mov: "MOV",
@@ -276,8 +396,9 @@ ipcMain.handle("project:saveProject", async () => {
   }
 });
 
-ipcMain.handle("project:writeProjectFile", async (_, { filePath, data }) => {
+ipcMain.handle("project:writeProjectFile", async (_, rawPayload) => {
   try {
+    const { filePath, data } = projectWriteSchema.parse(rawPayload);
     await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
     return { success: true };
   } catch (error) {
@@ -299,8 +420,9 @@ ipcMain.handle("project:loadProject", async () => {
   }
 });
 
-ipcMain.handle("project:readProjectFile", async (_, filePath) => {
+ipcMain.handle("project:readProjectFile", async (_, rawFilePath) => {
   try {
+    const filePath = filePathSchema.parse(rawFilePath);
     const data = await fs.readFile(filePath, "utf-8");
     return { success: true, data: JSON.parse(data) };
   } catch (error) {
@@ -309,8 +431,9 @@ ipcMain.handle("project:readProjectFile", async (_, filePath) => {
   }
 });
 
-ipcMain.handle("file:readTextFile", async (_, filePath) => {
+ipcMain.handle("file:readTextFile", async (_, rawFilePath) => {
   try {
+    const filePath = filePathSchema.parse(rawFilePath);
     const data = await fs.readFile(filePath, "utf-8");
     return { success: true, data };
   } catch (error) {
@@ -321,11 +444,16 @@ ipcMain.handle("file:readTextFile", async (_, filePath) => {
 
 ipcMain.handle(
   "media:exportVideo",
-  async (
-    event,
-    { clips, outputPath, format = "mp4", resolution, subtitles, subtitleStyle },
-  ) => {
+  async (event, rawPayload) => {
     try {
+      const {
+        clips,
+        outputPath,
+        format = "mp4",
+        resolution,
+        subtitles,
+        subtitleStyle,
+      } = exportVideoRequestSchema.parse(rawPayload);
       await exportVideo(
         clips,
         event.sender,
@@ -346,8 +474,9 @@ ipcMain.handle(
 // Transcription handlers
 ipcMain.handle(
   "transcription:transcribeVideo",
-  async (event, videoPath: string) => {
+  async (event, rawVideoPath: string) => {
     try {
+      const videoPath = filePathSchema.parse(rawVideoPath);
       const result = await transcribeVideo(videoPath, (progress) => {
         event.sender.send("transcription:progress", progress);
       });
@@ -361,11 +490,9 @@ ipcMain.handle(
 
 ipcMain.handle(
   "transcription:transcribeTimeline",
-  async (
-    event,
-    clips: Array<{ path: string; startTime: number; duration: number }>,
-  ) => {
+  async (event, rawClips) => {
     try {
+      const clips = z.array(timelineClipSchema).parse(rawClips);
       const result = await transcribeTimeline(clips, (progress) => {
         event.sender.send("transcription:progress", progress);
       });
@@ -378,7 +505,7 @@ ipcMain.handle(
 );
 
 // Channel Analysis handlers
-ipcMain.handle("analysis:analyzeChannel", async (event, channelUrl: string) => {
+ipcMain.handle("analysis:analyzeChannel", async (_event, rawChannelUrl: string) => {
   if (!analysisService) {
     return {
       success: false,
@@ -388,6 +515,7 @@ ipcMain.handle("analysis:analyzeChannel", async (event, channelUrl: string) => {
   }
 
   try {
+    const channelUrl = nonEmptyStringSchema.parse(rawChannelUrl);
     console.log(`[IPC] Analyzing channel: ${channelUrl}`);
     const result = await analysisService.analyzeChannel(channelUrl);
     return result;
@@ -401,12 +529,13 @@ ipcMain.handle("analysis:analyzeChannel", async (event, channelUrl: string) => {
   }
 });
 
-ipcMain.handle("analysis:getUserAnalysis", async (event, userId: string) => {
+ipcMain.handle("analysis:getUserAnalysis", async (_event, rawUserId: string) => {
   if (!analysisService) {
     return { success: false, error: "Analysis service not initialized" };
   }
 
   try {
+    const userId = nonEmptyStringSchema.parse(rawUserId);
     const analysis = analysisService.getUserAnalysis(userId);
     if (analysis) {
       return { success: true, data: analysis };
@@ -421,12 +550,14 @@ ipcMain.handle("analysis:getUserAnalysis", async (event, userId: string) => {
 
 ipcMain.handle(
   "analysis:linkToUser",
-  async (event, userId: string, channelUrl: string) => {
+  async (_event, rawUserId: string, rawChannelUrl: string) => {
     if (!analysisService) {
       return { success: false };
     }
 
     try {
+      const userId = nonEmptyStringSchema.parse(rawUserId);
+      const channelUrl = nonEmptyStringSchema.parse(rawChannelUrl);
       const linked = await analysisService.linkAnalysisToUser(
         userId,
         channelUrl,
@@ -477,8 +608,9 @@ ipcMain.handle("bedrock:converse", async (_, input: Record<string, unknown>) => 
 });
 
 // File reading for AI Memory analysis
-ipcMain.handle("file:readFileAsBase64", async (_, filePath: string) => {
+ipcMain.handle("file:readFileAsBase64", async (_, rawFilePath: string) => {
   try {
+    const filePath = filePathSchema.parse(rawFilePath);
     const MAX_SIZE_FOR_INLINE = 20 * 1024 * 1024; // 20MB limit for inline data
     const stat = await fs.stat(filePath);
 
@@ -497,8 +629,9 @@ ipcMain.handle("file:readFileAsBase64", async (_, filePath: string) => {
 });
 
 // Get file size (for determining upload strategy)
-ipcMain.handle("file:getFileSize", async (_, filePath: string) => {
+ipcMain.handle("file:getFileSize", async (_, rawFilePath: string) => {
   try {
+    const filePath = filePathSchema.parse(rawFilePath);
     const stat = await fs.stat(filePath);
     return stat.size;
   } catch (error) {
@@ -531,8 +664,9 @@ async function ensureMemoryDirs(projectId?: string) {
 }
 
 // Save full memory state to disk
-ipcMain.handle("memory:save", async (_, data: any) => {
+ipcMain.handle("memory:save", async (_, rawData) => {
   try {
+    const data = memoryStateSchema.parse(rawData);
     const projectId = data.projectId;
     const paths = getProjectMemoryPaths(projectId);
     await ensureMemoryDirs(projectId);
@@ -550,8 +684,9 @@ ipcMain.handle("memory:save", async (_, data: any) => {
 // Load memory state from disk
 ipcMain.handle("memory:load", async (_, projectId?: string) => {
   try {
-    const paths = getProjectMemoryPaths(projectId);
-    await ensureMemoryDirs(projectId);
+    const safeProjectId = projectId ? nonEmptyStringSchema.parse(projectId) : undefined;
+    const paths = getProjectMemoryPaths(safeProjectId);
+    await ensureMemoryDirs(safeProjectId);
     const data = await fs.readFile(paths.index, "utf-8");
     const parsed = JSON.parse(data);
     console.log(
@@ -572,8 +707,9 @@ ipcMain.handle("memory:load", async (_, projectId?: string) => {
 });
 
 //  TESTING MODE - Read all memory files from a directory
-ipcMain.handle("read-memory-files", async (_, memoryDir: string) => {
+ipcMain.handle("read-memory-files", async (_, rawMemoryDir: string) => {
   try {
+    const memoryDir = filePathSchema.parse(rawMemoryDir);
     console.log(` [TESTING MODE] Reading memory from ${memoryDir}...`);
 
     // Try to read the default project memory first
@@ -602,10 +738,12 @@ ipcMain.handle("read-memory-files", async (_, memoryDir: string) => {
 // Save an individual analysis as a human-readable Markdown file
 ipcMain.handle(
   "memory:saveAnalysisMarkdown",
-  async (_, entry: any, projectId?: string) => {
+  async (_, rawEntry, projectId?: string) => {
     try {
-      const paths = getProjectMemoryPaths(projectId);
-      await ensureMemoryDirs(projectId);
+      const entry = memoryMarkdownEntrySchema.parse(rawEntry);
+      const safeProjectId = projectId ? nonEmptyStringSchema.parse(projectId) : undefined;
+      const paths = getProjectMemoryPaths(safeProjectId);
+      await ensureMemoryDirs(safeProjectId);
 
       // Sanitize filename
       const safeName = entry.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -719,8 +857,9 @@ ipcMain.handle("youtube:logout", async () => {
 });
 
 // Upload video to YouTube
-ipcMain.handle("youtube:uploadVideo", async (event, { filePath, metadata }) => {
+ipcMain.handle("youtube:uploadVideo", async (_event, rawPayload) => {
   try {
+    const { filePath, metadata } = youtubeUploadRequestSchema.parse(rawPayload);
     console.log("[YouTube] Starting upload:", filePath);
     
     const videoId = await uploadVideo(filePath, metadata, (progress) => {
@@ -739,6 +878,7 @@ ipcMain.handle("youtube:uploadVideo", async (event, { filePath, metadata }) => {
 });
 
 app.whenReady().then(() => {
+  registerMediaProtocol();
   createWindow();
 
   // Handle window:close IPC from renderer (custom close button)

@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
 import type { YouTubeVideoMetadata, YouTubeUploadProgress, YouTubeVideo } from '../../types/electron';
 import clsx from 'clsx';
 
 const YouTubeUploadTab = () => {
-  const { clips } = useProjectStore();
+  const clips = useProjectStore((state) => state.clips);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -20,19 +20,38 @@ const YouTubeUploadTab = () => {
   const [madeForKids, setMadeForKids] = useState(false);
   const [exportedVideoPath, setExportedVideoPath] = useState<string>('');
 
-  // Check authentication status on mount
-  useEffect(() => {
-    checkAuthStatus();
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    return 'Unknown error';
+  };
+
+  const loadRecentVideos = useCallback(async () => {
+    if (!window.electronAPI?.youtube) return;
+
+    setLoadingVideos(true);
+    try {
+      // Current preload API does not expose list-videos yet.
+      setRecentVideos([]);
+    } catch (error) {
+      console.error('Error loading recent videos:', error);
+    } finally {
+      setLoadingVideos(false);
+    }
   }, []);
 
-  const checkAuthStatus = async () => {
+  const checkAuthStatus = useCallback(async () => {
     if (!window.electronAPI?.youtube) return;
     const authenticated = await window.electronAPI.youtube.isAuthenticated();
     setIsAuthenticated(authenticated);
     if (authenticated) {
-      loadRecentVideos();
+      await loadRecentVideos();
     }
-  };
+  }, [loadRecentVideos]);
+
+  // Check authentication status on mount
+  useEffect(() => {
+    checkAuthStatus();
+  }, [checkAuthStatus]);
 
   const handleLogin = async () => {
     if (!window.electronAPI?.youtube) {
@@ -49,8 +68,8 @@ const YouTubeUploadTab = () => {
       } else {
         alert('Authentication failed');
       }
-    } catch (error: any) {
-      alert(`Error: ${error.message}`);
+    } catch (error: unknown) {
+      alert(`Error: ${getErrorMessage(error)}`);
     } finally {
       setIsAuthenticating(false);
     }
@@ -65,22 +84,8 @@ const YouTubeUploadTab = () => {
         setIsAuthenticated(false);
         setRecentVideos([]);
       }
-    } catch (error: any) {
-      alert(`Logout failed: ${error.message}`);
-    }
-  };
-
-  const loadRecentVideos = async () => {
-    if (!window.electronAPI?.youtube) return;
-
-    setLoadingVideos(true);
-    try {
-      // Current preload API does not expose list-videos yet.
-      setRecentVideos([]);
-    } catch (error) {
-      console.error('Error loading recent videos:', error);
-    } finally {
-      setLoadingVideos(false);
+    } catch (error: unknown) {
+      alert(`Logout failed: ${getErrorMessage(error)}`);
     }
   };
 
@@ -161,8 +166,8 @@ const YouTubeUploadTab = () => {
         alert(`❌ Upload Failed\n\n${result.error}`);
         setIsUploading(false);
       }
-    } catch (error: any) {
-      alert(`❌ Upload Error\n\n${error.message}`);
+    } catch (error: unknown) {
+      alert(`❌ Upload Error\n\n${getErrorMessage(error)}`);
       setIsUploading(false);
     }
   };

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
+import { useShallow } from 'zustand/react/shallow';
 import clsx from 'clsx';
 import ContextMenu from '../ui/ContextMenu';
 
@@ -11,7 +12,34 @@ const formatTime = (seconds: number) => {
 };
 
 const Timeline = () => {
-  const { clips, activeClipId, currentTime, setCurrentTime, updateClip, selectedClipIds, toggleClipSelection, mergeSelectedClips, splitClip, removeClip, copyClips, pasteClips, setClipVolume, toggleClipMute, snapToGrid, setSnapToGrid, gridSize, getTotalDuration, moveClipToTime, setClipSpeed, undo, redo, canUndo, canRedo } = useProjectStore();
+  const { clips, activeClipId, currentTime, setCurrentTime, updateClip, selectedClipIds, toggleClipSelection, mergeSelectedClips, splitClip, removeClip, copyClips, pasteClips, setClipVolume, toggleClipMute, snapToGrid, setSnapToGrid, gridSize, getTotalDuration, moveClipToTime, setClipSpeed, undo, redo, canUndo, canRedo } = useProjectStore(
+    useShallow((state) => ({
+      clips: state.clips,
+      activeClipId: state.activeClipId,
+      currentTime: state.currentTime,
+      setCurrentTime: state.setCurrentTime,
+      updateClip: state.updateClip,
+      selectedClipIds: state.selectedClipIds,
+      toggleClipSelection: state.toggleClipSelection,
+      mergeSelectedClips: state.mergeSelectedClips,
+      splitClip: state.splitClip,
+      removeClip: state.removeClip,
+      copyClips: state.copyClips,
+      pasteClips: state.pasteClips,
+      setClipVolume: state.setClipVolume,
+      toggleClipMute: state.toggleClipMute,
+      snapToGrid: state.snapToGrid,
+      setSnapToGrid: state.setSnapToGrid,
+      gridSize: state.gridSize,
+      getTotalDuration: state.getTotalDuration,
+      moveClipToTime: state.moveClipToTime,
+      setClipSpeed: state.setClipSpeed,
+      undo: state.undo,
+      redo: state.redo,
+      canUndo: state.canUndo(),
+      canRedo: state.canRedo(),
+    })),
+  );
   const [pixelsPerSecond, setPixelsPerSecond] = useState(10);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null);
   const [speedInput, setSpeedInput] = useState<{ clipId: string; value: string } | null>(null);
@@ -84,9 +112,11 @@ const Timeline = () => {
   // Attach global mouse listeners for playhead dragging
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (isDraggingPlayhead.current) {
-        handlePlayheadDrag(e);
-      }
+      if (!isDraggingPlayhead.current || !timelineRef.current) return;
+      const rect = timelineRef.current.getBoundingClientRect();
+      const x = Math.max(0, Math.min(e.clientX - rect.left, timelineWidth));
+      const newTime = x / pixelsPerSecond;
+      setCurrentTime(newTime);
     };
 
     const handleMouseUp = () => {
@@ -102,7 +132,7 @@ const Timeline = () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [clips, pixelsPerSecond]);
+  }, [pixelsPerSecond, setCurrentTime, timelineWidth]);
 
   // Clip dragging handlers for repositioning
   const handleClipDragStart = (e: React.MouseEvent, clipId: string) => {
@@ -119,21 +149,6 @@ const Timeline = () => {
     e.stopPropagation();
   };
 
-  const handleClipDrag = (e: MouseEvent) => {
-    if (!draggingClip || !timelineRef.current) return;
-
-    const rect = timelineRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left - draggingClip.offsetX;
-    let newStartTime = Math.max(0, x / pixelsPerSecond);
-
-    // Apply snap to grid
-    if (snapToGrid) {
-      newStartTime = Math.round(newStartTime / gridSize) * gridSize;
-    }
-
-    moveClipToTime(draggingClip.id, newStartTime);
-  };
-
   const handleClipDragEnd = () => {
     setDraggingClip(null);
   };
@@ -141,15 +156,28 @@ const Timeline = () => {
   // Attach clip drag listeners
   useEffect(() => {
     if (!draggingClip) return;
+    const handleClipDrag = (e: MouseEvent) => {
+      if (!timelineRef.current) return;
 
-    window.addEventListener('mousemove', handleClipDrag as any);
+      const rect = timelineRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left - draggingClip.offsetX;
+      let newStartTime = Math.max(0, x / pixelsPerSecond);
+
+      if (snapToGrid) {
+        newStartTime = Math.round(newStartTime / gridSize) * gridSize;
+      }
+
+      moveClipToTime(draggingClip.id, newStartTime);
+    };
+
+    window.addEventListener('mousemove', handleClipDrag);
     window.addEventListener('mouseup', handleClipDragEnd);
 
     return () => {
-      window.removeEventListener('mousemove', handleClipDrag as any);
+      window.removeEventListener('mousemove', handleClipDrag);
       window.removeEventListener('mouseup', handleClipDragEnd);
     };
-  }, [draggingClip, pixelsPerSecond, snapToGrid, gridSize]);
+  }, [draggingClip, gridSize, moveClipToTime, pixelsPerSecond, snapToGrid]);
 
   const startTrim = (e: React.MouseEvent, id: string, type: 'start' | 'end', initialValue: number) => {
     e.stopPropagation();

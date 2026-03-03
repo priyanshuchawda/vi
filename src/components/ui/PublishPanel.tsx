@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
 
 interface UploadProgress {
@@ -11,7 +11,8 @@ interface UploadProgress {
 }
 
 const PublishPanel = () => {
-  const { exportedVideoPath, setNotification } = useProjectStore();
+  const exportedVideoPath = useProjectStore((state) => state.exportedVideoPath);
+  const setNotification = useProjectStore((state) => state.setNotification);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -27,6 +28,26 @@ const PublishPanel = () => {
   const [categoryId, setCategoryId] = useState('22'); // Default: People & Blogs
   const [madeForKids, setMadeForKids] = useState(false);
 
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    return 'Unknown error';
+  };
+
+  const checkAuthStatus = useCallback(async () => {
+    if (!window.electronAPI?.youtube) return;
+    
+    try {
+      const authenticated = await window.electronAPI.youtube.isAuthenticated();
+      setIsAuthenticated(authenticated);
+    } catch (error: unknown) {
+      setNotification({ 
+        type: 'error', 
+        message: `Auth check failed: ${getErrorMessage(error)}` 
+      });
+      setIsAuthenticated(false);
+    }
+  }, [setNotification]);
+
   // Check Electron API and authentication status on mount
   useEffect(() => {
     const checkElectronAndAuth = async () => {
@@ -37,22 +58,7 @@ const PublishPanel = () => {
       }
     };
     checkElectronAndAuth();
-  }, []);
-
-  const checkAuthStatus = async () => {
-    if (!window.electronAPI?.youtube) return;
-    
-    try {
-      const authenticated = await window.electronAPI.youtube.isAuthenticated();
-      setIsAuthenticated(authenticated);
-    } catch (error: any) {
-      setNotification({ 
-        type: 'error', 
-        message: `Auth check failed: ${error.message || 'Unknown error'}` 
-      });
-      setIsAuthenticated(false);
-    }
-  };
+  }, [checkAuthStatus]);
 
   const handleAuthenticate = async () => {
     if (!window.electronAPI?.youtube) {
@@ -69,10 +75,10 @@ const PublishPanel = () => {
       } else {
         setNotification({ type: 'warning', message: 'Authentication was cancelled' });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setNotification({ 
         type: 'error', 
-        message: `Authentication failed: ${error.message || 'Unknown error'}` 
+        message: `Authentication failed: ${getErrorMessage(error)}` 
       });
     } finally {
       setIsAuthenticating(false);
@@ -86,10 +92,10 @@ const PublishPanel = () => {
       await window.electronAPI.youtube.logout();
       setIsAuthenticated(false);
       setNotification({ type: 'success', message: 'Logged out successfully' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       setNotification({ 
         type: 'error', 
-        message: `Logout failed: ${error.message || 'Unknown error'}` 
+        message: `Logout failed: ${getErrorMessage(error)}` 
       });
     }
   };
@@ -139,17 +145,18 @@ const PublishPanel = () => {
       } else {
         setNotification({ type: 'error', message: 'Upload failed: No video ID returned' });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
       setNotification({ 
         type: 'error', 
-        message: `Upload failed: ${error.message || 'Unknown error'}` 
+        message: `Upload failed: ${errorMessage}` 
       });
       setUploadProgress({
         bytesUploaded: 0,
         totalBytes: 0,
         percentage: 0,
         status: 'failed',
-        error: error.message,
+        error: errorMessage,
       });
     } finally {
       setIsUploading(false);
@@ -313,7 +320,12 @@ const PublishPanel = () => {
                 <label className="text-xs font-semibold text-text-primary">Privacy</label>
                 <select
                   value={privacyStatus}
-                  onChange={(e) => setPrivacyStatus(e.target.value as any)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === 'public' || value === 'private' || value === 'unlisted') {
+                      setPrivacyStatus(value);
+                    }
+                  }}
                   className="w-full px-4 py-2.5 bg-bg-secondary text-text-primary text-sm rounded-xl border border-white/5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all duration-200 cursor-pointer"
                 >
                   <option value="private">🔒 Private</option>

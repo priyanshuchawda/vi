@@ -15,6 +15,7 @@ const ChatInput = ({ onSendMessage, disabled }: ChatInputProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+  const attachmentsRef = useRef<MediaAttachment[]>([]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -91,10 +92,14 @@ const ChatInput = ({ onSendMessage, disabled }: ChatInputProps) => {
     });
   }, []);
 
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
   // Cleanup object URLs on unmount
   useEffect(() => {
     return () => {
-      attachments.forEach(a => {
+      attachmentsRef.current.forEach(a => {
         if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
       });
     };

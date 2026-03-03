@@ -91,6 +91,27 @@ export interface YouTubeVideo {
   };
 }
 
+export interface ExportProgressPayload {
+  percent: number;
+}
+
+export interface TranscriptionProgressPayload {
+  status: string;
+  progress?: number;
+  clip?: number;
+}
+
+export interface ProjectWritePayload {
+  filePath: string;
+  data: unknown;
+}
+
+export interface ProjectFileResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}
+
 export interface ElectronAPI {
   ping: () => Promise<string>;
   openFile: () => Promise<string[]>;
@@ -106,16 +127,23 @@ export interface ElectronAPI {
   getThumbnail: (filePath: string) => Promise<string | null>;
   getWaveform: (filePath: string) => Promise<string | null>;
   saveFile: (format?: string) => Promise<string | null>;
-  exportVideo: (clips: any[], outputPath: string, format?: string, resolution?: string, subtitles?: any[], subtitleStyle?: any) => Promise<boolean>;
-  onExportProgress: (callback: (percent: number) => void) => void;
+  exportVideo: (
+    clips: unknown[],
+    outputPath: string,
+    format?: string,
+    resolution?: string,
+    subtitles?: unknown[],
+    subtitleStyle?: unknown,
+  ) => Promise<boolean>;
+  onExportProgress: (callback: (percent: number) => void) => () => void;
   saveProject: () => Promise<string | null>;
   loadProject: () => Promise<string | null>;
-  writeProjectFile: (data: { filePath: string; data: any }) => Promise<{ success: boolean; error?: string }>;
-  readProjectFile: (filePath: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+  writeProjectFile: (data: ProjectWritePayload) => Promise<{ success: boolean; error?: string }>;
+  readProjectFile: (filePath: string) => Promise<ProjectFileResult>;
   readTextFile: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
   transcribeVideo: (videoPath: string) => Promise<{ success: boolean; result?: TranscriptionResult; error?: string }>;
   transcribeTimeline: (clips: Array<{ path: string; startTime: number; duration: number }>) => Promise<{ success: boolean; result?: TranscriptionResult; error?: string }>;
-  onTranscriptionProgress: (callback: (progress: { status: string; progress?: number; clip?: number }) => void) => void;
+  onTranscriptionProgress: (callback: (progress: TranscriptionProgressPayload) => void) => () => void;
   analyzeChannel: (channelUrl: string) => Promise<AnalysisResponse>;
   getUserAnalysis: (userId: string) => Promise<{ success: boolean; data?: ChannelAnalysisData; error?: string }>;
   linkAnalysisToUser: (userId: string, channelUrl: string) => Promise<{ success: boolean }>;
@@ -133,11 +161,11 @@ export interface ElectronAPI {
     ) => Promise<{ success: boolean; videoId?: string; error?: string }>;
   };
   // AI Memory — file-based persistence (project-specific)
-  memorySave: (data: any) => Promise<{ success: boolean; path?: string; error?: string }>;
-  memoryLoad: (projectId?: string) => Promise<{ success: boolean; data?: any; error?: string }>;
-  memorySaveMarkdown: (entry: any, projectId?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+  memorySave: (data: unknown) => Promise<{ success: boolean; path?: string; error?: string }>;
+  memoryLoad: (projectId?: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+  memorySaveMarkdown: (entry: unknown, projectId?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
   memoryGetDir: () => Promise<{ dir: string; index: string; analyses: string }>;
-  bedrockConverse: (input: Record<string, unknown>) => Promise<any>;
+  bedrockConverse: (input: Record<string, unknown>) => Promise<unknown>;
 }
 
 declare global {

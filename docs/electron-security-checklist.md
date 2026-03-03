@@ -51,3 +51,22 @@ Regression tests should validate:
 - allowlist URL matching
 - navigation block logic
 - permission default-deny behavior
+- startup assertions for BrowserWindow webPreferences
+- protocol path validation for `app-media://`
+
+## Verification Procedure
+
+Run the security regression suite locally before release:
+
+```bash
+npm run test -- test/electron/securityPolicy.test.ts
+```
+
+Expected checks include:
+
+- CSP directives include `default-src 'self'`, `frame-ancestors 'none'`, and
+  restricted `connect-src`.
+- BrowserWindow webPreferences assertions fail fast if security defaults are
+  weakened.
+- `app-media://` protocol path validation rejects invalid/relative/null-byte
+  paths.

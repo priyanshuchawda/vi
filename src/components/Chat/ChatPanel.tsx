@@ -21,6 +21,7 @@ import type { ExecutionPlan } from '../../lib/aiPlanningService';
 import { getTelemetryRates, recordTurnRetry, resetTelemetry } from '../../lib/aiTelemetry';
 import { classifyTransientError, getRetryDelayMs } from '../../lib/retryClassifier';
 import { buildAIProjectSnapshot, type AIProjectSnapshot } from '../../lib/aiProjectSnapshot';
+import { createChatRequestQueue } from '../../lib/chatRequestQueue';
 import { normalizeUserIntent, type NormalizedIntent } from '../../lib/intentNormalizer';
 import {
   buildClarificationQuestion,
@@ -70,6 +71,7 @@ const ChatPanel = () => {
   const { entries } = useAiMemoryStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const sendQueueRef = useRef(createChatRequestQueue());
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [showMemoryDetails, setShowMemoryDetails] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -331,7 +333,7 @@ const ChatPanel = () => {
     ];
   };
 
-  const handleSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
+  const processSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
     // Add user message with attachments
     const userMessageId = addMessage('user', content, undefined, attachments);
     setIsTyping(true);
@@ -866,6 +868,13 @@ const ChatPanel = () => {
       setIsGeneratingPlan(false);
       setUploadStatus(null);
     }
+  };
+
+  const handleSendMessage = (content: string, attachments?: MediaAttachment[]) => {
+    const label = content.trim().slice(0, 80) || '[attachment-only message]';
+    void sendQueueRef.current.enqueue(() => processSendMessage(content, attachments), {
+      label,
+    });
   };
 
   const handleClearChat = () => {

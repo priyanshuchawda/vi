@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a defect or regression
+title: 'bug: '
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting an issue. Please provide as much detail as possible.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Clear and concise description of the bug.
+      placeholder: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Steps to reproduce the issue.
+      placeholder: |
+        1. Open app
+        2. Go to ...
+        3. Click ...
+        4. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: Include errors, stack traces, and screenshots if applicable.
+      render: shell
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Development
+        - Staging build
+        - Production build
+    validations:
+      required: true
+  - type: input
+    id: app_version
+    attributes:
+      label: App version
+      placeholder: v1.1.0
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-checks
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I can reproduce this issue on the latest version.
+          required: true

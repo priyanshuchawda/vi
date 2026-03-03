@@ -1,9 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useProjectStore } from '../stores/useProjectStore';
 import { useAiMemoryStore } from '../stores/useAiMemoryStore';
 import type { FunctionCall, ToolResult } from './videoEditingTools';
 import { isReadOnlyTool, isToolAllowedInMode, type RuntimeToolMode } from './toolCapabilityMatrix';
 import { retrieveRelevantMemory } from './memoryRetrieval';
+import type { ExportFormat, ExportResolution } from '../stores/useProjectStore';
 
 type ToolErrorCategory =
   | 'plan_error'
@@ -73,7 +73,7 @@ export class ToolExecutor {
    * This prevents hard failures when AI asks to extend beyond source media.
    */
   private static normalizeClipBounds(
-    clip: any,
+    clip: { start: number; end: number; sourceDuration: number },
     newStart?: number,
     newEnd?: number,
   ): {
@@ -955,7 +955,7 @@ export class ToolExecutor {
 
         case 'update_subtitle_style': {
           const { font_size, font_family, color, background_color, position } = call.args;
-          const updates: any = {};
+          const updates: Partial<typeof store.subtitleStyle> = {};
 
           if (font_size !== undefined) updates.fontSize = font_size;
           if (font_family !== undefined) updates.fontFamily = font_family;
@@ -1110,13 +1110,23 @@ export class ToolExecutor {
         case 'set_export_settings': {
           const { format, resolution } = call.args;
           const updates: string[] = [];
+          const validFormats: ExportFormat[] = ['mp4', 'mov', 'avi', 'webm'];
+          const validResolutions: ExportResolution[] = [
+            '1920x1080',
+            '1280x720',
+            '854x480',
+            'original',
+          ];
 
-          if (format) {
-            store.setExportFormat(format as any);
+          if (typeof format === 'string' && validFormats.includes(format as ExportFormat)) {
+            store.setExportFormat(format as ExportFormat);
             updates.push(`format: ${format}`);
           }
-          if (resolution) {
-            store.setExportResolution(resolution as any);
+          if (
+            typeof resolution === 'string' &&
+            validResolutions.includes(resolution as ExportResolution)
+          ) {
+            store.setExportResolution(resolution as ExportResolution);
             updates.push(`resolution: ${resolution}`);
           }
 
@@ -1170,8 +1180,8 @@ export class ToolExecutor {
 
           // Map to clips
           const matchingClips = matchingEntries
-            .map((entry: any) => store.clips.find((c) => c.id === entry.clipId))
-            .filter(Boolean);
+            .map((entry) => store.clips.find((c) => c.id === entry.clipId))
+            .filter((clip): clip is (typeof store.clips)[number] => Boolean(clip));
 
           return {
             name: call.name,
@@ -1180,7 +1190,7 @@ export class ToolExecutor {
               message: `Found ${matchingClips.length} clips matching "${query}"`,
               data: {
                 query,
-                matches: matchingClips.map((clip: any) => ({
+                matches: matchingClips.map((clip) => ({
                   id: clip.id,
                   name: clip.name,
                   startTime: clip.startTime,
@@ -1235,7 +1245,7 @@ export class ToolExecutor {
               message: context.projectSummary,
               data: {
                 totalFiles: context.totalFiles,
-                entries: context.entries.map((entry: any) => ({
+                entries: context.entries.map((entry) => ({
                   clipId: entry.clipId,
                   fileName: entry.fileName,
                   mediaType: entry.mediaType,
@@ -1265,7 +1275,7 @@ export class ToolExecutor {
         case 'apply_clip_effect': {
           const { clip_id, brightness, contrast, saturation, gamma } = call.args;
           const clip = store.clips.find((c) => c.id === clip_id);
-          const newEffects: any = {};
+          const newEffects: NonNullable<(typeof store.clips)[number]['effects']> = {};
           if (brightness !== undefined)
             newEffects.brightness = Math.max(-1, Math.min(1, brightness));
           if (contrast !== undefined) newEffects.contrast = Math.max(0, Math.min(3, contrast));
@@ -1295,23 +1305,23 @@ export class ToolExecutor {
           // Score each entry against criteria keywords
           const keywords = criteria.toLowerCase().split(/\s+/);
           const scored = entries
-            .filter((e: any) => e.status === 'completed')
-            .map((entry: any) => {
+            .filter((e) => e.status === 'completed')
+            .map((entry) => {
               const haystack = [
                 entry.summary ?? '',
                 ...(entry.tags ?? []),
-                entry.analysis?.audioInfo?.mood ?? '',
-                entry.analysis?.audioInfo?.speechContent ?? '',
-                ...(entry.analysis?.visualInfo?.subjects ?? []),
-                entry.analysis?.visualInfo?.style ?? '',
+                entry.audioInfo?.mood ?? '',
+                entry.audioInfo?.transcriptSummary ?? '',
+                ...(entry.visualInfo?.subjects ?? []),
+                entry.visualInfo?.style ?? '',
               ]
                 .join(' ')
                 .toLowerCase();
               const score = keywords.filter((kw: string) => haystack.includes(kw)).length;
               return { entry, score };
             })
-            .filter(({ score }: any) => score > 0)
-            .sort((a: any, b: any) => b.score - a.score)
+            .filter(({ score }) => score > 0)
+            .sort((a, b) => b.score - a.score)
             .slice(0, max_results);
 
           if (scored.length === 0) {
@@ -1325,15 +1335,15 @@ export class ToolExecutor {
             };
           }
 
-          const highlights = scored.map(({ entry }: any) => {
-            const clip = clips.find((c: any) => c.id === entry.clipId);
+          const highlights = scored.map(({ entry }) => {
+            const clip = clips.find((c) => c.id === entry.clipId);
             return {
               clipId: entry.clipId,
               clipName: entry.fileName,
               summary: entry.summary,
               tags: entry.tags?.slice(0, 5),
               timelineStart: clip?.startTime ?? 0,
-              duration: clip?.duration ?? entry.analysis?.metadata?.duration ?? 0,
+              duration: clip?.duration ?? entry.duration ?? 0,
             };
           });
 
@@ -1410,22 +1420,36 @@ export class ToolExecutor {
           } else {
             // Add text overlay clips at chapter positions
             chapters.forEach((ch) => {
+              const beforeIds = new Set(store.clips.map((clip) => clip.id));
               store.addClip({
                 path: '',
                 name: `Chapter: ${ch.title}`,
                 mediaType: 'text',
-                startTime: ch.time,
                 duration: 3,
                 sourceDuration: 3,
                 textProperties: {
                   text: `Chapter: ${ch.title}`,
                   fontSize: 28,
+                  fontFamily: 'Arial',
                   color: '#FFFFFF',
                   position: 'top',
                   align: 'center',
                   bold: true,
-                } as any,
-              } as any);
+                },
+              });
+              const inserted = useProjectStore
+                .getState()
+                .clips.find(
+                  (clip) =>
+                    !beforeIds.has(clip.id) &&
+                    clip.mediaType === 'text' &&
+                    clip.name === `Chapter: ${ch.title}`,
+                );
+              if (inserted) {
+                useProjectStore
+                  .getState()
+                  .moveClipToTime(inserted.id, ch.time, inserted.trackIndex);
+              }
             });
           }
 

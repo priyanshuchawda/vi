@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../../stores/useChatStore';
 import { useProjectStore } from '../../stores/useProjectStore';
@@ -14,11 +13,14 @@ import {
   convertToAIHistory,
   sendMessageWithHistoryStream,
   sendToolResultsToAI,
+  type AIChatMessage,
+  type StreamChunk,
   type StreamOptions,
 } from '../../lib/aiService';
+import type { ExecutionPlan } from '../../lib/aiPlanningService';
 import { getTelemetryRates, recordTurnRetry, resetTelemetry } from '../../lib/aiTelemetry';
 import { classifyTransientError, getRetryDelayMs } from '../../lib/retryClassifier';
-import { buildAIProjectSnapshot } from '../../lib/aiProjectSnapshot';
+import { buildAIProjectSnapshot, type AIProjectSnapshot } from '../../lib/aiProjectSnapshot';
 import { normalizeUserIntent, type NormalizedIntent } from '../../lib/intentNormalizer';
 import {
   buildClarificationQuestion,
@@ -33,6 +35,12 @@ interface SessionLogEntry {
   tokenTotal?: number;
   isError?: boolean;
 }
+
+type ToolCallLike = {
+  name: string;
+  args: Record<string, unknown>;
+  id?: string;
+};
 
 const ChatPanel = () => {
   const {
@@ -82,17 +90,17 @@ const ChatPanel = () => {
 
   // Tool calling state
   const [pendingToolCalls, setPendingToolCalls] = useState<{
-    functionCalls: any[];
-    modelContent: any;
-    history: any[];
+    functionCalls: ToolCallLike[];
+    modelContent: StreamChunk['modelContent'];
+    history: AIChatMessage[];
   } | null>(null);
   const [pendingClarification, setPendingClarification] = useState<{
     question: string;
     options: string[];
     context?: string;
-    functionCall: any;
-    modelContent: any;
-    history: any[];
+    functionCall: ToolCallLike;
+    modelContent: StreamChunk['modelContent'];
+    history: AIChatMessage[];
     turnId: string | null;
   } | null>(null);
   const [isExecutingTools, setIsExecutingTools] = useState(false);
@@ -104,9 +112,9 @@ const ChatPanel = () => {
 
   // Planning state
   const [executionPlan, setExecutionPlan] = useState<{
-    plan: any;
+    plan: ExecutionPlan;
     originalMessage: string;
-    history: any[];
+    history: AIChatMessage[];
     normalizedIntent?: NormalizedIntent;
   } | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
@@ -169,7 +177,7 @@ const ChatPanel = () => {
   const recordToolLifecycleForTurn = (
     currentTurnId: string | null,
     event: {
-      call: { name: string; args: Record<string, any> };
+      call: { name: string; args: Record<string, unknown> };
       state: 'pending' | 'running' | 'completed' | 'error';
       result?: {
         name?: string;
@@ -248,9 +256,9 @@ const ChatPanel = () => {
   };
 
   const openClarificationPrompt = (params: {
-    functionCalls: any[];
-    modelContent: any;
-    history: any[];
+    functionCalls: ToolCallLike[];
+    modelContent: StreamChunk['modelContent'];
+    history: AIChatMessage[];
     turnId: string | null;
   }): boolean => {
     const clarificationCall = params.functionCalls.find(isClarificationToolCall);
@@ -294,7 +302,7 @@ const ChatPanel = () => {
     return turn.parts.filter((part) => part.type === 'status' && part.to === 'retry').length;
   };
 
-  const hashSnapshot = (snapshot: any): string => {
+  const hashSnapshot = (snapshot: AIProjectSnapshot): string => {
     const raw = JSON.stringify(snapshot);
     let hash = 2166136261;
     for (let i = 0; i < raw.length; i++) {
@@ -304,17 +312,17 @@ const ChatPanel = () => {
     return `fnv32-${(hash >>> 0).toString(16)}`;
   };
 
-  const summarizeSnapshotDiff = (before: any, after: any): string[] => {
+  const summarizeSnapshotDiff = (before: AIProjectSnapshot, after: AIProjectSnapshot): string[] => {
     const beforeClips = before?.timeline?.clips || [];
     const afterClips = after?.timeline?.clips || [];
-    const beforeIds = new Set(beforeClips.map((clip: any) => clip.id));
-    const afterIds = new Set(afterClips.map((clip: any) => clip.id));
+    const beforeIds = new Set(beforeClips.map((clip) => clip.id));
+    const afterIds = new Set(afterClips.map((clip) => clip.id));
     const added = afterClips
-      .filter((clip: any) => !beforeIds.has(clip.id))
-      .map((clip: any) => clip.name || clip.id);
+      .filter((clip) => !beforeIds.has(clip.id))
+      .map((clip) => clip.name || clip.id);
     const removed = beforeClips
-      .filter((clip: any) => !afterIds.has(clip.id))
-      .map((clip: any) => clip.name || clip.id);
+      .filter((clip) => !afterIds.has(clip.id))
+      .map((clip) => clip.name || clip.id);
     return [
       `Clips: ${before?.timeline?.clipCount ?? beforeClips.length} -> ${after?.timeline?.clipCount ?? afterClips.length}`,
       `Duration: ${(before?.timeline?.totalDuration ?? 0).toFixed(1)}s -> ${(after?.timeline?.totalDuration ?? 0).toFixed(1)}s`,
@@ -464,7 +472,7 @@ const ChatPanel = () => {
           if (hasValidationIssues) {
             const issuePreview = (plan.validation.issues || [])
               .slice(0, 3)
-              .map((issue: any) => `- ${issue.toolName}: ${issue.message}`)
+              .map((issue) => `- ${issue.toolName}: ${issue.message}`)
               .join('\n');
             addMessage(
               'assistant',
@@ -1371,48 +1379,55 @@ const ChatPanel = () => {
   const recentTurns: ChatTurn[] = turns.slice(-5).reverse();
   const selectedAudit = auditTurnId ? getTurnAudit(auditTurnId) : undefined;
 
-  const getToolDescription = (call: { name: string; args: any }): string => {
+  const getToolDescription = (call: { name: string; args: Record<string, unknown> }): string => {
     const state = useProjectStore.getState();
+    const args = call.args as {
+      clip_id?: string;
+      time_in_clip?: number;
+      clip_ids?: string[];
+      volume?: number;
+      start_time?: number;
+      time?: number;
+      question?: string;
+    };
 
     switch (call.name) {
       case 'split_clip': {
-        const clip = state.clips.find((c) => c.id === call.args.clip_id);
-        return `Split "${clip?.name || 'clip'}" at ${call.args.time_in_clip}s`;
+        const clip = state.clips.find((c) => c.id === args.clip_id);
+        return `Split "${clip?.name || 'clip'}" at ${args.time_in_clip}s`;
       }
       case 'set_clip_volume': {
-        const clipCount = call.args.clip_ids.includes('all')
-          ? state.clips.length
-          : call.args.clip_ids.length;
-        const volumePct = Math.round(call.args.volume * 100);
+        const clipIds = args.clip_ids || [];
+        const clipCount = clipIds.includes('all') ? state.clips.length : clipIds.length;
+        const volumePct = Math.round((args.volume ?? 0) * 100);
         return `Set volume to ${volumePct}% for ${clipCount} clip(s)`;
       }
       case 'delete_clips': {
-        const clipNames = call.args.clip_ids
+        const clipNames = (args.clip_ids || [])
           .map((id: string) => state.clips.find((c) => c.id === id)?.name || id)
           .join(', ');
         return `Delete: ${clipNames}`;
       }
       case 'move_clip': {
-        const clip = state.clips.find((c) => c.id === call.args.clip_id);
-        return `Move "${clip?.name || 'clip'}" to ${call.args.start_time}s`;
+        const clip = state.clips.find((c) => c.id === args.clip_id);
+        return `Move "${clip?.name || 'clip'}" to ${args.start_time}s`;
       }
       case 'merge_clips': {
-        const clipNames = call.args.clip_ids
+        const clipNames = (args.clip_ids || [])
           .map((id: string) => state.clips.find((c) => c.id === id)?.name || id)
           .join(', ');
         return `Merge: ${clipNames}`;
       }
       case 'toggle_clip_mute': {
-        return `Toggle mute for ${call.args.clip_ids.length} clip(s)`;
+        return `Toggle mute for ${(args.clip_ids || []).length} clip(s)`;
       }
       case 'select_clips': {
-        const count = call.args.clip_ids.includes('all')
-          ? state.clips.length
-          : call.args.clip_ids.length;
+        const clipIds = args.clip_ids || [];
+        const count = clipIds.includes('all') ? state.clips.length : clipIds.length;
         return `Select ${count} clip(s)`;
       }
       case 'copy_clips': {
-        return `Copy ${call.args.clip_ids.length} clip(s)`;
+        return `Copy ${(args.clip_ids || []).length} clip(s)`;
       }
       case 'paste_clips': {
         return `Paste clips from clipboard`;
@@ -1424,21 +1439,21 @@ const ChatPanel = () => {
         return `Redo last action`;
       }
       case 'set_playhead_position': {
-        return `Move playhead to ${call.args.time}s`;
+        return `Move playhead to ${args.time}s`;
       }
       case 'update_clip_bounds': {
-        const clip = state.clips.find((c) => c.id === call.args.clip_id);
+        const clip = state.clips.find((c) => c.id === args.clip_id);
         return `Trim "${clip?.name || 'clip'}"`;
       }
       case 'get_clip_details': {
-        const clip = state.clips.find((c) => c.id === call.args.clip_id);
+        const clip = state.clips.find((c) => c.id === args.clip_id);
         return `Get details for "${clip?.name || 'clip'}"`;
       }
       case 'get_timeline_info': {
         return `Get timeline information`;
       }
       case 'ask_clarification': {
-        return `Ask clarification: ${call.args?.question || 'Need more details'}`;
+        return `Ask clarification: ${args.question || 'Need more details'}`;
       }
       default:
         return `Execute ${call.name}`;
@@ -2263,7 +2278,7 @@ const ChatPanel = () => {
                       executionPlan.plan.validation.issues.length > 0 && (
                         <div>
                           <div className="text-[11px] text-text-secondary mb-1">Issues</div>
-                          {executionPlan.plan.validation.issues.slice(0, 4).map((issue: any) => (
+                          {executionPlan.plan.validation.issues.slice(0, 4).map((issue) => (
                             <div
                               key={`${issue.category}-${issue.toolName}-${issue.message}`}
                               className="text-xs text-orange-200"
@@ -2284,7 +2299,7 @@ const ChatPanel = () => {
                           Planned Steps
                         </div>
                         <div className="space-y-2">
-                          {executionPlan.plan.steps.slice(0, 8).map((step: any) => (
+                          {executionPlan.plan.steps.slice(0, 8).map((step) => (
                             <div
                               key={step.order}
                               className="text-xs text-text-secondary border border-border-primary rounded p-2"
@@ -2312,10 +2327,10 @@ const ChatPanel = () => {
 
                   {/* Group operations by round */}
                   {Array.from(
-                    new Set<number>(executionPlan.plan.operations.map((op: any) => op.round)),
+                    new Set<number>(executionPlan.plan.operations.map((op) => op.round)),
                   ).map((round) => {
                     const roundOps = executionPlan.plan.operations.filter(
-                      (op: any) => op.round === round,
+                      (op) => op.round === round,
                     );
                     return (
                       <div
@@ -2332,7 +2347,7 @@ const ChatPanel = () => {
                         </div>
 
                         <div className="space-y-2">
-                          {roundOps.map((op: any, i: number) => (
+                          {roundOps.map((op, i: number) => (
                             <div key={i} className="flex items-start gap-2 pl-2">
                               <span className="text-purple-300 text-sm mt-0.5">
                                 {op.isReadOnly ? 'Read' : 'Edit'}

@@ -1,4 +1,19 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import {
+  IPC_CHANNELS,
+  bedrockConverseInputSchema,
+  exportVideoRequestSchema,
+  filePathSchema,
+  type IpcInvokeContract,
+  memoryMarkdownEntrySchema,
+  memoryStateSchema,
+  nonEmptyStringSchema,
+  projectWriteSchema,
+  saveFormatSchema,
+  timelineClipListSchema,
+  youtubeUploadMetadataSchema,
+  youtubeUploadRequestSchema,
+} from './ipc/contracts.js';
 
 type TranscriptionProgress = { status: string; progress?: number; clip?: number };
 type YouTubeUploadProgress = {
@@ -18,59 +33,108 @@ type YouTubeUploadMetadata = {
   madeForKids?: boolean;
 };
 
+const invokeIpc = <K extends keyof IpcInvokeContract>(
+  channel: K,
+  ...args: IpcInvokeContract[K]['args']
+) => ipcRenderer.invoke(channel, ...args) as Promise<IpcInvokeContract[K]['result']>;
+
 contextBridge.exposeInMainWorld('electronAPI', {
-  ping: () => ipcRenderer.invoke('ping'),
-  openFile: () => ipcRenderer.invoke('dialog:openFile'),
-  getMetadata: (filePath: string) => ipcRenderer.invoke('media:getMetadata', filePath),
-  getThumbnail: (filePath: string) => ipcRenderer.invoke('media:getThumbnail', filePath),
-  getWaveform: (filePath: string) => ipcRenderer.invoke('media:getWaveform', filePath),
-  saveFile: (format?: string) => ipcRenderer.invoke('dialog:saveFile', format),
-  exportVideo: (clips: unknown[], outputPath: string, format?: string, resolution?: string, subtitles?: unknown[], subtitleStyle?: unknown) =>
-    ipcRenderer.invoke('media:exportVideo', { clips, outputPath, format, resolution, subtitles, subtitleStyle }),
+  ping: () => invokeIpc(IPC_CHANNELS.ping),
+  openFile: () => invokeIpc(IPC_CHANNELS.dialog.openFile),
+  getMetadata: (filePath: string) => invokeIpc(IPC_CHANNELS.media.getMetadata, filePathSchema.parse(filePath)),
+  getThumbnail: (filePath: string) => invokeIpc(IPC_CHANNELS.media.getThumbnail, filePathSchema.parse(filePath)),
+  getWaveform: (filePath: string) => invokeIpc(IPC_CHANNELS.media.getWaveform, filePathSchema.parse(filePath)),
+  saveFile: (format?: string) =>
+    invokeIpc(
+      IPC_CHANNELS.dialog.saveFile,
+      format === undefined ? undefined : saveFormatSchema.parse(format),
+    ),
+  exportVideo: (
+    clips: unknown[],
+    outputPath: string,
+    format?: string,
+    resolution?: string,
+    subtitles?: unknown[],
+    subtitleStyle?: unknown,
+  ) =>
+    invokeIpc(
+      IPC_CHANNELS.media.exportVideo,
+      exportVideoRequestSchema.parse({ clips, outputPath, format, resolution, subtitles, subtitleStyle }),
+    ),
   onExportProgress: (callback: (percent: number) => void) => {
     const listener = (_event: IpcRendererEvent, percent: number) => callback(percent);
-    ipcRenderer.on('export:progress', listener);
-    return () => ipcRenderer.removeListener('export:progress', listener);
+    ipcRenderer.on(IPC_CHANNELS.media.exportProgress, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.media.exportProgress, listener);
   },
-  saveProject: () => ipcRenderer.invoke('project:saveProject'),
-  loadProject: () => ipcRenderer.invoke('project:loadProject'),
-  writeProjectFile: (data: { filePath: string; data: unknown }) => ipcRenderer.invoke('project:writeProjectFile', data),
-  readProjectFile: (filePath: string) => ipcRenderer.invoke('project:readProjectFile', filePath),
-  readTextFile: (filePath: string) => ipcRenderer.invoke('file:readTextFile', filePath),
-  transcribeVideo: (videoPath: string) => ipcRenderer.invoke('transcription:transcribeVideo', videoPath),
+  saveProject: () => invokeIpc(IPC_CHANNELS.project.saveProject),
+  loadProject: () => invokeIpc(IPC_CHANNELS.project.loadProject),
+  writeProjectFile: (data: { filePath: string; data: unknown }) =>
+    invokeIpc(IPC_CHANNELS.project.writeProjectFile, projectWriteSchema.parse(data)),
+  readProjectFile: (filePath: string) =>
+    invokeIpc(IPC_CHANNELS.project.readProjectFile, filePathSchema.parse(filePath)),
+  readTextFile: (filePath: string) =>
+    invokeIpc(IPC_CHANNELS.file.readTextFile, filePathSchema.parse(filePath)),
+  transcribeVideo: (videoPath: string) =>
+    invokeIpc(IPC_CHANNELS.transcription.transcribeVideo, filePathSchema.parse(videoPath)),
   transcribeTimeline: (clips: Array<{ path: string; startTime: number; duration: number }>) =>
-    ipcRenderer.invoke('transcription:transcribeTimeline', clips),
+    invokeIpc(IPC_CHANNELS.transcription.transcribeTimeline, timelineClipListSchema.parse(clips)),
   onTranscriptionProgress: (callback: (progress: TranscriptionProgress) => void) => {
     const listener = (_event: IpcRendererEvent, progress: TranscriptionProgress) => callback(progress);
-    ipcRenderer.on('transcription:progress', listener);
-    return () => ipcRenderer.removeListener('transcription:progress', listener);
+    ipcRenderer.on(IPC_CHANNELS.transcription.progress, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.transcription.progress, listener);
   },
-  analyzeChannel: (channelUrl: string) => ipcRenderer.invoke('analysis:analyzeChannel', channelUrl),
-  getUserAnalysis: (userId: string) => ipcRenderer.invoke('analysis:getUserAnalysis', userId),
-  linkAnalysisToUser: (userId: string, channelUrl: string) => ipcRenderer.invoke('analysis:linkToUser', userId, channelUrl),
-  readFileAsBase64: (filePath: string) => ipcRenderer.invoke('file:readFileAsBase64', filePath),
-  getFileSize: (filePath: string) => ipcRenderer.invoke('file:getFileSize', filePath),
+  analyzeChannel: (channelUrl: string) =>
+    invokeIpc(IPC_CHANNELS.analysis.analyzeChannel, nonEmptyStringSchema.parse(channelUrl)),
+  getUserAnalysis: (userId: string) =>
+    invokeIpc(IPC_CHANNELS.analysis.getUserAnalysis, nonEmptyStringSchema.parse(userId)),
+  linkAnalysisToUser: (userId: string, channelUrl: string) =>
+    invokeIpc(
+      IPC_CHANNELS.analysis.linkToUser,
+      nonEmptyStringSchema.parse(userId),
+      nonEmptyStringSchema.parse(channelUrl),
+    ),
+  readFileAsBase64: (filePath: string) =>
+    invokeIpc(IPC_CHANNELS.file.readFileAsBase64, filePathSchema.parse(filePath)),
+  getFileSize: (filePath: string) =>
+    invokeIpc(IPC_CHANNELS.file.getFileSize, filePathSchema.parse(filePath)),
   // AI Memory — file-based persistence (project-specific)
-  memorySave: (data: unknown) => ipcRenderer.invoke('memory:save', data),
-  memoryLoad: (projectId?: string) => ipcRenderer.invoke('memory:load', projectId),
-  memorySaveMarkdown: (entry: unknown, projectId?: string) => ipcRenderer.invoke('memory:saveAnalysisMarkdown', entry, projectId),
-  memoryGetDir: () => ipcRenderer.invoke('memory:getDir'),
-  bedrockConverse: (input: Record<string, unknown>) => ipcRenderer.invoke('bedrock:converse', input),
+  memorySave: (data: unknown) => invokeIpc(IPC_CHANNELS.memory.save, memoryStateSchema.parse(data)),
+  memoryLoad: (projectId?: string) =>
+    invokeIpc(
+      IPC_CHANNELS.memory.load,
+      projectId === undefined ? undefined : nonEmptyStringSchema.parse(projectId),
+    ),
+  memorySaveMarkdown: (entry: unknown, projectId?: string) =>
+    invokeIpc(
+      IPC_CHANNELS.memory.saveAnalysisMarkdown,
+      memoryMarkdownEntrySchema.parse(entry),
+      projectId === undefined ? undefined : nonEmptyStringSchema.parse(projectId),
+    ),
+  memoryGetDir: () => invokeIpc(IPC_CHANNELS.memory.getDir),
+  bedrockConverse: (input: Record<string, unknown>) =>
+    invokeIpc(IPC_CHANNELS.bedrock.converse, bedrockConverseInputSchema.parse(input)),
   // YouTube Upload
   youtube: {
-    isAuthenticated: () => ipcRenderer.invoke('youtube:isAuthenticated'),
-    authenticate: () => ipcRenderer.invoke('youtube:authenticate'),
-    logout: () => ipcRenderer.invoke('youtube:logout'),
-    uploadVideo: async (filePath: string, metadata: YouTubeUploadMetadata, onProgress?: (progress: YouTubeUploadProgress) => void) => {
+    isAuthenticated: () => invokeIpc(IPC_CHANNELS.youtube.isAuthenticated),
+    authenticate: () => invokeIpc(IPC_CHANNELS.youtube.authenticate),
+    logout: () => invokeIpc(IPC_CHANNELS.youtube.logout),
+    uploadVideo: async (
+      filePath: string,
+      metadata: YouTubeUploadMetadata,
+      onProgress?: (progress: YouTubeUploadProgress) => void,
+    ) => {
       const listener = (_event: IpcRendererEvent, progress: YouTubeUploadProgress) => onProgress?.(progress);
       if (onProgress) {
-        ipcRenderer.on('youtube:uploadProgress', listener);
+        ipcRenderer.on(IPC_CHANNELS.youtube.uploadProgress, listener);
       }
       try {
-        return await ipcRenderer.invoke('youtube:uploadVideo', { filePath, metadata });
+        return await invokeIpc(
+          IPC_CHANNELS.youtube.uploadVideo,
+          youtubeUploadRequestSchema.parse({ filePath, metadata: youtubeUploadMetadataSchema.parse(metadata) }),
+        );
       } finally {
         if (onProgress) {
-          ipcRenderer.removeListener('youtube:uploadProgress', listener);
+          ipcRenderer.removeListener(IPC_CHANNELS.youtube.uploadProgress, listener);
         }
       }
     },

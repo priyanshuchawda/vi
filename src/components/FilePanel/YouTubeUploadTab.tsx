@@ -1,16 +1,28 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
 import type { YouTubeVideoMetadata, YouTubeUploadProgress, YouTubeVideo } from '../../types/electron';
+import {
+  isYouTubeAvailable,
+  useYouTubeAuthStatus,
+  useYouTubeAuthenticate,
+  useYouTubeLogout,
+  useYouTubeUpload,
+} from '../../lib/youtubeQueries';
 import clsx from 'clsx';
 
 const YouTubeUploadTab = () => {
   const clips = useProjectStore((state) => state.clips);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<YouTubeUploadProgress | null>(null);
   const [recentVideos, setRecentVideos] = useState<YouTubeVideo[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
+  const youtubeAvailable = isYouTubeAvailable();
+  const authStatusQuery = useYouTubeAuthStatus();
+  const authenticateMutation = useYouTubeAuthenticate();
+  const logoutMutation = useYouTubeLogout();
+  const uploadMutation = useYouTubeUpload();
+  const isAuthenticated = authStatusQuery.data ?? false;
+  const isAuthenticating = authenticateMutation.isPending;
+  const isUploading = uploadMutation.isPending;
 
   // Form state
   const [title, setTitle] = useState('');
@@ -26,7 +38,7 @@ const YouTubeUploadTab = () => {
   };
 
   const loadRecentVideos = useCallback(async () => {
-    if (!window.electronAPI?.youtube) return;
+    if (!youtubeAvailable) return;
 
     setLoadingVideos(true);
     try {
@@ -37,51 +49,39 @@ const YouTubeUploadTab = () => {
     } finally {
       setLoadingVideos(false);
     }
-  }, []);
+  }, [youtubeAvailable]);
 
-  const checkAuthStatus = useCallback(async () => {
-    if (!window.electronAPI?.youtube) return;
-    const authenticated = await window.electronAPI.youtube.isAuthenticated();
-    setIsAuthenticated(authenticated);
-    if (authenticated) {
-      await loadRecentVideos();
-    }
-  }, [loadRecentVideos]);
-
-  // Check authentication status on mount
   useEffect(() => {
-    checkAuthStatus();
-  }, [checkAuthStatus]);
+    if (isAuthenticated) {
+      void loadRecentVideos();
+    }
+  }, [isAuthenticated, loadRecentVideos]);
 
   const handleLogin = async () => {
-    if (!window.electronAPI?.youtube) {
+    if (!youtubeAvailable) {
       alert('Electron API not available');
       return;
     }
 
-    setIsAuthenticating(true);
     try {
-      const success = await window.electronAPI.youtube.authenticate();
+      const success = await authenticateMutation.mutateAsync();
       if (success) {
-        setIsAuthenticated(true);
-        loadRecentVideos();
+        await authStatusQuery.refetch();
       } else {
         alert('Authentication failed');
       }
     } catch (error: unknown) {
       alert(`Error: ${getErrorMessage(error)}`);
-    } finally {
-      setIsAuthenticating(false);
     }
   };
 
   const handleLogout = async () => {
-    if (!window.electronAPI?.youtube) return;
+    if (!youtubeAvailable) return;
 
     try {
-      const success = await window.electronAPI.youtube.logout();
+      const success = await logoutMutation.mutateAsync();
       if (success) {
-        setIsAuthenticated(false);
+        await authStatusQuery.refetch();
         setRecentVideos([]);
       }
     } catch (error: unknown) {
@@ -90,7 +90,7 @@ const YouTubeUploadTab = () => {
   };
 
   const handleUpload = async () => {
-    if (!window.electronAPI?.youtube) {
+    if (!youtubeAvailable) {
       alert('Electron API not available');
       return;
     }
@@ -113,7 +113,6 @@ const YouTubeUploadTab = () => {
         const outputPath = await window.electronAPI.saveFile('mp4');
         if (!outputPath) return;
 
-        setIsUploading(true);
         setUploadProgress({
           bytesUploaded: 0,
           totalBytes: 0,
@@ -126,7 +125,6 @@ const YouTubeUploadTab = () => {
         videoPath = outputPath;
         setExportedVideoPath(outputPath);
       } else {
-        setIsUploading(true);
         setUploadProgress(null);
       }
 
@@ -141,8 +139,12 @@ const YouTubeUploadTab = () => {
         madeForKids,
       };
 
-      const result = await window.electronAPI.youtube.uploadVideo(videoPath, metadata, (progress: YouTubeUploadProgress) => {
-        setUploadProgress(progress);
+      const result = await uploadMutation.mutateAsync({
+        filePath: videoPath,
+        metadata,
+        onProgress: (progress: YouTubeUploadProgress) => {
+          setUploadProgress(progress);
+        },
       });
       if (result.success) {
         // Show success message with video link
@@ -160,15 +162,11 @@ const YouTubeUploadTab = () => {
         setDescription('');
         setTags('');
         setExportedVideoPath('');
-        
-        setIsUploading(false);
       } else {
         alert(`❌ Upload Failed\n\n${result.error}`);
-        setIsUploading(false);
       }
     } catch (error: unknown) {
       alert(`❌ Upload Error\n\n${getErrorMessage(error)}`);
-      setIsUploading(false);
     }
   };
 

@@ -111,6 +111,28 @@ interface HistoryState {
   timelineVersion: number;
 }
 
+type LoadedProjectData = {
+  projectId?: string;
+  clips?: Clip[];
+  activeClipId?: string | null;
+  selectedClipIds?: string[];
+  currentTime?: number;
+  turnAudits?: TurnAuditRecord[];
+  timelineVersion?: number;
+  subtitles?: SubtitleEntry[];
+  subtitleStyle?: ProjectState['subtitleStyle'];
+  memory?: MediaAnalysisEntry[];
+  chat?: {
+    messages?: ChatMessage[];
+    sessionTokens?: {
+      totalPromptTokens: number;
+      totalResponseTokens: number;
+      totalTokens: number;
+      totalCachedTokens: number;
+    };
+  };
+};
+
 interface ProjectState {
   clips: Clip[];
   activeClipId: string | null;
@@ -242,6 +264,88 @@ const saveToHistory = (state: ProjectState) => {
     timelineVersion: historyState.timelineVersion,
     hasUnsavedChanges: true, // Mark unsaved whenever history changes
   };
+};
+
+const DEFAULT_SUBTITLE_STYLE: ProjectState['subtitleStyle'] = {
+  fontSize: 24,
+  fontFamily: 'Arial',
+  color: '#ffffff',
+  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  position: 'bottom',
+  displayMode: 'instant',
+};
+
+const getElectronApi = () => {
+  if (typeof window === 'undefined') return undefined;
+  return window.electronAPI;
+};
+
+const buildProjectDataForPersistence = (state: ProjectState) => {
+  const projectId = state.projectId || uuidv4();
+  const memoryStore = useAiMemoryStore.getState();
+  const memoryEntries = memoryStore.exportMemory();
+  const chatStore = useChatStore.getState();
+  const chatData = chatStore.exportChatForProject();
+
+  return {
+    projectId,
+    payload: {
+      version: '1.0',
+      projectId,
+      timelineVersion: state.timelineVersion,
+      clips: state.clips,
+      activeClipId: state.activeClipId,
+      selectedClipIds: state.selectedClipIds,
+      currentTime: state.currentTime,
+      turnAudits: state.turnAudits,
+      memory: memoryEntries,
+      chat: chatData,
+    },
+  };
+};
+
+const saveProjectInBrowser = async (projectData: unknown, projectId: string): Promise<string> => {
+  if (typeof document === 'undefined') {
+    throw new Error('Browser save is unavailable outside the renderer process');
+  }
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const fileName = `quickcut-${projectId.slice(0, 8)}-${timestamp}.quickcut`;
+  const json = JSON.stringify(projectData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+  return fileName;
+};
+
+const loadProjectInBrowser = async (): Promise<{ filePath: string; data: unknown } | null> => {
+  if (typeof document === 'undefined') return null;
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.quickcut,application/json,.json';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) {
+        resolve(null);
+        return;
+      }
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        resolve({ filePath: file.name, data });
+      } catch (error) {
+        console.error('Browser project load parse error:', error);
+        resolve(null);
+      }
+    };
+    input.click();
+  });
 };
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -605,55 +709,47 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }),
   saveProject: async () => {
     const state = get();
-
-    if (!window.electronAPI) {
-      set({ notification: { type: 'error', message: 'Save not available in browser' } });
-      return;
-    }
+    const electronApi = getElectronApi();
+    const canUseElectronSave = Boolean(
+      electronApi &&
+      typeof electronApi.saveProject === 'function' &&
+      typeof electronApi.writeProjectFile === 'function',
+    );
 
     try {
-      const filePath = await window.electronAPI.saveProject();
-      if (!filePath) return; // User canceled
-
-      // Generate projectId if this is a new project
-      const projectId = state.projectId || uuidv4();
-
-      // Get memory from memory store
-      const memoryStore = useAiMemoryStore.getState();
-      const memoryEntries = memoryStore.exportMemory();
-
-      // Get chat from chat store
+      const { projectId, payload } = buildProjectDataForPersistence(state);
       const chatStore = useChatStore.getState();
-      const chatData = chatStore.exportChatForProject();
+      let savedPath: string | null = null;
 
-      const projectData = {
-        version: '1.0',
-        projectId,
-        timelineVersion: state.timelineVersion,
-        clips: state.clips,
-        activeClipId: state.activeClipId,
-        selectedClipIds: state.selectedClipIds,
-        currentTime: state.currentTime,
-        turnAudits: state.turnAudits,
-        memory: memoryEntries, // Include memory in project file
-        chat: chatData, // Include chat history in project file
-      };
+      if (canUseElectronSave) {
+        const api = electronApi!;
+        const filePath = await api.saveProject();
+        if (!filePath) return;
+        const result = await api.writeProjectFile({ filePath, data: payload });
+        if (!result.success) {
+          set({ notification: { type: 'error', message: 'Failed to save project' } });
+          return;
+        }
+        savedPath = filePath;
+      } else {
+        savedPath = await saveProjectInBrowser(payload, projectId);
+      }
 
-      const result = await window.electronAPI.writeProjectFile({ filePath, data: projectData });
-
-      if (result.success) {
+      if (savedPath) {
         set({
-          projectPath: filePath,
+          projectPath: savedPath,
           projectId,
           hasUnsavedChanges: false,
           lastSaved: Date.now(),
-          notification: { type: 'success', message: 'Project saved successfully!' },
+          notification: {
+            type: 'success',
+            message: canUseElectronSave
+              ? 'Project saved successfully!'
+              : 'Project downloaded successfully!',
+          },
         });
 
-        // Update chat store with current project ID
         chatStore.loadChatForProject(projectId);
-      } else {
-        set({ notification: { type: 'error', message: 'Failed to save project' } });
       }
     } catch (error) {
       console.error('Save project error:', error);
@@ -661,40 +757,36 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
   loadProject: async () => {
-    if (!window.electronAPI) {
-      set({ notification: { type: 'error', message: 'Load not available in browser' } });
-      return;
-    }
+    const electronApi = getElectronApi();
+    const canUseElectronLoad = Boolean(
+      electronApi &&
+      typeof electronApi.loadProject === 'function' &&
+      typeof electronApi.readProjectFile === 'function',
+    );
 
     try {
-      const filePath = await window.electronAPI.loadProject();
-      if (!filePath) return; // User canceled
+      let loaded: { filePath: string; data: unknown } | null = null;
 
-      const result = await window.electronAPI.readProjectFile(filePath);
+      if (canUseElectronLoad) {
+        const api = electronApi!;
+        const filePath = await api.loadProject();
+        if (!filePath) return;
+        const result = await api.readProjectFile(filePath);
+        if (!result.success || !result.data) {
+          set({ notification: { type: 'error', message: 'Failed to load project' } });
+          return;
+        }
+        loaded = { filePath, data: result.data };
+      } else {
+        loaded = await loadProjectInBrowser();
+        if (!loaded) {
+          set({ notification: { type: 'error', message: 'Failed to load project file' } });
+          return;
+        }
+      }
 
-      if (result.success && result.data) {
-        type LoadedProjectData = {
-          projectId?: string;
-          clips?: Clip[];
-          activeClipId?: string | null;
-          selectedClipIds?: string[];
-          currentTime?: number;
-          turnAudits?: TurnAuditRecord[];
-          timelineVersion?: number;
-          subtitles?: SubtitleEntry[];
-          subtitleStyle?: ProjectState['subtitleStyle'];
-          memory?: MediaAnalysisEntry[];
-          chat?: {
-            messages?: ChatMessage[];
-            sessionTokens?: {
-              totalPromptTokens: number;
-              totalResponseTokens: number;
-              totalTokens: number;
-              totalCachedTokens: number;
-            };
-          };
-        };
-        const projectData = result.data as LoadedProjectData;
+      if (loaded?.data) {
+        const projectData = loaded.data as LoadedProjectData;
         // If old project doesn't have projectId, generate one
         const projectId = projectData.projectId || uuidv4();
 
@@ -708,19 +800,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             ? Number(projectData.timelineVersion)
             : 0,
           subtitles: projectData.subtitles || [],
-          subtitleStyle: projectData.subtitleStyle || {
-            fontSize: 24,
-            fontFamily: 'Arial',
-            color: '#ffffff',
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            position: 'bottom',
-            displayMode: 'instant',
-          },
-          projectPath: filePath,
+          subtitleStyle: projectData.subtitleStyle || DEFAULT_SUBTITLE_STYLE,
+          projectPath: loaded.filePath,
           projectId,
           hasUnsavedChanges: false,
           lastSaved: Date.now(),
-          notification: { type: 'success', message: 'Project loaded successfully!' },
+          notification: {
+            type: 'success',
+            message: canUseElectronLoad
+              ? 'Project loaded successfully!'
+              : 'Project loaded from file!',
+          },
         });
 
         // Load memory from project file
@@ -747,8 +837,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           chatState.clearChatForNewProject();
           useChatStore.setState({ currentProjectId: projectId });
         }
-      } else {
-        set({ notification: { type: 'error', message: 'Failed to load project' } });
       }
     } catch (error) {
       console.error('Load project error:', error);

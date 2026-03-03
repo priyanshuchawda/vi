@@ -350,6 +350,7 @@ const ChatPanel = () => {
     setUploadStatus(null);
     let turnId: string | null = null;
     let turnClosed = false;
+    let messageCoalescer: ReturnType<typeof createStreamCoalescer> | null = null;
 
     const assistantMessage = (text: string, metadata?: { error?: boolean }) => {
       const id = addMessage('assistant', text, metadata);
@@ -1212,6 +1213,7 @@ const ChatPanel = () => {
     setPendingClarification(null);
     setIsTyping(true);
     let turnFailed = false;
+    let messageCoalescer: ReturnType<typeof createStreamCoalescer> | null = null;
 
     if (clarification.turnId) {
       setTurnStatus(clarification.turnId, 'executing');

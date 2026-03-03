@@ -153,9 +153,11 @@ const Preview = () => {
     if (currentVideoClip && videoRef.current) {
       const timeInClip = currentTime - currentVideoClip.startTime;
       const sourceTime = currentVideoClip.start + timeInClip;
+      const drift = Math.abs(videoRef.current.currentTime - sourceTime);
+      const shouldHardSync = !isPlaying || isSeeking.current;
 
-      // Only seek if significantly off (to allow smooth playback)
-      if (Math.abs(videoRef.current.currentTime - sourceTime) > 0.2) {
+      // Avoid frequent seeks during playback to prevent decoder flicker/black frames.
+      if ((shouldHardSync && drift > 0.05) || (!shouldHardSync && drift > 1)) {
         videoRef.current.currentTime = sourceTime;
       }
 
@@ -166,6 +168,8 @@ const Preview = () => {
       }
 
       videoRef.current.volume = currentVideoClip.muted ? 0 : (currentVideoClip.volume ?? 1);
+    } else if (videoRef.current && !videoRef.current.paused) {
+      videoRef.current.pause();
     }
 
     // 2. Sync Background Audio Clips
@@ -177,8 +181,10 @@ const Preview = () => {
       if (audioEl) {
         const timeInClip = currentTime - clip.startTime;
         const sourceTime = clip.start + timeInClip;
+        const drift = Math.abs(audioEl.currentTime - sourceTime);
+        const shouldHardSync = !isPlaying || isSeeking.current;
 
-        if (Math.abs(audioEl.currentTime - sourceTime) > 0.2) {
+        if ((shouldHardSync && drift > 0.05) || (!shouldHardSync && drift > 1)) {
           audioEl.currentTime = sourceTime;
         }
 
@@ -297,6 +303,8 @@ const Preview = () => {
             ref={videoRef}
             src={toMediaUrl(currentVideoClip.path)}
             className="max-h-full max-w-full rounded-xl shadow-2xl ring-1 ring-white/10"
+            preload="auto"
+            playsInline
             onClick={togglePlay}
           />
         )}

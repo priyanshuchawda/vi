@@ -198,7 +198,7 @@ function parseTargetDurationSeconds(
   }
 
   const directMatch = String(userMessage || '').match(
-    /\b(\d+(?:\.\d+)?)\s*(s|sec|second|seconds|min|minute|minutes)\b/i,
+    /\b(\d+(?:\.\d+)?)\s*(s|sec|secs|second|seconds|min|mins|minute|minutes)\b/i,
   );
   if (!directMatch) return null;
   const value = Number(directMatch[1]);
@@ -277,6 +277,51 @@ export function buildDurationTargetRecoveryOperations(input: {
 }
 
 /**
+ * Post-processing pass: if the LLM's update_clip_bounds ops sum to more than the
+ * requested target_duration, proportionally scale each clip's new_end so the
+ * total matches within 0.1s.  Non-update_clip_bounds ops are left unchanged.
+ */
+function rescaleOpsToTargetDuration(
+  operations: PlannedOperation[],
+  normalizedIntent: NormalizedIntent | undefined,
+  userMessage: string,
+): PlannedOperation[] {
+  const targetSec = parseTargetDurationSeconds(normalizedIntent, userMessage);
+  if (!targetSec || !Number.isFinite(targetSec) || targetSec <= 0) return operations;
+
+  const boundOps = operations.filter(
+    (op) => op.functionCall.name === 'update_clip_bounds' && !op.isReadOnly,
+  );
+  if (boundOps.length === 0) return operations;
+
+  const totalPlanned = boundOps.reduce((sum, op) => {
+    const args = op.functionCall.args as Record<string, unknown>;
+    const dur = Number(args.new_end ?? 0) - Number(args.new_start ?? 0);
+    return sum + Math.max(0, dur);
+  }, 0);
+
+  if (totalPlanned <= targetSec + 0.1) return operations; // already within tolerance
+
+  const scale = targetSec / totalPlanned;
+  return operations.map((op) => {
+    if (op.functionCall.name !== 'update_clip_bounds' || op.isReadOnly) return op;
+    const args = op.functionCall.args as Record<string, unknown>;
+    const newStart = Number(args.new_start ?? 0);
+    const newEnd = Number(args.new_end ?? 0);
+    const clippedDur = Math.max(0.1, (newEnd - newStart) * scale);
+    const scaledEnd = Number((newStart + clippedDur).toFixed(2));
+    return {
+      ...op,
+      functionCall: {
+        ...op.functionCall,
+        args: { ...args, new_end: scaledEnd },
+      },
+      description: `Set clip to ${clippedDur.toFixed(2)}s (rescaled to hit ${targetSec}s target)`,
+    };
+  });
+}
+
+/**
  * STATIC System Instruction for Planning
  * Enforces strict UNDERSTAND → PLAN → EXECUTE behavior with alias-based clip references.
  */
@@ -331,6 +376,9 @@ CRITICAL: You must ONLY use clip aliases from the provided snapshot.
        not equally. Rich scenes get more seconds; bland clips get fewer.
     d. Call update_clip_bounds with new_start=bestScene.startTime and
        new_end=min(bestScene.endTime, bestScene.startTime + assignedDuration).
+     e. If user provides target duration and timeline has clips, final plan MUST
+       include mutating edit operations (typically update_clip_bounds for one or
+       more clips). Inspection-only output is not a valid final plan.
     NEVER skip the get_all_media_analysis call and trim clips equally — that
     ignores all content intelligence and defeats the purpose.
 </planning-rules>
@@ -857,6 +905,29 @@ If the goal is complete, return no new tool calls.`;
   // Use compiled operations (already preserve round/description/isReadOnly from source ops)
   compiledOperations = compilationResult.operations;
 
+  // If the LLM produced only read-only ops (inspection-only) but we know the target duration,
+  // replace with deterministic trim ops so the user gets actual edits on first try.
+  const allOpsReadOnly =
+    compiledOperations.length > 0 && compiledOperations.every((op) => op.isReadOnly);
+  if (allOpsReadOnly) {
+    const readOnlyRecoveryOps = buildDurationTargetRecoveryOperations({
+      snapshot: realSnapshot,
+      normalizedIntent: options?.normalizedIntent,
+      userMessage: message,
+    });
+    if (readOnlyRecoveryOps.length > 0) {
+      compiledOperations = readOnlyRecoveryOps;
+      compilationResult = {
+        operations: readOnlyRecoveryOps,
+        errors: [],
+        warnings: [
+          ...compilationResult.warnings,
+          'Replaced read-only inspection plan with deterministic duration-target trim operations.',
+        ],
+      };
+    }
+  }
+
   const { ToolExecutor } = await import('./toolExecutor');
   const preflight = ToolExecutor.preflightPlan(
     compiledOperations.map((op) => op.functionCall as FunctionCall),
@@ -903,13 +974,20 @@ If the goal is complete, return no new tool calls.`;
     return fallback;
   }
 
+  // Enforce target_duration: if LLM arithmetic produced wrong totals, rescale clips to fit.
+  const finalOperations = rescaleOpsToTargetDuration(
+    normalizedOperations,
+    options?.normalizedIntent,
+    message,
+  );
+
   const understanding = buildUnderstanding(message, realSnapshot);
-  const steps = buildPlanSteps(normalizedOperations);
-  const executionPolicy = pickExecutionPolicy(normalizedOperations);
-  const changeSummary = buildChangeSummary(normalizedOperations);
+  const steps = buildPlanSteps(finalOperations);
+  const executionPolicy = pickExecutionPolicy(finalOperations);
+  const changeSummary = buildChangeSummary(finalOperations);
 
   // Determine if approval is needed (any state-changing operations)
-  const requiresApproval = normalizedOperations.some((op) => !op.isReadOnly);
+  const requiresApproval = finalOperations.some((op) => !op.isReadOnly);
   const confidenceScore = blendConfidenceScore({
     planQualityScore: planQuality.score,
     strategyConfidence: strategyArtifact.confidence,
@@ -927,7 +1005,7 @@ If the goal is complete, return no new tool calls.`;
     selfCheckIssueCount: selfCheckIssues.length,
     confidenceScore,
     preflightValid: preflight.valid,
-    operationCount: normalizedOperations.length,
+    operationCount: finalOperations.length,
   });
   const finalReadiness =
     confidenceDecision.recommendation === 'clarify_required'
@@ -944,7 +1022,7 @@ If the goal is complete, return no new tool calls.`;
     planQuality.notes.length > 0 ? planQuality.notes : ['No major planning risks detected'];
   const contractValidation = validatePlannerOutputContract({
     understanding,
-    operations: normalizedOperations,
+    operations: finalOperations,
     riskNotes,
     planReady: finalReadiness.planReady,
   });
@@ -959,12 +1037,12 @@ If the goal is complete, return no new tool calls.`;
 
   const planResult: ExecutionPlan = {
     understanding,
-    operations: normalizedOperations,
+    operations: finalOperations,
     steps,
     validation,
     executionPolicy,
     totalRounds: currentRound,
-    estimatedDuration: normalizedOperations.length * 0.5, // Rough estimate
+    estimatedDuration: finalOperations.length * 0.5, // Rough estimate
     requiresApproval,
     planReady: finalReadiness.planReady,
     planReadyReason: finalReadiness.planReadyReason,

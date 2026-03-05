@@ -112,7 +112,9 @@ function detectRequestedOutputs(message: string): string[] {
 
 function detectConstraints(message: string): Record<string, string | number | boolean> {
   const constraints: Record<string, string | number | boolean> = {};
-  const durationMatch = message.match(/\b(\d+)\s*(s|sec|second|seconds|min|minute|minutes)\b/i);
+  const durationMatch = message.match(
+    /\b(\d+)\s*(s|sec|secs|second|seconds|min|mins|minute|minutes)\b/i,
+  );
   if (durationMatch) {
     constraints.target_duration = Number(durationMatch[1]);
     constraints.target_duration_unit = durationMatch[2].toLowerCase();
@@ -143,7 +145,7 @@ function detectAmbiguities(message: string): string[] {
   }
   if (
     SHORT_FORM_PATTERN.test(message) &&
-    !/\b(\d+)\s*(s|sec|second|seconds|min|minute|minutes)\b/i.test(message)
+    !/(\d+)\s*(s|sec|secs|second|seconds|min|mins|minute|minutes)\b/i.test(message)
   ) {
     ambiguities.push('target_duration_missing');
   }

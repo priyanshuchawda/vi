@@ -472,10 +472,23 @@ const ChatPanel = () => {
         setIsGeneratingPlan(true);
         const { generateCompletePlan } = await import('../../lib/aiPlanningService');
 
+        // If this is a bare confirmation (e.g. "execute", "yes"), restore the original
+        // planning message and intent so constraints like target_duration are preserved.
+        const isBareConfirmation = isExecutionConfirmation(content) && executionPlan !== null;
+        const effectivePlannerInput = isBareConfirmation
+          ? (executionPlan?.originalMessage ?? plannerInput)
+          : plannerInput;
+        const effectiveNormalizedIntent = isBareConfirmation
+          ? (executionPlan?.normalizedIntent ?? normalizedIntent)
+          : normalizedIntent;
+
         assistantMessage('Analyzing your request and generating execution plan...');
 
         const plan = await runWithTransientRetry(
-          () => generateCompletePlan(plannerInput, aiHistory, 3, { normalizedIntent }),
+          () =>
+            generateCompletePlan(effectivePlannerInput, aiHistory, 3, {
+              normalizedIntent: effectiveNormalizedIntent,
+            }),
           {
             turnId,
             onRetryStatus: (attempt, nextAt, reason) => {
@@ -568,8 +581,8 @@ const ChatPanel = () => {
             return;
           }
 
-          // Auto-execute when enabled; allow warning-only plans without blocking confirmations.
-          const canAutoExecutePlan = autoExecute && !hasHardValidationIssues;
+          // Auto-execute only when the generated plan is actually ready.
+          const canAutoExecutePlan = autoExecute && plan.planReady && !hasHardValidationIssues;
           const canExecuteReadOnlyPlan = plan.planReady && !plan.requiresApproval;
           if (canAutoExecutePlan || canExecuteReadOnlyPlan) {
             if (turnId) {

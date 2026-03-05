@@ -230,7 +230,10 @@ CRITICAL: You must ONLY use clip aliases from the provided snapshot.
 
 <timestamp-rules>
 - split_clip: time_in_clip must be between 0 and clip duration.
-- update_clip_bounds: new_start/new_end must be between 0 and sourceDuration.
+- update_clip_bounds: new_start/new_end are SOURCE positions (seconds within source file, 0 to sourceDuration).
+  To keep first X seconds of a clip: new_end = clip.sourceStart + X.
+  To trim total timeline to T seconds with N clips: new_end = clip.sourceStart + (T / N) for each clip.
+  NEVER pass the desired total timeline duration as new_end — compute per-clip source offsets.
 - set_playhead_position: time must be between 0 and totalDuration.
 - move_clip: start_time must be >= 0.
 </timestamp-rules>

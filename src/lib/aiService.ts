@@ -112,6 +112,12 @@ AVAILABLE TOOLS:
 11. undo_action / redo_action: Undo/redo editing history
 12. set_playhead_position: Move the playhead
 13. update_clip_bounds: Trim start/end of a clip
+    - new_start and new_end are SOURCE positions (seconds within the source file, 0 to sourceDuration)
+    - They are NOT timeline positions and NOT the desired total timeline duration
+    - To keep the first X seconds of a clip: new_end = clip.sourceStart + X
+    - To trim the last Y seconds: new_end = clip.sourceEnd - Y
+    - Always call get_timeline_info first to get each clip's sourceStart and sourceEnd
+    - To make 4 clips sum to 20s: set new_end = sourceStart + 5 for each clip (5 × 4 = 20)
 14. get_clip_details: Get detailed information about a clip
 15. generate_intro_script_from_timeline: Build timestamped intro script from timeline + memory
 16. apply_script_as_captions: Apply structured script blocks as captions in one macro operation

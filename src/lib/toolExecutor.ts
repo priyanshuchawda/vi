@@ -1081,6 +1081,8 @@ export class ToolExecutor {
             startTime: c.startTime,
             duration: c.duration,
             sourceDuration: c.sourceDuration,
+            sourceStart: c.start,
+            sourceEnd: c.end,
             trackIndex: c.trackIndex ?? 0,
             volume: c.volume ?? 1,
             muted: c.muted ?? false,

@@ -60,7 +60,7 @@ export function isExecutionConfirmation(input: string): boolean {
   if (!text) return false;
 
   const explicitConfirmation =
-    /^(yes|ok|okay|sure|continue|proceed|go ahead|do it|execute|apply( it| that)?|make it)( please)?[.!?]*$/.test(
+    /^(yes|ok|okay|sure|continue|proceed|go ahead|do it|yes do it|yes[,.]? do it|just do it|execute|apply( it| that)?|make it|run it|let's do it|let's go|yep|yeah|confirm)( please)?[.!?]*$/.test(
       text,
     );
   if (!explicitConfirmation) return false;

@@ -311,7 +311,12 @@ export const updateClipBoundsDeclaration = {
   toolSpec: {
     name: 'update_clip_bounds',
     description:
-      'Trims the start and/or end of a clip by adjusting its source boundaries. Use when user wants to trim, cut off edges, or adjust clip duration without splitting.',
+      'Trims the start and/or end of a clip by adjusting its SOURCE boundaries (positions within the source media file, NOT the timeline). ' +
+      'new_start and new_end are in seconds relative to the beginning of the source file, between 0 and sourceDuration. ' +
+      'To keep the first X seconds of a clip: new_end = sourceStart + X. ' +
+      'To trim the last Y seconds off a clip: new_end = sourceEnd - Y. ' +
+      'Do NOT pass the desired total timeline duration as new_end — it must be a source offset for each individual clip. ' +
+      'Call get_timeline_info first to get sourceStart and sourceEnd values for each clip.',
     inputSchema: {
       json: {
         type: 'object',

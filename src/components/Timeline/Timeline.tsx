@@ -28,7 +28,6 @@ const Timeline = () => {
     setClipVolume,
     toggleClipMute,
     snapToGrid,
-    setSnapToGrid,
     gridSize,
     getTotalDuration,
     moveClipToTime,
@@ -261,35 +260,13 @@ const Timeline = () => {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Timeline Header with Controls */}
-      <div className="h-12 border-b border-white/5 flex items-center justify-between px-6 bg-bg-elevated/50 backdrop-blur-sm animate-slide-up">
-        <div className="flex items-center gap-4">
-          {/* Timeline Icon & Label */}
+      {/* Timeline Header */}
+      <div className="h-11 panel-border-b flex items-center justify-between px-4 bg-bg-secondary">
+        <div className="flex items-center gap-2">
+          {/* Timeline label */}
           <div className="flex items-center gap-2">
-            <div className="animate-float">
-              <svg
-                className="w-4 h-4 text-accent"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"
-                />
-              </svg>
-            </div>
-            <div className="text-xs font-semibold text-text-primary tracking-wide">Timeline</div>
-          </div>
-
-          <div className="h-4 w-px bg-border-primary"></div>
-
-          {/* Timecode Display */}
-          <div className="flex items-center gap-2 bg-bg-primary px-2 py-1 rounded">
             <svg
-              className="w-3 h-3 text-accent"
+              className="w-3.5 h-3.5 text-text-muted"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -298,22 +275,31 @@ const Timeline = () => {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth="2"
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"
               />
             </svg>
-            <span className="text-xs font-mono font-bold text-accent">
+            <span className="text-[11px] font-semibold text-text-primary tracking-wide uppercase">
+              Timeline
+            </span>
+          </div>
+
+          <div className="h-3 w-px bg-border-primary mx-1"></div>
+
+          {/* Timecode */}
+          <div className="flex items-center gap-1.5 bg-bg-primary px-2 py-1 rounded-md border border-white/6">
+            <span className="text-[10px] font-mono font-semibold text-accent tabular-nums">
               {formatTime(currentTime)}
             </span>
-            <span className="text-[10px] text-text-muted">/</span>
-            <span className="text-xs font-mono text-text-secondary">
+            <span className="text-[9px] text-text-muted/50">/</span>
+            <span className="text-[10px] font-mono text-text-muted tabular-nums">
               {formatTime(totalDuration)}
             </span>
           </div>
 
-          <div className="h-4 w-px bg-border-primary"></div>
+          <div className="h-3 w-px bg-border-primary mx-1"></div>
 
           {/* Edit Buttons */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-0.5">
             <button
               onClick={undo}
               disabled={!canUndo}
@@ -481,30 +467,6 @@ const Timeline = () => {
 
         {/* Right Controls */}
         <div className="flex items-center gap-3">
-          {/* Snap to Grid Toggle */}
-          <button
-            onClick={() => setSnapToGrid(!snapToGrid)}
-            className={clsx(
-              'flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-all duration-200 hover:scale-105 active:scale-95',
-              snapToGrid
-                ? 'bg-gradient-to-r from-accent to-accent-hover text-white shadow-lg shadow-accent/30'
-                : 'bg-bg-surface text-text-muted hover:bg-accent/10 hover:text-accent',
-            )}
-            title={snapToGrid ? `Snap enabled (${gridSize}s grid)` : 'Enable snap to grid'}
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
-              />
-            </svg>
-            <span>{snapToGrid ? 'SNAP' : 'Snap'}</span>
-          </button>
-
-          <div className="h-4 w-px bg-border-primary"></div>
-
           {/* Zoom Controls */}
           <div className="flex items-center gap-2">
             <button
@@ -569,7 +531,7 @@ const Timeline = () => {
 
       {/* Time Ruler */}
       <div
-        className="h-10 border-b border-white/5 bg-bg-elevated/30 overflow-x-auto flex items-end relative"
+        className="h-8 panel-border-b bg-bg-elevated/60 overflow-x-auto flex items-end relative select-none"
         ref={timelineRef}
       >
         <div style={{ width: `${timelineWidth}px`, height: '100%', position: 'relative' }}>
@@ -580,8 +542,8 @@ const Timeline = () => {
               className="absolute top-0 bottom-0 flex flex-col justify-end"
               style={{ left: `${second * pixelsPerSecond}px` }}
             >
-              <div className="w-px h-3 bg-border-primary"></div>
-              <div className="text-[9px] text-text-muted absolute top-0 left-0 transform -translate-x-1/2 pt-0.5">
+              <div className="w-px h-2 bg-white/12"></div>
+              <div className="text-[8px] text-text-muted/60 absolute top-1 left-0 transform -translate-x-1/2 tabular-nums">
                 {second}s
               </div>
             </div>
@@ -590,7 +552,7 @@ const Timeline = () => {
           {/* Sub-markers (every 0.5s when zoomed in) */}
           {pixelsPerSecond > 20 &&
             Array.from({ length: Math.ceil(totalDuration * 2) + 1 }, (_, halfStep) => {
-              if (halfStep % 2 === 0) return null; // Skip full seconds
+              if (halfStep % 2 === 0) return null;
               const markerTime = halfStep * 0.5;
               return (
                 <div
@@ -598,7 +560,7 @@ const Timeline = () => {
                   className="absolute bottom-0"
                   style={{ left: `${markerTime * pixelsPerSecond}px` }}
                 >
-                  <div className="w-px h-1.5 bg-border-primary/50"></div>
+                  <div className="w-px h-1 bg-white/6"></div>
                 </div>
               );
             })}
@@ -606,7 +568,10 @@ const Timeline = () => {
       </div>
 
       {/* Track Area */}
-      <div className="flex-1 overflow-auto p-4 relative" style={{ scrollBehavior: 'smooth' }}>
+      <div
+        className="flex-1 overflow-auto p-3 relative bg-bg-primary custom-scrollbar"
+        style={{ scrollBehavior: 'smooth' }}
+      >
         <div style={{ width: `${timelineWidth}px`, position: 'relative' }}>
           {/* Global Playhead Indicator */}
           <button
@@ -643,7 +608,22 @@ const Timeline = () => {
 
           {/* Render each track */}
           {trackIndices.length === 0 ? (
-            <div className="text-text-muted text-sm italic">Import videos to start editing</div>
+            <div className="flex flex-col items-center justify-center h-24 gap-2 text-center">
+              <svg
+                className="w-8 h-8 text-text-muted/25"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                  d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4"
+                />
+              </svg>
+              <p className="text-[11px] text-text-muted/50">Import media to begin editing</p>
+            </div>
           ) : (
             trackIndices.map((trackIndex) => {
               const trackClips = trackGroups[trackIndex];
@@ -655,14 +635,14 @@ const Timeline = () => {
                   : `Video ${trackIndex + 1}`;
 
               return (
-                <div key={trackIndex} className="mb-2">
+                <div key={trackIndex} className="mb-3">
                   {/* Track Label */}
                   <div
                     className={clsx(
-                      'text-xs font-medium px-2 py-1 mb-1 rounded flex items-center gap-2',
+                      'text-[10px] font-semibold px-2 py-1 mb-1.5 rounded-md flex items-center gap-1.5 w-fit',
                       isAudioTrack
-                        ? 'bg-purple-500/20 text-purple-300'
-                        : 'bg-blue-500/20 text-blue-300',
+                        ? 'bg-violet-500/15 text-violet-400 border border-violet-500/20'
+                        : 'bg-blue-500/12 text-blue-400 border border-blue-500/18',
                     )}
                   >
                     {isAudioTrack ? (
@@ -700,8 +680,8 @@ const Timeline = () => {
                   {/* Track Content */}
                   <div
                     className={clsx(
-                      'flex h-24 items-center relative rounded',
-                      isAudioTrack ? 'bg-purple-500/5' : 'bg-blue-500/5',
+                      'flex h-20 items-center relative rounded-lg border border-white/4',
+                      isAudioTrack ? 'bg-violet-950/30' : 'bg-blue-950/25',
                     )}
                     style={{ width: `${timelineWidth}px` }}
                   >
@@ -754,17 +734,17 @@ const Timeline = () => {
                             setContextMenu({ x: e.clientX, y: e.clientY, clipId: clip.id });
                           }}
                           className={clsx(
-                            'h-20 rounded border cursor-pointer select-none transition-all duration-200 flex flex-col justify-between absolute overflow-visible group animate-fade-in hover:scale-[1.02]',
+                            'h-[68px] rounded-lg border cursor-pointer select-none transition-all duration-150 flex flex-col justify-between absolute overflow-visible group animate-fade-in',
                             isActive
-                              ? 'bg-accent/10 border-accent border-2 shadow-[0_0_20px_rgba(29,185,84,0.3)] z-20'
+                              ? 'bg-accent/12 border-accent shadow-[0_0_0_1px_rgba(59,130,246,0.5),0_4px_16px_rgba(59,130,246,0.15)] z-20'
                               : isSelected
-                                ? 'bg-accent/5 border-accent shadow-[0_0_15px_rgba(29,185,84,0.2)] z-10'
+                                ? 'bg-accent/6 border-accent/40 shadow-[0_0_0_1px_rgba(59,130,246,0.3)] z-10'
                                 : isTextClip
-                                  ? 'bg-green-500/10 border-green-500/30 hover:bg-green-500/20 hover:border-green-400'
+                                  ? 'bg-blue-500/10 border-blue-500/25 hover:border-blue-400/50 hover:bg-blue-500/15'
                                   : isAudioTrack
-                                    ? 'bg-purple-500/10 border-purple-500/30 hover:bg-purple-500/20 hover:border-purple-400'
-                                    : 'bg-bg-elevated border-border-primary hover:bg-bg-surface hover:border-accent/50',
-                            isDragging && 'opacity-50 grayscale',
+                                    ? 'bg-violet-500/15 border-violet-500/25 hover:border-violet-400/50 hover:bg-violet-500/20'
+                                    : 'bg-bg-elevated border-white/10 hover:bg-bg-surface hover:border-accent/40',
+                            isDragging && 'opacity-60 scale-[1.01] shadow-2xl',
                           )}
                           style={{
                             width: `${width}px`,
@@ -790,13 +770,13 @@ const Timeline = () => {
                           {/* Trim Handles */}
                           <button
                             type="button"
-                            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-accent/0 group-hover:bg-accent/20 hover:!bg-accent z-30 transition-all duration-200 rounded-l hover:w-3"
+                            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-accent/0 group-hover:bg-accent/15 hover:!bg-accent/50 z-30 transition-all duration-150 rounded-l-lg"
                             onMouseDown={(e) => startTrim(e, clip.id, 'start', clip.start)}
                             aria-label="Trim clip start"
                           />
                           <button
                             type="button"
-                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-accent/0 group-hover:bg-accent/20 hover:!bg-accent z-30 transition-all duration-200 rounded-r hover:w-3"
+                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-accent/0 group-hover:bg-accent/15 hover:!bg-accent/50 z-30 transition-all duration-150 rounded-r-lg"
                             onMouseDown={(e) => startTrim(e, clip.id, 'end', clip.end)}
                             aria-label="Trim clip end"
                           />

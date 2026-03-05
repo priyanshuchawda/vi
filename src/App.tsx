@@ -7,8 +7,10 @@ import AutoSave from './components/AutoSave';
 import { useChatStore } from './stores/useChatStore';
 import { useOnboardingStore } from './stores/useOnboardingStore';
 import { useProfileStore } from './stores/useProfileStore';
+import { useProjectStore } from './stores/useProjectStore';
 import { useShallow } from 'zustand/react/shallow';
 import type { ChannelAnalysisData } from './types/electron';
+import type { SidebarTab } from './components/ui/SidebarNav';
 
 const FilePanel = lazy(() => import('./components/FilePanel/FilePanel'));
 const RightPanel = lazy(() => import('./components/ui/RightPanel'));
@@ -50,9 +52,19 @@ function App() {
       setYouTubeChannel: state.setYouTubeChannel,
     })),
   );
+  const { undo, redo, canUndo, canRedo, hasUnsavedChanges } = useProjectStore(
+    useShallow((state) => ({
+      undo: state.undo,
+      redo: state.redo,
+      canUndo: state.canUndo(),
+      canRedo: state.canRedo(),
+      hasUnsavedChanges: state.hasUnsavedChanges,
+    })),
+  );
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
   const [isFilePanelOpen, setIsFilePanelOpen] = useState(true);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState<SidebarTab>('media');
   const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
   const [isResizingTimeline, setIsResizingTimeline] = useState(false);
   const [desktopTimelineHeight, setDesktopTimelineHeight] = useState(
@@ -189,99 +201,199 @@ function App() {
 
   // Main Editor UI
   return (
-    <div className="relative h-screen bg-bg-primary text-text-primary overflow-hidden flex">
+    <div className="relative h-screen bg-bg-primary text-text-primary overflow-hidden flex flex-col">
       <Toast />
       <AutoSave />
 
-      {/* LEFT: Vertical Icon Toolbar - 64px fixed width with premium styling */}
-      <div className="w-16 bg-gradient-to-b from-bg-secondary via-bg-secondary to-bg-elevated border-r border-white/5 flex flex-col items-center py-4 gap-2 z-20 shadow-2xl">
-        <Toolbar
-          onToggleFilePanel={() => setIsFilePanelOpen(!isFilePanelOpen)}
-          onToggleRightPanel={() => setIsRightPanelOpen(!isRightPanelOpen)}
-          isFilePanelOpen={isFilePanelOpen}
-          isRightPanelOpen={isRightPanelOpen}
-        />
-      </div>
+      {/* TOP BAR */}
+      <div className="h-11 flex-shrink-0 bg-bg-secondary panel-border-b flex items-center px-3 gap-0 z-30">
+        {/* Brand */}
+        <div
+          className="flex items-center gap-2 pr-4 mr-1"
+          style={{ borderRight: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <span className="text-[13px] font-semibold text-text-primary tracking-tight">
+            QuickCut
+          </span>
+        </div>
 
-      {/* CENTER + RIGHT: Main content and full-height side panel */}
-      <div className="flex-1 flex h-screen min-w-0">
-        {/* CENTER: Editor column */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Top section: File panel + Preview */}
-          <div
-            className="flex-1 flex overflow-hidden"
-            style={{ height: `calc(100vh - ${timelineHeight}px)` }}
-          >
-            {/* LEFT: File Panel with smooth transition */}
-            {isFilePanelOpen && (
-              <div className="animate-slide-in">
-                <Suspense fallback={panelFallback}>
-                  <FilePanel isOpen={isFilePanelOpen} onClose={() => setIsFilePanelOpen(false)} />
-                </Suspense>
-              </div>
+        {/* Project name + autosave */}
+        <div className="flex items-center gap-2 px-3 flex-1 min-w-0">
+          <span className="text-[12px] text-text-secondary truncate">Untitled Project</span>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {hasUnsavedChanges ? (
+              <>
+                <div className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
+                <span className="text-[10px] text-text-muted">Unsaved</span>
+              </>
+            ) : (
+              <>
+                <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+                <span className="text-[10px] text-text-muted">Saved</span>
+              </>
             )}
-
-            {/* CENTER: HERO PREVIEW - Dominant area with subtle gradient */}
-            <div className="flex-1 bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-primary flex flex-col p-6 relative min-w-0">
-              <div className="absolute inset-0 bg-gradient-to-tr from-accent/[0.02] to-transparent pointer-events-none"></div>
-              <Preview />
-            </div>
-          </div>
-
-          {/* BOTTOM: Timeline only in center column */}
-          {isDesktop && (
-            <button
-              type="button"
-              aria-label="Resize timeline height"
-              onMouseDown={() => setIsResizingTimeline(true)}
-              className="relative h-2 -my-1 z-20 cursor-row-resize group"
-              title="Drag to resize timeline"
-            >
-              <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] bg-white/10 group-hover:bg-accent/70 transition-colors" />
-            </button>
-          )}
-          <div
-            className="bg-gradient-to-b from-bg-secondary to-bg-elevated flex flex-col border-t border-white/5 shadow-2xl"
-            style={{ height: `${timelineHeight}px` }}
-          >
-            <Timeline />
           </div>
         </div>
 
-        {/* RIGHT: Full-height side panel (Chat or Tools) */}
-        {isSidePanelVisible && (
-          <div
-            className={`relative h-full animate-slide-in-right ${isDesktop ? 'border-l border-white/5' : ''}`}
-            style={{ width: isDesktop ? `${effectiveSidePanelWidth}px` : '100%' }}
+        {/* Center: Undo / Redo — grouped pill */}
+        <div className="flex items-center bg-bg-elevated rounded-lg overflow-hidden border border-white/5 mr-3">
+          <button
+            onClick={undo}
+            disabled={!canUndo}
+            className="p-1.5 text-text-muted hover:text-text-primary hover:bg-white/8 disabled:opacity-25 disabled:cursor-not-allowed transition-colors border-r border-white/5"
+            title="Undo (Ctrl+Z)"
           >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={redo}
+            disabled={!canRedo}
+            className="p-1.5 text-text-muted hover:text-text-primary hover:bg-white/8 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+            title="Redo (Ctrl+Y)"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {/* Right: AI Editor */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={togglePanel}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+              isChatOpen
+                ? 'bg-accent text-white shadow-md shadow-accent/25'
+                : 'bg-bg-elevated border border-white/8 text-text-secondary hover:text-text-primary hover:border-white/15'
+            }`}
+            title="AI Editor (Ctrl+K)"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+              />
+            </svg>
+            AI Editor
+          </button>
+        </div>
+      </div>
+
+      {/* BODY: Sidebar + Content */}
+      <div className="flex flex-1 overflow-hidden min-h-0">
+        {/* LEFT: Vertical Icon Toolbar */}
+        <div className="w-[62px] bg-bg-secondary panel-border-r flex flex-col items-center py-2 gap-1 z-20 flex-shrink-0">
+          <Toolbar
+            onToggleFilePanel={() => setIsFilePanelOpen(!isFilePanelOpen)}
+            onToggleRightPanel={() => setIsRightPanelOpen(!isRightPanelOpen)}
+            isFilePanelOpen={isFilePanelOpen}
+            isRightPanelOpen={isRightPanelOpen}
+            activeTab={activeTab}
+            onTabChange={(tab) => {
+              setActiveTab(tab);
+              setIsFilePanelOpen(true);
+            }}
+          />
+        </div>
+
+        {/* CENTER + RIGHT: Main content and full-height side panel */}
+        <div className="flex-1 flex h-full min-w-0">
+          {/* CENTER: Editor column */}
+          <div className="flex-1 flex flex-col min-w-0">
+            {/* Top section: File panel + Preview */}
+            <div
+              className="flex-1 flex overflow-hidden"
+              style={{ height: `calc(100% - ${timelineHeight}px)` }}
+            >
+              {/* LEFT: File Panel with smooth transition */}
+              {isFilePanelOpen && (
+                <div className="animate-slide-in h-full">
+                  <Suspense fallback={panelFallback}>
+                    <FilePanel
+                      isOpen={isFilePanelOpen}
+                      onClose={() => setIsFilePanelOpen(false)}
+                      activeTab={activeTab}
+                      onTabChange={setActiveTab}
+                    />
+                  </Suspense>
+                </div>
+              )}
+
+              {/* CENTER: HERO PREVIEW */}
+              <div className="flex-1 bg-bg-primary flex flex-col relative min-w-0">
+                <Preview />
+              </div>
+            </div>
+
+            {/* BOTTOM: Timeline only in center column */}
             {isDesktop && (
               <button
                 type="button"
-                aria-label="Resize side panel"
-                onMouseDown={() => setIsResizingSidePanel(true)}
-                className="absolute left-0 top-0 h-full w-1.5 -translate-x-1/2 cursor-col-resize z-30 group"
-                title="Drag to resize"
+                aria-label="Resize timeline height"
+                onMouseDown={() => setIsResizingTimeline(true)}
+                className="relative h-1.5 z-20 cursor-row-resize group flex-shrink-0"
+                title="Drag to resize timeline"
               >
-                <span className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-white/10 group-hover:bg-accent/70 transition-colors" />
+                <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] bg-white/10 group-hover:bg-accent/70 transition-colors" />
               </button>
             )}
-            {isChatOpen ? (
-              <div className="bg-gradient-to-b from-bg-secondary to-bg-elevated flex flex-col h-full shadow-2xl">
-                <Suspense fallback={panelFallback}>
-                  <ChatPanel />
-                </Suspense>
-              </div>
-            ) : (
-              <Suspense fallback={panelFallback}>
-                <RightPanel
-                  isOpen={isRightPanelOpen}
-                  onClose={() => setIsRightPanelOpen(false)}
-                  width={effectiveSidePanelWidth}
-                />
-              </Suspense>
-            )}
+            <div
+              className="bg-bg-secondary flex flex-col panel-border-t flex-shrink-0"
+              style={{ height: `${timelineHeight}px` }}
+            >
+              <Timeline />
+            </div>
           </div>
-        )}
+
+          {/* RIGHT: Full-height side panel (Chat or Tools) */}
+          {isSidePanelVisible && (
+            <div
+              className={`relative h-full animate-slide-in-right ${isDesktop ? 'panel-border-r' : ''}`}
+              style={{ width: isDesktop ? `${effectiveSidePanelWidth}px` : '100%' }}
+            >
+              {isDesktop && (
+                <button
+                  type="button"
+                  aria-label="Resize side panel"
+                  onMouseDown={() => setIsResizingSidePanel(true)}
+                  className="absolute left-0 top-0 h-full w-1.5 -translate-x-1/2 cursor-col-resize z-30 group"
+                  title="Drag to resize"
+                >
+                  <span className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-white/10 group-hover:bg-accent/70 transition-colors" />
+                </button>
+              )}
+              {isChatOpen ? (
+                <div className="bg-bg-secondary flex flex-col h-full">
+                  <Suspense fallback={panelFallback}>
+                    <ChatPanel />
+                  </Suspense>
+                </div>
+              ) : (
+                <Suspense fallback={panelFallback}>
+                  <RightPanel
+                    isOpen={isRightPanelOpen}
+                    onClose={() => setIsRightPanelOpen(false)}
+                    width={effectiveSidePanelWidth}
+                  />
+                </Suspense>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

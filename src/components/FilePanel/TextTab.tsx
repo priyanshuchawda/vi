@@ -26,7 +26,7 @@ const TextTab = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col p-4 space-y-4">
+    <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar p-4 space-y-4">
       {/* Header */}
       <div>
         <h3 className="text-sm font-bold text-text-primary mb-1">Text & Content</h3>

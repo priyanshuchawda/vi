@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../../stores/useChatStore';
 import { useProjectStore } from '../../stores/useProjectStore';
-import { useOnboardingStore } from '../../stores/useOnboardingStore';
 import { useAiMemoryStore } from '../../stores/useAiMemoryStore';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
@@ -79,7 +78,6 @@ const ChatPanel = () => {
     closeTurn,
   } = useChatStore();
   const { clips, currentTime, addTurnAudit, getTurnAudit } = useProjectStore();
-  const { analysisData } = useOnboardingStore();
   const { entries } = useAiMemoryStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -1920,21 +1918,6 @@ const ChatPanel = () => {
             >
               Save Policy
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Channel Analysis Context Banner */}
-      {analysisData && (
-        <div
-          className="px-4 py-2 bg-blue-500/10 border-b border-blue-500/20 animate-slide-up"
-          style={{ animationDelay: '0.1s', animationFillMode: 'both' }}
-        >
-          <div className="flex items-center gap-2 text-xs text-blue-400">
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3h.5a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-.5a1.5 1.5 0 00-3 0v.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1h-.5a1.5 1.5 0 010-3H4a1 1 0 001-1V6a1 1 0 011-1h3a1 1 0 001-1v-.5z" />
-            </svg>
-            <span>Channel insights loaded • AI has context about {analysisData.channel.title}</span>
           </div>
         </div>
       )}

@@ -25,7 +25,7 @@ const SettingsTab = () => {
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar">
       {/* Header */}
       <div className="p-4 border-b border-border-primary sticky top-0 bg-bg-secondary z-10">
         <h3 className="text-sm font-bold text-text-primary mb-1">Settings</h3>

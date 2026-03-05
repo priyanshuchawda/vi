@@ -234,7 +234,7 @@ export default function AIMemoryPanel() {
   const failedCount = entries.filter((e) => e.status === 'failed').length;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-bg-secondary overflow-hidden">
+    <div className="flex-1 flex flex-col min-h-0 bg-bg-secondary overflow-hidden">
       {/* Header */}
       <div className="p-4 border-b border-border-primary flex-shrink-0">
         <div className="flex items-center justify-between mb-1">

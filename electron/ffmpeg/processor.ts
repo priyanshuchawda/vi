@@ -137,15 +137,22 @@ if (fs.existsSync(ffprobePath)) {
   console.warn('FFprobe binary not found at:', ffprobePath);
 }
 
-export const generateThumbnail = async (filePath: string): Promise<string> => {
+export const generateThumbnail = async (filePath: string, seekTime?: number): Promise<string> => {
   const cache = getCacheManager();
 
-  // Check cache first
-  const cached = cache.getThumbnail(filePath);
-  if (cached) {
-    console.log('Thumbnail cache hit:', filePath);
-    return cached;
+  // Positioned thumbnails (seekTime specified) skip the cache so each
+  // split-clip gets a unique frame rather than reusing the file's default thumb.
+  const useCache = seekTime === undefined || seekTime === null;
+
+  if (useCache) {
+    const cached = cache.getThumbnail(filePath);
+    if (cached) {
+      console.log('Thumbnail cache hit:', filePath);
+      return cached;
+    }
   }
+
+  const effectiveSeekTime = seekTime ?? 1;
 
   return new Promise((resolve, reject) => {
     const filename = `thumb_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
@@ -155,7 +162,7 @@ export const generateThumbnail = async (filePath: string): Promise<string> => {
     ffmpeg(filePath)
       .screenshots({
         count: 1,
-        timemarks: ['1'], // Take screenshot at 1 second
+        timemarks: [String(effectiveSeekTime)],
         folder: tempDir,
         filename: filename,
         size: '320x180', // Standard 16:9 thumbnail size
@@ -166,8 +173,10 @@ export const generateThumbnail = async (filePath: string): Promise<string> => {
           const base64 = `data:image/png;base64,${data.toString('base64')}`;
           // Clean up
           fs.unlinkSync(outputPath);
-          // Store in cache
-          cache.setThumbnail(filePath, base64);
+          // Only store the default thumbnail (no seekTime) in cache
+          if (useCache) {
+            cache.setThumbnail(filePath, base64);
+          }
           resolve(base64);
         } catch (err) {
           reject(err);

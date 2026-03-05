@@ -139,7 +139,7 @@ export interface ElectronAPI {
     hasAudio?: boolean;
     isImage?: boolean;
   }>;
-  getThumbnail: (filePath: string) => Promise<string | null>;
+  getThumbnail: (filePath: string, seekTime?: number) => Promise<string | null>;
   getWaveform: (filePath: string) => Promise<string | null>;
   saveFile: (format?: string) => Promise<string | null>;
   exportVideo: (

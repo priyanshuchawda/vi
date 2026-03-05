@@ -57,8 +57,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openFile: () => invokeIpc(IPC_CHANNELS.dialog.openFile),
   getMetadata: (filePath: string) =>
     invokeIpc(IPC_CHANNELS.media.getMetadata, filePathSchema.parse(filePath)),
-  getThumbnail: (filePath: string) =>
-    invokeIpc(IPC_CHANNELS.media.getThumbnail, filePathSchema.parse(filePath)),
+  getThumbnail: (filePath: string, seekTime?: number) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.media.getThumbnail,
+      filePathSchema.parse(filePath),
+      seekTime,
+    ) as Promise<string | null>,
   getWaveform: (filePath: string) =>
     invokeIpc(IPC_CHANNELS.media.getWaveform, filePathSchema.parse(filePath)),
   saveFile: (format?: string) =>

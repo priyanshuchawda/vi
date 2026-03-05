@@ -451,10 +451,13 @@ ipcMain.handle(IPC_CHANNELS.media.getMetadata, async (_, rawFilePath) => {
   });
 });
 
-ipcMain.handle(IPC_CHANNELS.media.getThumbnail, async (_, rawFilePath) => {
+ipcMain.handle(IPC_CHANNELS.media.getThumbnail, async (_, rawFilePath, rawSeekTime?: number) => {
   const filePath = filePathSchema.parse(rawFilePath);
   try {
-    const base64 = await generateThumbnail(filePath);
+    const base64 = await generateThumbnail(
+      filePath,
+      typeof rawSeekTime === 'number' ? rawSeekTime : undefined,
+    );
     return base64;
   } catch (error) {
     console.error('Failed to generate thumbnail:', error);

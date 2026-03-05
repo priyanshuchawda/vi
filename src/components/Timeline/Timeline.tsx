@@ -332,7 +332,34 @@ const Timeline = () => {
             </button>
             <div className="h-4 w-px bg-border-primary"></div>
             <button
-              onClick={() => activeClipId && splitClip(activeClipId, currentTime)}
+              onClick={() => {
+                const activeClip = activeClipId ? clips.find((c) => c.id === activeClipId) : null;
+                if (activeClip) {
+                  const timeInClip = currentTime - activeClip.startTime;
+                  splitClip(activeClip.id, timeInClip);
+                  // Refresh thumbnail for second clip
+                  const splitSourceTime = activeClip.start + timeInClip;
+                  void (async () => {
+                    try {
+                      const updatedClips = useProjectStore.getState().clips;
+                      const secondClip = updatedClips.find(
+                        (c) =>
+                          c.path === activeClip.path && Math.abs(c.start - splitSourceTime) < 0.1,
+                      );
+                      if (secondClip && window.electronAPI?.getThumbnail) {
+                        const thumbnail = await window.electronAPI.getThumbnail(
+                          activeClip.path,
+                          splitSourceTime,
+                        );
+                        if (thumbnail)
+                          useProjectStore.getState().updateClip(secondClip.id, { thumbnail });
+                      }
+                    } catch {
+                      /* best-effort */
+                    }
+                  })();
+                }
+              }}
               disabled={!activeClipId}
               className="p-1.5 text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 hover:bg-white/5 rounded-lg hover:scale-110 active:scale-95"
               title="Split (S)"
@@ -965,8 +992,31 @@ const Timeline = () => {
             {
               label: 'Split at Playhead',
               onClick: () => {
-                if (activeClipId) {
-                  splitClip(activeClipId, currentTime);
+                const activeClip = activeClipId ? clips.find((c) => c.id === activeClipId) : null;
+                if (activeClip) {
+                  const timeInClip = currentTime - activeClip.startTime;
+                  splitClip(activeClip.id, timeInClip);
+                  // Refresh thumbnail for second clip
+                  const splitSourceTime = activeClip.start + timeInClip;
+                  void (async () => {
+                    try {
+                      const updatedClips = useProjectStore.getState().clips;
+                      const secondClip = updatedClips.find(
+                        (c) =>
+                          c.path === activeClip.path && Math.abs(c.start - splitSourceTime) < 0.1,
+                      );
+                      if (secondClip && window.electronAPI?.getThumbnail) {
+                        const thumbnail = await window.electronAPI.getThumbnail(
+                          activeClip.path,
+                          splitSourceTime,
+                        );
+                        if (thumbnail)
+                          useProjectStore.getState().updateClip(secondClip.id, { thumbnail });
+                      }
+                    } catch {
+                      /* best-effort */
+                    }
+                  })();
                 }
               },
               disabled: !activeClipId || contextMenu.clipId !== activeClipId,

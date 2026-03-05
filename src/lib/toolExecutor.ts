@@ -1128,7 +1128,30 @@ export class ToolExecutor {
           const clip = store.clips.find((c) => c.id === clip_id);
           if (!clip) throw new Error(`Clip ${clip_id} not found`);
 
+          // Source position where the split happens (used to find the second clip
+          // and to generate its thumbnail from the correct frame)
+          const splitSourceTime = clip.start + time_in_clip;
+
           store.splitClip(clip_id, time_in_clip);
+
+          // Refresh the thumbnail for the second clip so it shows footage from
+          // the split point instead of the first frame of the source file.
+          void (async () => {
+            try {
+              const updatedClips = useProjectStore.getState().clips;
+              const secondClip = updatedClips.find(
+                (c) => c.path === clip.path && Math.abs(c.start - splitSourceTime) < 0.1,
+              );
+              if (secondClip && window.electronAPI?.getThumbnail) {
+                const thumbnail = await window.electronAPI.getThumbnail(clip.path, splitSourceTime);
+                if (thumbnail) {
+                  useProjectStore.getState().updateClip(secondClip.id, { thumbnail });
+                }
+              }
+            } catch {
+              // Thumbnail refresh is best-effort; silently ignore failures
+            }
+          })();
 
           return {
             name: call.name,

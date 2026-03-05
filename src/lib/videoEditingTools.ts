@@ -313,10 +313,16 @@ export const updateClipBoundsDeclaration = {
     description:
       'Trims the start and/or end of a clip by adjusting its SOURCE boundaries (positions within the source media file, NOT the timeline). ' +
       'new_start and new_end are in seconds relative to the beginning of the source file, between 0 and sourceDuration. ' +
-      'To keep the first X seconds of a clip: new_end = sourceStart + X. ' +
-      'To trim the last Y seconds off a clip: new_end = sourceEnd - Y. ' +
-      'Do NOT pass the desired total timeline duration as new_end — it must be a source offset for each individual clip. ' +
-      'Call get_timeline_info first to get sourceStart and sourceEnd values for each clip.',
+      '\n\nARITHMETIC RULES:\n' +
+      '  - To keep the first X seconds of a clip: new_end = sourceStart + X.\n' +
+      '  - To trim the last Y seconds off a clip: new_end = sourceEnd - Y.\n' +
+      '  - Do NOT pass the desired total timeline duration as new_end.\n' +
+      '\nCONTENT-AWARE HIGHLIGHT SELECTION (highlight/vlog/best-moments tasks):\n' +
+      '  1. Call get_all_media_analysis FIRST to get scene timestamps for every clip.\n' +
+      '  2. For each clip, pick the most interesting scene (faces/action/landmark/speech/emotion).\n' +
+      '  3. Set new_start=scene.startTime and new_end=min(scene.endTime, scene.startTime+targetDurationForThisClip).\n' +
+      '  4. Give more seconds to richer scenes; fewer to bland ones — NEVER split target duration equally.\n' +
+      '\nCall get_timeline_info first to get sourceStart and sourceEnd values for each clip.',
     inputSchema: {
       json: {
         type: 'object',
@@ -676,7 +682,11 @@ export const getClipAnalysisDeclaration = {
   toolSpec: {
     name: 'get_clip_analysis',
     description:
-      'Retrieves AI-generated analysis for a specific clip including scenes, subjects, mood, audio info, and tags.',
+      'Retrieves AI-generated analysis for a specific clip. Returns: summary, tags, visualInfo, audioInfo, and scenes. ' +
+      'scenes is an array of {startTime, endTime, description} objects — each startTime/endTime is in SOURCE seconds. ' +
+      'For highlight/vlog/best-moments tasks, call this per clip first, then pick the scene with the highest interest ' +
+      '(action, faces, landmark, speech, emotion) and pass its startTime as new_start and endTime as new_end to update_clip_bounds.',
+    // Why: allows content-aware selection of the best window instead of uniform trimming
     inputSchema: {
       json: {
         type: 'object',
@@ -696,7 +706,11 @@ export const getAllMediaAnalysisDeclaration = {
   toolSpec: {
     name: 'get_all_media_analysis',
     description:
-      'Gets a summary of all analyzed media files in the project with their AI-generated insights.',
+      'Gets AI-generated analysis for every media file in the project at once. Each entry includes: summary, tags, visualInfo, audioInfo, ' +
+      'and scenes (array of {startTime, endTime, description} in SOURCE seconds). ' +
+      'Use this as the FIRST call for any highlight/vlog/best-moments task — read the scenes per clip to choose which window to keep, ' +
+      'then call update_clip_bounds with new_start=scene.startTime and new_end=scene.endTime for each clip.',
+    // Why: single call gives scene timestamps for all clips — no need for N separate get_clip_analysis calls
     inputSchema: {
       json: {
         type: 'object',

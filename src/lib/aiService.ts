@@ -117,7 +117,11 @@ AVAILABLE TOOLS:
     - To keep the first X seconds of a clip: new_end = clip.sourceStart + X
     - To trim the last Y seconds: new_end = clip.sourceEnd - Y
     - Always call get_timeline_info first to get each clip's sourceStart and sourceEnd
-    - To make 4 clips sum to 20s: set new_end = sourceStart + 5 for each clip (5 × 4 = 20)
+    - CONTENT-AWARE HIGHLIGHT WORKFLOW (REQUIRED for highlight/vlog/best-moments requests):
+      1. Call get_all_media_analysis first — it returns scenes[{startTime,endTime,description}] per clip
+      2. For each clip pick the most interesting scene (action > static, faces > empty, speech > silence)
+      3. Set new_start=scene.startTime, new_end=min(scene.endTime, scene.startTime+targetDuration)
+      4. Allocate MORE seconds to richer scenes, FEWER to bland ones — NEVER divide equally
 14. get_clip_details: Get detailed information about a clip
 15. generate_intro_script_from_timeline: Build timestamped intro script from timeline + memory
 16. apply_script_as_captions: Apply structured script blocks as captions in one macro operation
@@ -144,6 +148,9 @@ IMPORTANT RULES:
 - For MODIFY/DELETE style requests, apply minimal timeline delta edits instead of rebuilding full sequence
 - Prefer apply_script_as_captions for script-to-caption tasks to reduce tool-call errors
 - For intro-script tasks, prefer generate_intro_script_from_timeline and then optionally preview_caption_fit
+- For HIGHLIGHT / VLOG / BEST-MOMENTS trim requests: ALWAYS call get_all_media_analysis first,
+  read scene timestamps, pick the best-interest scene per clip, then call update_clip_bounds with
+  new_start=scene.startTime and new_end based on that scene. NEVER trim clips equally.
 - Use this response structure for edit requests:
   1) What I understood
   2) Exact operations to run
@@ -1309,6 +1316,15 @@ function pickToolsForMessage(message: string, mode: 'standard' | 'economy' = 'st
     selected.add('apply_clip_effect');
     selected.add('find_highlights');
     selected.add('generate_chapters');
+  }
+  // For highlight reel / vlog / best-moments trim requests, always surface analysis
+  // tools so the AI can read scene timestamps and pick the best window per clip.
+  if (
+    /\b(highlight|vlog|best.?moment|important|interesting|key.?part|content.?aware)\b/.test(text) &&
+    mode === 'standard'
+  ) {
+    selected.add('get_all_media_analysis');
+    selected.add('get_clip_analysis');
   }
   if (/\b(save|export|project)\b/.test(text) && mode === 'standard') {
     selected.add('save_project');

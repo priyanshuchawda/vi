@@ -1787,6 +1787,12 @@ export class ToolExecutor {
                   mediaType: entry.mediaType,
                   summary: entry.summary,
                   tags: entry.tags,
+                  visualInfo: entry.visualInfo,
+                  audioInfo: entry.audioInfo,
+                  // scenes: [{startTime, endTime, description}] — use these source
+                  // timestamps with update_clip_bounds to select the best segment
+                  // window instead of trimming each clip uniformly.
+                  scenes: entry.scenes ?? [],
                 })),
               },
             },

@@ -226,14 +226,31 @@ CRITICAL: You must ONLY use clip aliases from the provided snapshot.
     - preview_caption_fit
     - apply_script_as_captions
     Avoid long fragile chains of atomic subtitle calls unless absolutely necessary.
+11. CONTENT-AWARE TRIM WORKFLOW (highlight / vlog / best moments / important parts requests):
+    a. Call get_all_media_analysis FIRST to retrieve scenes for every clip.
+       Each scene has {startTime, endTime, description} in SOURCE seconds.
+    b. For each clip, identify the highest-interest scene based on the user goal:
+       - action/motion > static shots
+       - faces/people > empty landscapes  
+       - speech/dialogue > ambient silence
+       - landmark/recognizable location gets bonus weight
+       - emotional moment > neutral moment
+    c. Assign target duration per clip PROPORTIONALLY to scene interest,
+       not equally. Rich scenes get more seconds; bland clips get fewer.
+    d. Call update_clip_bounds with new_start=bestScene.startTime and
+       new_end=min(bestScene.endTime, bestScene.startTime + assignedDuration).
+    NEVER skip the get_all_media_analysis call and trim clips equally — that
+    ignores all content intelligence and defeats the purpose.
 </planning-rules>
 
 <timestamp-rules>
 - split_clip: time_in_clip must be between 0 and clip duration.
 - update_clip_bounds: new_start/new_end are SOURCE positions (seconds within source file, 0 to sourceDuration).
   To keep first X seconds of a clip: new_end = clip.sourceStart + X.
-  To trim total timeline to T seconds with N clips: new_end = clip.sourceStart + (T / N) for each clip.
+  To trim last Y seconds off a clip: new_end = clip.sourceEnd - Y.
+  For content-aware highlight: new_start=bestScene.startTime, new_end=min(bestScene.endTime, sourceEnd).
   NEVER pass the desired total timeline duration as new_end — compute per-clip source offsets.
+  NEVER divide total target duration equally across clips — weight by scene interest.
 - set_playhead_position: time must be between 0 and totalDuration.
 - move_clip: start_time must be >= 0.
 </timestamp-rules>

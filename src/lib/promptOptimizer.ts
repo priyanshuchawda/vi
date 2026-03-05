@@ -14,7 +14,7 @@ const ATTRACTIVE_TONE_PATTERN =
   /\b(attractive|engaging|cinematic|powerful|strong|viral|wow|best)\b/i;
 
 function parseDurationSeconds(message: string): number | null {
-  const match = message.match(/\b(\d+)\s*(s|sec|second|seconds|min|minute|minutes)\b/i);
+  const match = message.match(/\b(\d+)\s*(s|sec|secs|second|seconds|min|mins|minute|minutes)\b/i);
   if (!match) return null;
   const value = Number(match[1]);
   if (!Number.isFinite(value) || value <= 0) return null;

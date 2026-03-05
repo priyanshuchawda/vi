@@ -253,7 +253,12 @@ function registerMediaProtocol() {
         return new Response('Path must be absolute', { status: 400 });
       }
 
-      return net.fetch(pathToFileURL(parsedPath).toString());
+      // Forward Range header so the video element can seek within the file
+      const rangeHeader = request.headers.get('range');
+      const fetchOptions: Parameters<typeof net.fetch>[1] = rangeHeader
+        ? { headers: { Range: rangeHeader } }
+        : undefined;
+      return net.fetch(pathToFileURL(parsedPath).toString(), fetchOptions);
     } catch (error) {
       console.error('[MediaProtocol] Failed to serve media:', error);
       return new Response('Not found', { status: 404 });
@@ -669,6 +674,10 @@ ipcMain.handle(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
   const input = bedrockConverseInputSchema.parse(rawInput);
 
   const reviveBytes = (value: unknown): unknown => {
+    // TypedArrays (e.g. Uint8Array) travel through Electron IPC via structured clone
+    // and arrive as proper TypedArrays. Guard them BEFORE the generic object branch,
+    // which would iterate numeric indices and corrupt the buffer into a plain object.
+    if (ArrayBuffer.isView(value)) return value;
     if (Array.isArray(value)) {
       return value.map(reviveBytes);
     }
@@ -676,8 +685,19 @@ ipcMain.handle(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
       const obj = value as Record<string, unknown>;
       const out: Record<string, unknown> = {};
       for (const [key, v] of Object.entries(obj)) {
+        // Handle bytes arriving as a regular Array of numbers (older Electron serialization)
         if (key === 'bytes' && Array.isArray(v) && v.every((n) => typeof n === 'number')) {
           out[key] = Uint8Array.from(v as number[]);
+          // Handle bytes arriving as a TypedArray (structured clone path)
+        } else if (key === 'bytes' && ArrayBuffer.isView(v)) {
+          out[key] =
+            v instanceof Uint8Array
+              ? v
+              : new Uint8Array(
+                  (v as ArrayBufferView).buffer,
+                  (v as ArrayBufferView).byteOffset,
+                  (v as ArrayBufferView).byteLength,
+                );
         } else {
           out[key] = reviveBytes(v);
         }

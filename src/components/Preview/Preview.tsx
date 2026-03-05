@@ -174,13 +174,20 @@ const Preview = () => {
       }
       const shouldHardSync = !isPlaying || isSeeking.current || clipChanged;
 
-      // Never force-seek during normal playback; only hard-sync on clip switches, explicit seeks, or pause.
-      if (shouldHardSync && drift > 0.05) {
+      // Use a tighter drift tolerance on clip switches so the source position is
+      // accurate at boundaries, while relaxing it during normal playback.
+      const driftThreshold = clipChanged ? 0.01 : 0.05;
+
+      // Force-seek on clip switches, explicit seeks, or when paused; skip during smooth playback.
+      if (shouldHardSync && drift > driftThreshold) {
         videoRef.current.currentTime = sourceTime;
       }
 
-      if (isPlaying && videoRef.current.paused) {
-        videoRef.current.play().catch((e) => e.name !== 'AbortError' && console.log(e));
+      if (isPlaying) {
+        // Always call play() on a clip switch — seeking or src-load may have briefly paused it.
+        if (videoRef.current.paused || clipChanged) {
+          videoRef.current.play().catch((e) => e.name !== 'AbortError' && console.log(e));
+        }
       } else if (!isPlaying && !videoRef.current.paused) {
         videoRef.current.pause();
       }

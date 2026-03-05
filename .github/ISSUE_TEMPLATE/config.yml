@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: Support and troubleshooting
-    url: https://github.com/priyanshuchawda/vi/blob/main/SUPPORT.md
-    about: Use this guide before opening an issue for setup, debugging, and routing.
-  - name: Security vulnerability disclosure
-    url: https://github.com/priyanshuchawda/vi/security/policy
-    about: Please report security vulnerabilities privately via the SECURITY policy.

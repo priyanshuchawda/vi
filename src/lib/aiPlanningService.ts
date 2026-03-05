@@ -184,6 +184,98 @@ export function shouldRetryCompilation(errors: CompilationError[]): boolean {
   return errors.every((error) => RECOVERABLE_COMPILATION_CATEGORIES.has(error.category));
 }
 
+function parseTargetDurationSeconds(
+  normalizedIntent: NormalizedIntent | undefined,
+  userMessage: string,
+): number | null {
+  const constraints = normalizedIntent?.constraints || {};
+  const rawTarget = Number(constraints.target_duration);
+  const unit = String(constraints.target_duration_unit || '').toLowerCase();
+
+  if (Number.isFinite(rawTarget) && rawTarget > 0) {
+    if (unit.startsWith('min')) return rawTarget * 60;
+    return rawTarget;
+  }
+
+  const directMatch = String(userMessage || '').match(
+    /\b(\d+(?:\.\d+)?)\s*(s|sec|second|seconds|min|minute|minutes)\b/i,
+  );
+  if (!directMatch) return null;
+  const value = Number(directMatch[1]);
+  const parsedUnit = directMatch[2].toLowerCase();
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return parsedUnit.startsWith('min') ? value * 60 : value;
+}
+
+interface DurationRecoveryTimeline {
+  totalDuration: number;
+  clips: Array<{
+    id: string;
+    duration: number;
+    sourceStart: number;
+    sourceEnd: number;
+    sourceDuration: number;
+  }>;
+}
+
+export function buildDurationTargetRecoveryOperations(input: {
+  snapshot: { timeline: DurationRecoveryTimeline };
+  normalizedIntent?: NormalizedIntent;
+  userMessage: string;
+}): PlannedOperation[] {
+  const targetDuration = parseTargetDurationSeconds(input.normalizedIntent, input.userMessage);
+  if (!targetDuration || !Number.isFinite(targetDuration)) return [];
+
+  const clips = input.snapshot.timeline.clips || [];
+  if (clips.length === 0) return [];
+
+  const currentTotal = Number(input.snapshot.timeline.totalDuration || 0);
+  if (!Number.isFinite(currentTotal) || currentTotal <= targetDuration + 0.01) return [];
+
+  const totalClipDuration = clips.reduce(
+    (sum, clip) => sum + Math.max(0.1, Number(clip.duration)),
+    0,
+  );
+  if (totalClipDuration <= 0.1) return [];
+
+  const scale = targetDuration / currentTotal;
+  let allocated = 0;
+
+  return clips.map((clip, index) => {
+    const clipDuration = Math.max(0.1, Number(clip.duration));
+    const sourceStart = Number(clip.sourceStart);
+    const sourceEnd = Number(clip.sourceEnd);
+    const sourceDuration = Math.max(0.1, Number(clip.sourceDuration));
+
+    let desiredDuration =
+      index === clips.length - 1
+        ? Math.max(0.1, targetDuration - allocated)
+        : Math.max(0.1, Number((clipDuration * scale).toFixed(2)));
+    desiredDuration = Math.min(desiredDuration, Math.max(0.1, sourceEnd - sourceStart));
+
+    if (index !== clips.length - 1) {
+      allocated += desiredDuration;
+    }
+
+    const newEnd = Math.min(sourceDuration, Number((sourceStart + desiredDuration).toFixed(2)));
+
+    return {
+      round: 1,
+      functionCall: {
+        name: 'update_clip_bounds',
+        args: {
+          clip_id: clip.id,
+          new_start: sourceStart,
+          new_end: newEnd,
+        },
+      },
+      description: `Set clip to ${(newEnd - sourceStart).toFixed(2)}s for target timeline duration`,
+      isReadOnly: false,
+      tokenBudget: buildOperationTokenBudget(false),
+    };
+  });
+}
+
 /**
  * STATIC System Instruction for Planning
  * Enforces strict UNDERSTAND → PLAN → EXECUTE behavior with alias-based clip references.
@@ -736,6 +828,24 @@ If the goal is complete, return no new tool calls.`;
   }
 
   // If we still have no valid operations after retry, use fallback plan
+  if (shouldUseFallback(compilationResult.operations)) {
+    const durationRecoveryOperations = buildDurationTargetRecoveryOperations({
+      snapshot: realSnapshot,
+      normalizedIntent: options?.normalizedIntent,
+      userMessage: message,
+    });
+    if (durationRecoveryOperations.length > 0) {
+      compilationResult = {
+        operations: durationRecoveryOperations,
+        errors: [],
+        warnings: [
+          ...compilationResult.warnings,
+          'Applied deterministic duration-target recovery plan from current timeline state.',
+        ],
+      };
+    }
+  }
+
   if (shouldUseFallback(compilationResult.operations)) {
     recordPlanningAttempt({
       compileFailed,

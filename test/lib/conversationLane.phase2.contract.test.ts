@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   inferAssistantArtifactFromText,
+  isExecutionConfirmation,
   resolveConversationLane,
   type ConversationLaneInput,
 } from '../../src/lib/conversationLane';
@@ -76,6 +77,24 @@ describe('conversationLane phase 2 confirmation contracts', () => {
 
     expect(decision.lane).toBe('timeline_edit');
     expect(decision.reason).toBe('confirmation_bound_to_plan_artifact');
+  });
+
+  it('treats natural proceed phrasing as execution confirmation', () => {
+    expect(isExecutionConfirmation('yes proceed with the changes')).toBe(true);
+    expect(isExecutionConfirmation('yes, proceed with changes')).toBe(true);
+    expect(isExecutionConfirmation('okay proceed with the plan')).toBe(true);
+  });
+
+  it('routes natural proceed phrasing to timeline execution when edit context exists', () => {
+    const decision = lane({
+      message: 'yes proceed with the changes',
+      lastAssistantMessage:
+        'I will create a 20-second highlight vlog from your 4 clips. Would you like to proceed?',
+      hasRecentEditingContext: true,
+    });
+
+    expect(decision.lane).toBe('timeline_edit');
+    expect(decision.reason).toBe('confirmation_for_existing_edit_execution');
   });
 
   it('does not treat edit request prefixed with ok as plain confirmation', () => {

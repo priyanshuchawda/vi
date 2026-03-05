@@ -59,9 +59,18 @@ export function isExecutionConfirmation(input: string): boolean {
   const text = input.toLowerCase().trim();
   if (!text) return false;
 
+  const normalized = text
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, '')
+    .replace(/[,:;]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   const explicitConfirmation =
-    /^(yes|ok|okay|sure|continue|proceed|go ahead|do it|yes do it|yes[,.]? do it|just do it|execute|apply( it| that)?|make it|run it|let's do it|let's go|yep|yeah|confirm)( please)?[.!?]*$/.test(
-      text,
+    /^(yes|ok|okay|sure|continue|proceed|go ahead|do it|yes do it|yes[,.]? do it|just do it|execute|apply( it| that)?|make it|run it|let's do it|let's go|yep|yeah|confirm)(?: please)?(?: with (?:the )?(?:changes?|edits?|plan|this|that|it))?[.!?]*$/.test(
+      normalized,
+    ) ||
+    /^(yes|ok|okay|sure)(?: please)? (?:proceed|continue|execute|run|go ahead)(?: with (?:the )?(?:changes?|edits?|plan|this|that|it))?[.!?]*$/.test(
+      normalized,
     );
   if (!explicitConfirmation) return false;
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CompilationError } from '../../src/lib/planCompiler';
 import {
+  buildDurationTargetRecoveryOperations,
   shouldEscalatePlanningRounds,
   shouldRetryCompilation,
 } from '../../src/lib/aiPlanningService';
@@ -75,5 +76,104 @@ describe('aiPlanningService round and retry policies', () => {
     expect(shouldRetryCompilation(recoverable)).toBe(true);
     expect(shouldRetryCompilation(nonRecoverable)).toBe(false);
     expect(shouldRetryCompilation([])).toBe(false);
+  });
+
+  it('builds executable trim operations for explicit target duration requests', () => {
+    const operations = buildDurationTargetRecoveryOperations({
+      userMessage: 'i want duration to be 20 secs only',
+      normalizedIntent: {
+        intent_type: 'multi_video_edit',
+        mode: 'modify',
+        goals: [],
+        requestedOutputs: ['edit_plan'],
+        constraints: {
+          target_duration: 20,
+          target_duration_unit: 'sec',
+        },
+        ambiguities: [],
+        operationHint: 'trim',
+        confidence: 0.9,
+        requiresPlanning: true,
+      },
+      snapshot: {
+        timeline: {
+          totalDuration: 25,
+          clips: [
+            {
+              id: 'c1',
+              duration: 6,
+              sourceStart: 0,
+              sourceEnd: 6,
+              sourceDuration: 30,
+            },
+            {
+              id: 'c2',
+              duration: 7,
+              sourceStart: 0,
+              sourceEnd: 7,
+              sourceDuration: 30,
+            },
+            {
+              id: 'c3',
+              duration: 5,
+              sourceStart: 0,
+              sourceEnd: 5,
+              sourceDuration: 30,
+            },
+            {
+              id: 'c4',
+              duration: 7,
+              sourceStart: 0,
+              sourceEnd: 7,
+              sourceDuration: 30,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(operations).toHaveLength(4);
+    expect(operations.every((op) => op.functionCall.name === 'update_clip_bounds')).toBe(true);
+    expect(operations.every((op) => op.isReadOnly === false)).toBe(true);
+  });
+
+  it('returns no recovery operations when target duration is missing', () => {
+    const operations = buildDurationTargetRecoveryOperations({
+      userMessage: 'make this better',
+      normalizedIntent: {
+        intent_type: 'multi_video_edit',
+        mode: 'modify',
+        goals: [],
+        requestedOutputs: ['edit_plan'],
+        constraints: {},
+        ambiguities: [],
+        operationHint: null,
+        confidence: 0.6,
+        requiresPlanning: true,
+      },
+      snapshot: {
+        timeline: {
+          totalDuration: 25,
+          clips: [
+            {
+              id: 'c1',
+              duration: 12,
+              sourceStart: 0,
+              sourceEnd: 12,
+              sourceDuration: 30,
+            },
+            {
+              id: 'c2',
+              duration: 13,
+              sourceStart: 0,
+              sourceEnd: 13,
+              sourceDuration: 30,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(operations).toHaveLength(0);
   });
 });

@@ -181,10 +181,18 @@ You are precise, knowledgeable, and focused on helping users with planning and g
 // ─── Context Helpers (unchanged — no API dependency) ──────────────────────────
 
 /**
- * Get channel analysis context from localStorage if available
+ * Get channel context for AI — prefers compact rules.md over full analysis.
+ * rules.md is generated once after channel analysis and stored in localStorage.
  */
 export function getChannelAnalysisContext(): string {
   try {
+    // Prefer compact rules.md (much smaller — ~150 tokens vs 300+)
+    const rules = localStorage.getItem('channel-rules');
+    if (rules && rules.trim().length > 0) {
+      return `\n\n=== CREATOR RULES ===\n${rules.trim()}\n=====================`;
+    }
+
+    // Fall back to full analysis data if rules not yet generated
     const onboardingData = localStorage.getItem('onboarding-storage');
     if (!onboardingData) return '';
 

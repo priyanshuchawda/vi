@@ -140,6 +140,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       projectId === undefined ? undefined : nonEmptyStringSchema.parse(projectId),
     ),
   memoryGetDir: () => invokeIpc(IPC_CHANNELS.memory.getDir),
+  // Channel rules — compact creator style guide (stored in userData/rules.md)
+  rulesWrite: (content: string) =>
+    invokeIpc(IPC_CHANNELS.rules.write, nonEmptyStringSchema.parse(content)),
+  rulesRead: () => invokeIpc(IPC_CHANNELS.rules.read),
   bedrockConverse: (input: Record<string, unknown>) =>
     invokeIpc(IPC_CHANNELS.bedrock.converse, bedrockConverseInputSchema.parse(input)),
   // YouTube Upload

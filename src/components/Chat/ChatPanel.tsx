@@ -27,7 +27,8 @@ import {
   buildClarificationQuestion,
   formatClarificationForChat,
 } from '../../lib/clarificationBuilder';
-import { detectContextNeeds } from '../../lib/intentClassifier';
+import { detectContextNeeds, detectPublishIntent } from '../../lib/intentClassifier';
+import { usePublishStore } from '../../stores/usePublishStore';
 import {
   hasRecentEditingContext,
   inferAssistantArtifactFromText,
@@ -79,6 +80,7 @@ const ChatPanel = () => {
   } = useChatStore();
   const { clips, currentTime, addTurnAudit, getTurnAudit } = useProjectStore();
   const { entries } = useAiMemoryStore();
+  const { requestPublish, setIsGeneratingMeta } = usePublishStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const sendQueueRef = useRef(createChatRequestQueue());
@@ -351,6 +353,75 @@ const ChatPanel = () => {
     ];
   };
 
+  /**
+   * Handles the "publish to YouTube" flow:
+   * generates AI metadata from project context and opens the Publish panel pre-filled.
+   */
+  const handlePublishFlow = async (
+    userMessageId: string,
+    appendAssistantMessage: (text: string, meta?: ChatRecord['metadata']) => string,
+  ) => {
+    setIsTyping(true);
+    const turnId = startTurn(userMessageId, 'ask');
+
+    try {
+      // Acknowledge intent immediately
+      appendAssistantMessage(
+        'Got it! Let me prepare your YouTube publish metadata based on your project and channel style...',
+      );
+      setIsGeneratingMeta(true);
+
+      // Gather context
+      const clipNames = clips.filter((c) => c.name).map((c) => c.name as string);
+      const totalDurationSec = clips.reduce((max, c) => Math.max(max, c.startTime + c.duration), 0);
+      const channelRules = localStorage.getItem('channel-rules') ?? '';
+      const memorySnippets = entries
+        .filter((e) => e.status === 'completed' && e.summary)
+        .map((e) => e.summary as string)
+        .slice(0, 8);
+      const recentChatSummary = [...messages]
+        .slice(-6)
+        .filter((m) => m.role === 'user')
+        .map((m) => m.content)
+        .join(' | ')
+        .slice(0, 500);
+
+      const { generatePublishMeta } = await import('../../lib/publishMetaGenerator');
+      const meta = await generatePublishMeta({
+        clipNames,
+        totalDurationSec,
+        channelRules,
+        memorySnippets,
+        recentChatSummary,
+      });
+
+      // Store metadata and signal App.tsx to switch panels
+      requestPublish(meta);
+
+      // Update the assistant message in-place
+      const currentMsgs = useChatStore.getState().messages;
+      useChatStore.setState({ messages: currentMsgs.slice(0, -1) });
+      appendAssistantMessage(
+        `I've prepared your publish metadata based on your ${channelRules ? 'channel style and ' : ''}project content:\n\n` +
+          `**Title:** ${meta.title}\n\n` +
+          `**Tags:** ${meta.tags || '(generated)'}\n\n` +
+          `Privacy is set to **private** so you can review before publishing. ` +
+          `Opening the Publish panel now — you can edit any field before uploading.`,
+      );
+
+      closeTurn(turnId, 'completed');
+    } catch {
+      appendAssistantMessage(
+        "I couldn't generate publish metadata right now. Please open the Publish panel manually from the right-side toolbar.",
+        { error: true },
+      );
+      setIsGeneratingMeta(false);
+      closeTurn(turnId, 'error');
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
   const processSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
     const requestAbortController = new AbortController();
     const requestSignal = requestAbortController.signal;
@@ -383,6 +454,14 @@ const ChatPanel = () => {
       }
       return id;
     };
+
+    // ── PUBLISH INTENT: open Publish panel with AI-generated metadata ──────────
+    if (detectPublishIntent(content) && !attachments?.length) {
+      await handlePublishFlow(userMessageId, assistantMessage);
+      setHasActiveAbortableRequest(false);
+      return;
+    }
+    // ──────────────────────────────────────────────────────────────────────────
 
     try {
       const activeAwaitingTurn = activeTurnId

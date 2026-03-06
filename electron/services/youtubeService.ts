@@ -80,8 +80,8 @@ export class YouTubeService {
       return channelIdMatch[1];
     }
 
-    // Handle @username format
-    const handleMatch = url.match(/youtube\.com\/@([a-zA-Z0-9_-]+)/);
+    // Handle @username format — YouTube handles allow letters, numbers, dots, hyphens, underscores
+    const handleMatch = url.match(/youtube\.com\/@([a-zA-Z0-9._-]+)/);
     if (handleMatch) {
       const handle = handleMatch[1];
       return this.resolveHandleToChannelId(handle);
@@ -105,17 +105,36 @@ export class YouTubeService {
   }
 
   /**
-   * Resolve @handle to channel ID using search API
+   * Resolve @handle to channel ID using the Channels API (forHandle parameter)
+   * Falls back to search if the direct lookup returns nothing.
    */
   private async resolveHandleToChannelId(handle: string): Promise<string | null> {
     try {
-      const response = await fetch(
-        `${this.baseUrl}/search?part=snippet&q=@${handle}&type=channel&maxResults=1&key=${this.apiKey}`,
+      // The YouTube Data API v3 Channels endpoint accepts forHandle with or without
+      // the '@' prefix. Passing it with '@' is the canonical form per the docs.
+      const directResponse = await fetch(
+        `${this.baseUrl}/channels?part=id&forHandle=${encodeURIComponent('@' + handle)}&key=${this.apiKey}`,
       );
-      const data = await response.json();
+      const directData = await directResponse.json();
+      console.log(`[YouTube] forHandle lookup for @${handle}:`, JSON.stringify(directData));
 
-      if (data.items && data.items.length > 0) {
-        return data.items[0].snippet.channelId;
+      if (directData.items && directData.items.length > 0) {
+        return directData.items[0].id;
+      }
+
+      // Fallback: search API (less accurate but covers edge cases)
+      const searchResponse = await fetch(
+        `${this.baseUrl}/search?part=snippet&q=${encodeURIComponent('@' + handle)}&type=channel&maxResults=1&key=${this.apiKey}`,
+      );
+      const searchData = await searchResponse.json();
+      console.log(
+        `[YouTube] search fallback for @${handle}:`,
+        JSON.stringify(searchData?.items?.length ?? 0),
+        'results',
+      );
+
+      if (searchData.items && searchData.items.length > 0) {
+        return searchData.items[0].snippet.channelId;
       }
       return null;
     } catch (error) {

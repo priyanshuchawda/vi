@@ -46,10 +46,11 @@ export class AIAnalysisService {
     accessKeyId: string = '',
     secretAccessKey: string = '',
     modelId: string = 'amazon.nova-lite-v1:0',
+    sessionToken?: string,
   ) {
     this.client = new BedrockRuntimeClient({
       region,
-      credentials: { accessKeyId, secretAccessKey },
+      credentials: { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) },
     });
     this.modelId = modelId;
   }

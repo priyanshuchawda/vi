@@ -513,21 +513,35 @@ export const exportVideo = async (
 
       const config = formatConfig[format] || formatConfig.mp4;
 
-      // Detect stream types from first segment
-      let hasVideoStream = false;
-      let hasAudioStream = false;
+      // Probe all segments in parallel to detect per-segment stream types.
+      // This is critical: using only the first segment's streams as the global flag
+      // causes filtergraph "Invalid argument" errors when later segments have
+      // different stream configurations (e.g. audio-only clips mixed with video).
+      const segmentProbes: Array<{ hasVideo: boolean; hasAudio: boolean }> = await Promise.all(
+        segments.map(
+          (seg) =>
+            new Promise<{ hasVideo: boolean; hasAudio: boolean }>((resolve) => {
+              ffmpeg.ffprobe(seg.path, (err: Error | undefined, metadata: FfprobeData) => {
+                if (!err && metadata) {
+                  resolve({
+                    hasVideo: metadata.streams.some((s: FfprobeStream) => s.codec_type === 'video'),
+                    hasAudio: metadata.streams.some((s: FfprobeStream) => s.codec_type === 'audio'),
+                  });
+                } else {
+                  // Fallback: infer from mediaType when probe fails
+                  resolve({
+                    hasVideo: seg.mediaType !== 'audio',
+                    hasAudio: true,
+                  });
+                }
+              });
+            }),
+        ),
+      );
+      const hasVideoStream = segmentProbes.some((p) => p.hasVideo);
+      const hasAudioStream = segmentProbes.some((p) => p.hasAudio);
 
-      await new Promise<void>((resolveProbe) => {
-        ffmpeg.ffprobe(segments[0].path, (err: Error | undefined, metadata: FfprobeData) => {
-          if (!err && metadata) {
-            hasVideoStream = metadata.streams.some((s: FfprobeStream) => s.codec_type === 'video');
-            hasAudioStream = metadata.streams.some((s: FfprobeStream) => s.codec_type === 'audio');
-          }
-          resolveProbe();
-        });
-      });
-
-      console.log('Stream detection:', { hasVideoStream, hasAudioStream });
+      console.log('Stream detection:', { hasVideoStream, hasAudioStream, segmentProbes });
 
       // SMART STREAM COPYING: Check if we can copy instead of re-encode
       let canUseStreamCopy = false;
@@ -664,41 +678,58 @@ export const exportVideo = async (
 
         segments.forEach((_seg, index: number) => {
           const seg = segments[index];
+          const probe = segmentProbes[index];
+          const segDuration = seg.end - seg.start;
 
           // Normalize each input: scale to target resolution, set fps, convert pixel format
           if (hasVideoStream) {
-            // Speed and color effects per-segment (before scale/fps normalization)
-            const segVideoFilter = buildSegmentVideoFilter(seg);
-            const baseFilter = `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p`;
-            const fullFilter = segVideoFilter ? `${segVideoFilter},${baseFilter}` : baseFilter;
-            filterSteps.push(`[${index}:v]${fullFilter}[v${index}]`);
+            if (probe.hasVideo) {
+              // Speed and color effects per-segment (before scale/fps normalization)
+              const segVideoFilter = buildSegmentVideoFilter(seg);
+              const baseFilter = `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p`;
+              const fullFilter = segVideoFilter ? `${segVideoFilter},${baseFilter}` : baseFilter;
+              filterSteps.push(`[${index}:v]${fullFilter}[v${index}]`);
+            } else {
+              // Segment has no video stream (e.g. audio-only clip): synthesize a black
+              // video of the correct duration so the concat filter gets all its inputs.
+              filterSteps.push(
+                `color=black:s=${targetWidth}x${targetHeight}:r=30:d=${segDuration},format=yuv420p[v${index}]`,
+              );
+            }
           }
           if (hasAudioStream) {
             // Apply volume control + fade in/out + speed for each segment
-            const segDuration = seg.end - seg.start;
             const fadeIn = seg.fadeIn ?? 0;
             const fadeOut = seg.fadeOut ?? 0;
 
-            // Build filter parts: volume, fades, speed, then normalize
-            const parts: string[] = [];
-            if (seg.muted) {
-              parts.push('volume=0');
-            } else if (seg.volume !== 1) {
-              parts.push(`volume=${seg.volume}`);
-            }
-            if (fadeIn > 0) {
-              parts.push(`afade=t=in:st=0:d=${fadeIn}`);
-            }
-            if (fadeOut > 0) {
-              const fadeOutStart = Math.max(0, segDuration - fadeOut);
-              parts.push(`afade=t=out:st=${fadeOutStart}:d=${fadeOut}`);
-            }
-            // Audio speed (atempo chain)
-            const atempoChain = buildAtempoChain(seg.speed ?? 1);
-            if (atempoChain) parts.push(atempoChain);
+            if (probe.hasAudio) {
+              // Build filter parts: volume, fades, speed, then normalize
+              const parts: string[] = [];
+              if (seg.muted) {
+                parts.push('volume=0');
+              } else if (seg.volume !== 1) {
+                parts.push(`volume=${seg.volume}`);
+              }
+              if (fadeIn > 0) {
+                parts.push(`afade=t=in:st=0:d=${fadeIn}`);
+              }
+              if (fadeOut > 0) {
+                const fadeOutStart = Math.max(0, segDuration - fadeOut);
+                parts.push(`afade=t=out:st=${fadeOutStart}:d=${fadeOut}`);
+              }
+              // Audio speed (atempo chain)
+              const atempoChain = buildAtempoChain(seg.speed ?? 1);
+              if (atempoChain) parts.push(atempoChain);
 
-            parts.push('aresample=48000', 'aformat=sample_rates=48000:channel_layouts=stereo');
-            filterSteps.push(`[${index}:a]${parts.join(',')}[a${index}]`);
+              parts.push('aresample=48000', 'aformat=sample_rates=48000:channel_layouts=stereo');
+              filterSteps.push(`[${index}:a]${parts.join(',')}[a${index}]`);
+            } else {
+              // Segment has no audio stream (e.g. image/video-only clip): synthesize
+              // silence so the concat filter gets all its inputs.
+              filterSteps.push(
+                `aevalsrc=0:channel_layout=stereo:d=${segDuration},aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo[a${index}]`,
+              );
+            }
           }
 
           if (hasVideoStream && hasAudioStream) {
@@ -711,9 +742,10 @@ export const exportVideo = async (
         });
 
         // Now concat the normalized streams
-        const concatParams = [];
-        if (hasVideoStream) concatParams.push('v=1');
-        if (hasAudioStream) concatParams.push('a=1');
+        // Always specify both v and a explicitly — the concat filter defaults v=1,
+        // so omitting v when hasVideoStream=false would produce v=1 (default) which
+        // expects video inputs that don't exist, causing EINVAL.
+        const concatParams = [hasVideoStream ? 'v=1' : 'v=0', hasAudioStream ? 'a=1' : 'a=0'];
 
         const outputMaps = [];
         if (hasVideoStream) outputMaps.push('[outv]');

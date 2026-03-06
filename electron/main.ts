@@ -131,6 +131,7 @@ if (YOUTUBE_API_KEY && AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
     AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY,
     BEDROCK_MODEL_ID,
+    process.env.AWS_SESSION_TOKEN || undefined,
   );
   log('info', 'Channel analysis service initialized (Bedrock)');
   bedrockGatewayClient = new BedrockRuntimeClient({

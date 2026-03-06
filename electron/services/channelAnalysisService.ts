@@ -59,6 +59,7 @@ export class ChannelAnalysisService {
     awsAccessKeyId: string = '',
     awsSecretAccessKey: string = '',
     bedrockModelId?: string,
+    awsSessionToken?: string,
   ) {
     this.youtubeService = new YouTubeService(youtubeApiKey);
     this.aiService = new AIAnalysisService(
@@ -66,6 +67,7 @@ export class ChannelAnalysisService {
       awsAccessKeyId,
       awsSecretAccessKey,
       bedrockModelId,
+      awsSessionToken,
     );
   }
 

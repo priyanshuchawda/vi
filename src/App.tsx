@@ -5,6 +5,7 @@ import Toolbar from './components/Toolbar/Toolbar';
 import Toast from './components/ui/Toast';
 import AutoSave from './components/AutoSave';
 import { useChatStore } from './stores/useChatStore';
+import { usePublishStore } from './stores/usePublishStore';
 import { useOnboardingStore } from './stores/useOnboardingStore';
 import { useProfileStore } from './stores/useProfileStore';
 import { useProjectStore } from './stores/useProjectStore';
@@ -28,14 +29,22 @@ function App() {
   const {
     togglePanel,
     isOpen: isChatOpen,
+    setIsOpen: setChatOpen,
     panelWidth,
     setPanelWidth,
   } = useChatStore(
     useShallow((state) => ({
       togglePanel: state.togglePanel,
       isOpen: state.isOpen,
+      setIsOpen: state.setIsOpen,
       panelWidth: state.panelWidth,
       setPanelWidth: state.setPanelWidth,
+    })),
+  );
+  const { isPublishPanelRequested, clearPublishRequest } = usePublishStore(
+    useShallow((state) => ({
+      isPublishPanelRequested: state.isPublishPanelRequested,
+      clearPublishRequest: state.clearPublishRequest,
     })),
   );
   const { hasCompletedOnboarding, completeOnboarding, skipOnboarding } = useOnboardingStore(
@@ -65,6 +74,7 @@ function App() {
   const [isFilePanelOpen, setIsFilePanelOpen] = useState(true);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<SidebarTab>('media');
+  const [rightPanelInitialTab, setRightPanelInitialTab] = useState<string | undefined>(undefined);
   const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
   const [isResizingTimeline, setIsResizingTimeline] = useState(false);
   const [desktopTimelineHeight, setDesktopTimelineHeight] = useState(
@@ -95,6 +105,15 @@ function App() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // When the AI signals "publish intent", close the chat and open the Publish tab
+  useEffect(() => {
+    if (!isPublishPanelRequested) return;
+    setChatOpen(false);
+    setIsRightPanelOpen(true);
+    setRightPanelInitialTab('publish');
+    clearPublishRequest();
+  }, [isPublishPanelRequested, setChatOpen, clearPublishRequest]);
 
   useEffect(() => {
     if (!hasCompletedOnboarding) return;
@@ -172,12 +191,38 @@ function App() {
       createProfile(userId);
     }
 
-    // If analysis data is available, save it to profile
+    // If analysis data is available, save it to profile and generate rules.md
     if (analysisData) {
       // Extract YouTube URL from the analysis data if available
       const channelId = analysisData.channel.id;
       const youtubeUrl = `https://www.youtube.com/channel/${channelId}`;
       setYouTubeChannel(youtubeUrl, analysisData);
+
+      // Generate and persist compact rules.md
+      if (window.electronAPI?.rulesWrite) {
+        const { channel, analysis } = analysisData;
+        const strengths = analysis.content_strengths
+          .slice(0, 4)
+          .map((s) => `- ${s}`)
+          .join('\n');
+        const editingRecs = analysis.editing_style_recommendations
+          .slice(0, 4)
+          .map((s) => `- ${s}`)
+          .join('\n');
+        const growthFocus = analysis.growth_suggestions
+          .slice(0, 3)
+          .map((s) => `- ${s}`)
+          .join('\n');
+        const summary =
+          analysis.channel_summary.length > 300
+            ? analysis.channel_summary.slice(0, 300) + '…'
+            : analysis.channel_summary;
+        const rules = `# Creator Rules: ${channel.title}\n\nSubscribers: ${channel.subscriber_count.toLocaleString()} | Videos: ${channel.video_count}\n\n## Summary\n${summary}\n\n## Strengths\n${strengths}\n\n## Editing Style\n${editingRecs}\n\n## Growth Focus\n${growthFocus}\n`;
+        localStorage.setItem('channel-rules', rules);
+        window.electronAPI.rulesWrite(rules).catch((err: unknown) => {
+          console.warn('[App] Could not save rules.md:', err);
+        });
+      }
     }
 
     // Link analysis to user if provided
@@ -388,6 +433,8 @@ function App() {
                     isOpen={isRightPanelOpen}
                     onClose={() => setIsRightPanelOpen(false)}
                     width={effectiveSidePanelWidth}
+                    initialTab={rightPanelInitialTab}
+                    onInitialTabConsumed={() => setRightPanelInitialTab(undefined)}
                   />
                 </Suspense>
               )}

@@ -957,6 +957,39 @@ ipcMain.handle(IPC_CHANNELS.memory.getDir, async () => {
 });
 
 // ===========================
+// Channel Rules Handlers
+// ===========================
+
+const RULES_PATH = path.join(app.getPath('userData'), 'rules.md');
+
+// Write rules.md to userData directory
+ipcMain.handle(IPC_CHANNELS.rules.write, async (_, rawContent: string) => {
+  try {
+    const content = nonEmptyStringSchema.parse(rawContent);
+    await fs.writeFile(RULES_PATH, content, 'utf-8');
+    console.log(`[Rules] Saved rules.md to ${RULES_PATH}`);
+    return { success: true, path: RULES_PATH };
+  } catch (error) {
+    console.error('[Rules] Failed to write rules.md:', error);
+    return ipcFailure(error, 'RULES_WRITE_FAILED');
+  }
+});
+
+// Read rules.md from userData directory
+ipcMain.handle(IPC_CHANNELS.rules.read, async () => {
+  try {
+    const content = await fs.readFile(RULES_PATH, 'utf-8');
+    return { success: true, content };
+  } catch (error: unknown) {
+    if (isErrnoException(error) && error.code === 'ENOENT') {
+      return { success: true, content: null };
+    }
+    console.error('[Rules] Failed to read rules.md:', error);
+    return ipcFailure(error, 'RULES_READ_FAILED');
+  }
+});
+
+// ===========================
 // YouTube Upload Handlers
 // ===========================
 

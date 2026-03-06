@@ -41,6 +41,10 @@ export const IPC_CHANNELS = {
     getDir: 'memory:getDir',
     readMemoryFiles: 'read-memory-files',
   },
+  rules: {
+    read: 'rules:read',
+    write: 'rules:write',
+  },
   bedrock: {
     converse: 'bedrock:converse',
   },
@@ -228,6 +232,14 @@ export type IpcInvokeContract = {
   };
   'memory:getDir': { args: []; result: { dir: string; index: string; analyses: string } };
   'bedrock:converse': { args: [input: Record<string, unknown>]; result: unknown };
+  'rules:write': {
+    args: [content: string];
+    result: { success: boolean; path?: string; error?: string; code?: string };
+  };
+  'rules:read': {
+    args: [];
+    result: { success: boolean; content?: string | null; error?: string; code?: string };
+  };
   'youtube:isAuthenticated': { args: []; result: boolean };
   'youtube:authenticate': { args: []; result: boolean };
   'youtube:logout': { args: []; result: boolean };

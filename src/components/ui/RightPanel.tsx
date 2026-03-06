@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import CaptionsPanel from './CaptionsPanel';
 import TranscriptionPanel from './TranscriptionPanel';
@@ -13,10 +13,30 @@ interface RightPanelProps {
   isOpen?: boolean;
   onClose?: () => void;
   width?: number;
+  /** When set, switches to this tab on mount / when it changes. */
+  initialTab?: string;
+  /** Called once after initialTab has been applied so App.tsx can clear it. */
+  onInitialTabConsumed?: () => void;
 }
 
-const RightPanel = ({ isOpen = true, onClose, width = 320 }: RightPanelProps) => {
-  const [activeTab, setActiveTab] = useState<PanelTab>('captions');
+const RightPanel = ({
+  isOpen = true,
+  onClose,
+  width = 320,
+  initialTab,
+  onInitialTabConsumed,
+}: RightPanelProps) => {
+  const [activeTab, setActiveTab] = useState<PanelTab>(
+    isValidTab(initialTab) ? initialTab : 'captions',
+  );
+
+  // Whenever App.tsx pushes a new initialTab (e.g. 'publish' from AI), switch to it.
+  useEffect(() => {
+    if (!isValidTab(initialTab)) return;
+    setActiveTab(initialTab);
+    onInitialTabConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTab]);
 
   if (!isOpen) return null;
 
@@ -181,5 +201,10 @@ const RightPanel = ({ isOpen = true, onClose, width = 320 }: RightPanelProps) =>
     </div>
   );
 };
+
+const VALID_TABS: PanelTab[] = ['captions', 'transcript', 'audio', 'effects', 'export', 'publish'];
+function isValidTab(tab: string | undefined): tab is PanelTab {
+  return VALID_TABS.includes(tab as PanelTab);
+}
 
 export default RightPanel;

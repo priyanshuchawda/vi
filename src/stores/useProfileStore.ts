@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ChannelAnalysisData } from '../types/electron';
+import type { AnalysisResult, ChannelAnalysisData } from '../types/electron';
 
 export interface UserProfile {
   userId: string;
@@ -31,6 +31,49 @@ interface ProfileState {
   clearProfile: () => void;
   setAnalyzing: (isAnalyzing: boolean) => void;
   setAnalysisError: (error: string | null) => void;
+}
+
+/**
+ * Build a compact rules.md markdown string from channel analysis data.
+ * Stored in localStorage and on disk; used as a condensed AI context.
+ */
+function generateChannelRules(
+  channel: ChannelAnalysisData['channel'],
+  analysis: AnalysisResult,
+): string {
+  const strengths = analysis.content_strengths
+    .slice(0, 4)
+    .map((s) => `- ${s}`)
+    .join('\n');
+  const editingRecs = analysis.editing_style_recommendations
+    .slice(0, 4)
+    .map((s) => `- ${s}`)
+    .join('\n');
+  const growthFocus = analysis.growth_suggestions
+    .slice(0, 3)
+    .map((s) => `- ${s}`)
+    .join('\n');
+  const summary =
+    analysis.channel_summary.length > 300
+      ? analysis.channel_summary.slice(0, 300) + '…'
+      : analysis.channel_summary;
+
+  return `# Creator Rules: ${channel.title}
+
+Subscribers: ${channel.subscriber_count.toLocaleString()} | Videos: ${channel.video_count}
+
+## Summary
+${summary}
+
+## Strengths
+${strengths}
+
+## Editing Style
+${editingRecs}
+
+## Growth Focus
+${growthFocus}
+`;
 }
 
 export const useProfileStore = create<ProfileState>()(
@@ -98,6 +141,18 @@ export const useProfileStore = create<ProfileState>()(
           if (response.success && response.data) {
             console.log('[Profile] Analysis successful');
             get().setYouTubeChannel(channelUrl, response.data);
+
+            // Generate compact rules.md from analysis and persist it
+            try {
+              const rules = generateChannelRules(response.data.channel, response.data.analysis);
+              localStorage.setItem('channel-rules', rules);
+              if (window.electronAPI.rulesWrite) {
+                await window.electronAPI.rulesWrite(rules);
+              }
+              console.log('[Profile] Channel rules.md saved');
+            } catch (rulesErr) {
+              console.warn('[Profile] Could not save rules.md:', rulesErr);
+            }
 
             // Link analysis to user
             const profile = get().profile;

@@ -184,6 +184,30 @@ export interface ContextFlags {
   includeChannel: boolean;
 }
 
+// ─── Publish Intent ────────────────────────────────────────────────────────────
+// Phrases that unambiguously signal the user wants to publish/upload to YouTube.
+const PUBLISH_INTENT_PATTERNS = [
+  /\bpublish\b/i,
+  /\bupload\s+(to\s+)?youtube\b/i,
+  /\bpost\s+(to\s+|on\s+)?youtube\b/i,
+  /\bput\s+it\s+on\s+youtube\b/i,
+  /\bshare\s+(it\s+)?on\s+youtube\b/i,
+  /\bgo\s+live\b/i,
+  /\brelease\s+(the\s+)?video\b/i,
+  /\bready\s+to\s+(publish|upload|post)\b/i,
+  /\blet'?s?\s+(publish|upload|post)\b/i,
+  /\b(publish|upload|post)\s+(the\s+)?video\b/i,
+  /\bsend\s+(it\s+)?to\s+youtube\b/i,
+];
+
+/**
+ * Returns true when the user message clearly signals intent to publish/upload to YouTube.
+ * This is checked before edit/chat routing to open the publish panel instead of planning.
+ */
+export function detectPublishIntent(message: string): boolean {
+  return PUBLISH_INTENT_PATTERNS.some((pattern) => pattern.test(message));
+}
+
 export function detectContextNeeds(message: string, intent: MessageIntent): ContextFlags {
   const lower = message.toLowerCase();
   const scriptRequest = /\b(script|voiceover|narration|hook|intro)\b/i.test(lower);

@@ -197,6 +197,9 @@ export interface ElectronAPI {
     projectId?: string,
   ) => Promise<{ success: boolean; path?: string; error?: string }>;
   memoryGetDir: () => Promise<{ dir: string; index: string; analyses: string }>;
+  // Channel rules — compact creator style guide
+  rulesWrite: (content: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+  rulesRead: () => Promise<{ success: boolean; content?: string | null; error?: string }>;
   bedrockConverse: (input: Record<string, unknown>) => Promise<unknown>;
 }
 

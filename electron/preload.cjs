@@ -95,7 +95,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeProjectFile: (data) => invokeIpc(IPC_CHANNELS.project.writeProjectFile, data),
   readProjectFile: (filePath) =>
     invokeIpc(IPC_CHANNELS.project.readProjectFile, ensureNonEmptyString(filePath)),
-  readTextFile: (filePath) => invokeIpc(IPC_CHANNELS.file.readTextFile, ensureNonEmptyString(filePath)),
+  readTextFile: (filePath) =>
+    invokeIpc(IPC_CHANNELS.file.readTextFile, ensureNonEmptyString(filePath)),
   transcribeVideo: (videoPath) =>
     invokeIpc(IPC_CHANNELS.transcription.transcribeVideo, ensureNonEmptyString(videoPath)),
   transcribeTimeline: (clips) => invokeIpc(IPC_CHANNELS.transcription.transcribeTimeline, clips),
@@ -116,7 +117,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ),
   readFileAsBase64: (filePath) =>
     invokeIpc(IPC_CHANNELS.file.readFileAsBase64, ensureNonEmptyString(filePath)),
-  getFileSize: (filePath) => invokeIpc(IPC_CHANNELS.file.getFileSize, ensureNonEmptyString(filePath)),
+  getFileSize: (filePath) =>
+    invokeIpc(IPC_CHANNELS.file.getFileSize, ensureNonEmptyString(filePath)),
   memorySave: (data) => invokeIpc(IPC_CHANNELS.memory.save, data),
   memoryLoad: (projectId) => invokeIpc(IPC_CHANNELS.memory.load, projectId),
   memorySaveMarkdown: (entry, projectId) =>

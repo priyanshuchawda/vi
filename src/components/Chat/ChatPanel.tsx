@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useChatStore } from '../../stores/useChatStore';
 import { useProjectStore } from '../../stores/useProjectStore';
 import { useAiMemoryStore } from '../../stores/useAiMemoryStore';
@@ -1590,15 +1590,28 @@ const ChatPanel = () => {
     }
   };
 
-  useEffect(() => {
-    if (!autoExecute || !pendingClarification || isTyping) return;
+  const handleAutoClarificationAnswer = useEffectEvent(() => {
+    if (!pendingClarification) return;
     const autoAnswer = pendingClarification.options[0] || 'Proceed with best effort';
     void handleClarificationAnswer(autoAnswer);
+  });
+
+  const handleAutoExecuteTools = useEffectEvent(() => {
+    void handleExecuteTools();
+  });
+
+  const handleAutoExecutePlan = useEffectEvent(() => {
+    void handleExecutePlan();
+  });
+
+  useEffect(() => {
+    if (!autoExecute || !pendingClarification || isTyping) return;
+    handleAutoClarificationAnswer();
   }, [autoExecute, pendingClarification, isTyping]);
 
   useEffect(() => {
     if (!autoExecute || !pendingToolCalls || isExecutingTools || isTyping) return;
-    void handleExecuteTools();
+    handleAutoExecuteTools();
   }, [autoExecute, pendingToolCalls, isExecutingTools, isTyping]);
 
   useEffect(() => {
@@ -1613,7 +1626,7 @@ const ChatPanel = () => {
       !hasHardValidationIssues &&
       validationIssues.length > 0;
     if (!executionPlan.plan.planReady && !canForceExecute) return;
-    void handleExecutePlan();
+    handleAutoExecutePlan();
   }, [
     autoExecute,
     executionPlan,

@@ -10,8 +10,9 @@ interface Scenario {
   lastAssistantMessage?: string;
 }
 
+const projectPath = path.resolve(process.cwd(), 'video_test', 'project.quickcut');
+
 function loadVideoTestMemory(): MediaAnalysisEntry[] {
-  const projectPath = path.resolve(process.cwd(), 'video_test', 'project.quickcut');
   const raw = fs.readFileSync(projectPath, 'utf-8');
   const parsed = JSON.parse(raw) as { memory?: MediaAnalysisEntry[] };
   const memory = Array.isArray(parsed.memory) ? parsed.memory : [];
@@ -19,11 +20,13 @@ function loadVideoTestMemory(): MediaAnalysisEntry[] {
 }
 
 describe('video_test memory-only AI evaluation', () => {
-  it('runs prompt evaluation using only saved memory (no model call)', () => {
-    const memoryEntries = loadVideoTestMemory();
-    expect(memoryEntries.length).toBeGreaterThan(0);
+  it.skipIf(!fs.existsSync(projectPath))(
+    'runs prompt evaluation using only saved memory (no model call)',
+    () => {
+      const memoryEntries = loadVideoTestMemory();
+      expect(memoryEntries.length).toBeGreaterThan(0);
 
-    const scenarios: Scenario[] = [
+      const scenarios: Scenario[] = [
       {
         prompt:
           'you check the video and create a script for me of 16 seconds of how i won hackaton intro, should look really attractive',
@@ -68,9 +71,10 @@ describe('video_test memory-only AI evaluation', () => {
 
     console.table(report);
 
-    expect(report[0].lane).toBe('script_guidance');
-    expect(report[1].lane).toBe('timeline_edit');
-    expect(report[2].lane).toBe('timeline_edit');
-    expect(report[3].lane).toBe('script_guidance');
-  });
+      expect(report[0].lane).toBe('script_guidance');
+      expect(report[1].lane).toBe('timeline_edit');
+      expect(report[2].lane).toBe('timeline_edit');
+      expect(report[3].lane).toBe('script_guidance');
+    },
+  );
 });

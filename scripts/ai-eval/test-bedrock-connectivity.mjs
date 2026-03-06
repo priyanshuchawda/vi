@@ -126,7 +126,10 @@ main().catch((error) => {
     name: error?.name || 'Error',
     message: error?.message || String(error),
     code: error?.code || null,
-    stackTop: String(error?.stack || '').split('\n').slice(0, 4).join('\n'),
+    stackTop: String(error?.stack || '')
+      .split('\n')
+      .slice(0, 4)
+      .join('\n'),
   });
   process.exit(1);
 });

@@ -11,13 +11,16 @@
     "dev": "concurrently \"npm run dev:react\" \"npm run dev:electron\"",
     "dev:react": "vite",
     "build:electron": "tsc -p tsconfig.electron.json && node scripts/build/build-electron-preload.mjs",
+    "dist:check:assets": "node scripts/build/check-release-assets.mjs",
     "dev:electron": "npm run build:electron && concurrently -k \"tsc -p tsconfig.electron.json -w\" \"node scripts/build/build-electron-preload.mjs --watch\" \"wait-on http-get://localhost:7377 && electron .\"",
     "build": "tsc -b && npm run build:electron && vite build",
-    "dist": "npm run build && electron-builder",
-    "dist:all": "npm run build && electron-builder --mac --arm64 --x64 && electron-builder --win --x64 && electron-builder --linux --x64",
-    "dist:mac": "npm run build && electron-builder --mac --arm64 --x64",
-    "dist:win": "npm run build && electron-builder --win --x64",
-    "dist:linux": "npm run build && electron-builder --linux --x64",
+    "dist": "npm run build && npm run dist:check:assets -- linux && electron-builder --publish never",
+    "dist:all": "npm run build && npm run dist:check:assets -- mac win linux && electron-builder --mac --arm64 --x64 --publish never && electron-builder --win nsis --x64 --publish never && electron-builder --linux AppImage deb --x64 --publish never",
+    "dist:mac": "npm run build && npm run dist:check:assets -- mac && electron-builder --mac --arm64 --x64 --publish never",
+    "dist:win": "npm run build && npm run dist:check:assets -- win && electron-builder --win nsis --x64 --publish never",
+    "dist:linux": "npm run build && npm run dist:check:assets -- linux && electron-builder --linux AppImage deb --x64 --publish never",
+    "dist:linux:appimage": "npm run build && npm run dist:check:assets -- linux && electron-builder --linux AppImage --x64 --publish never",
+    "dist:linux:deb": "npm run build && npm run dist:check:assets -- linux && electron-builder --linux deb --x64 --publish never",
     "dist:publish": "npm run build && electron-builder --publish always",
     "test": "vitest run",
     "test:e2e:smoke": "playwright test test/e2e/smoke.spec.ts",
@@ -105,6 +108,11 @@
   "build": {
     "appId": "com.quickcut.app",
     "productName": "QuickCut",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node"
+    ],
     "directories": {
       "output": "release"
     },
@@ -115,14 +123,46 @@
       "gatekeeperAssess": false
     },
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "public/logo.png"
     },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
     "linux": {
-      "target": "AppImage",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "public/logo.png",
       "category": "Video",
       "executableName": "quickcut"
+    },
+    "deb": {
+      "priority": "optional",
+      "packageCategory": "video",
+      "maintainer": "QuickCut Team"
     },
     "files": [
       "dist-electron/**/*",

@@ -50,6 +50,7 @@ describe('Transcription Feature - Store State Management', () => {
       const mockTranscription = {
         text: 'Hello world',
         segments: [{ id: 1, start: 0, end: 2, text: 'Hello world' }],
+        words: [],
       };
 
       act(() => {
@@ -66,6 +67,7 @@ describe('Transcription Feature - Store State Management', () => {
       const mockTranscription = {
         text: 'Hello world',
         segments: [],
+        words: [],
       };
 
       act(() => {
@@ -225,6 +227,7 @@ describe('Transcription Feature - Store State Management', () => {
       const mockTranscription = {
         text: 'Transcribed text',
         segments: [],
+        words: [],
       };
 
       act(() => {
@@ -240,6 +243,7 @@ describe('Transcription Feature - Store State Management', () => {
       const mockTranscription = {
         text: 'Important transcription',
         segments: [{ id: 1, start: 0, end: 5, text: 'Important transcription' }],
+        words: [],
       };
 
       act(() => {

@@ -70,7 +70,7 @@ export interface ChatTurn {
   parts: TurnPart[];
   startedAt: number;
   endedAt?: number;
-  closeReason?: 'completed' | 'error' | 'interrupted';
+  closeReason?: 'completed' | 'error' | 'interrupted' | 'agentic_done';
   retryInfo?: {
     attempt: number;
     message: string;

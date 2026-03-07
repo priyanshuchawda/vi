@@ -42,7 +42,18 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const { profile, createProfile, updateProfile, analyzeYouTubeChannel } = useProfileStore();
 
   useEffect(() => {
-    void loadAiConfig();
+    const refreshAiConfig = () => {
+      void loadAiConfig();
+    };
+
+    refreshAiConfig();
+    window.addEventListener('focus', refreshAiConfig);
+    document.addEventListener('visibilitychange', refreshAiConfig);
+
+    return () => {
+      window.removeEventListener('focus', refreshAiConfig);
+      document.removeEventListener('visibilitychange', refreshAiConfig);
+    };
   }, [loadAiConfig]);
 
   useEffect(() => {
@@ -346,14 +357,15 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
             <h2 className="text-sm font-semibold text-white">Credential source</h2>
             <div className="mt-3 space-y-3 text-sm text-slate-300">
               <p>
-                {aiStatus?.usingSavedSettings
-                  ? 'QuickCut already has saved credentials. Updating here will replace them.'
-                  : aiStatus?.usingEnvFallback
-                    ? 'QuickCut detected credentials from `.env`. Save once here to store them in-app.'
-                    : 'No existing saved credentials were detected yet.'}
+                {aiStatus?.usingEnvFallback
+                  ? 'QuickCut detected credentials from `.env`. They are active now, and saved in-app values act as fallback.'
+                  : aiStatus?.usingSavedSettings
+                    ? 'QuickCut already has saved credentials. Updating here will replace them.'
+                    : 'No existing AI credentials were detected yet.'}
               </p>
               <p className="text-xs leading-5 text-slate-500">
-                Saved settings override `.env` for this desktop app after onboarding.
+                `.env` values take priority when present. Saved settings are kept as fallback for
+                this desktop app.
               </p>
             </div>
           </div>

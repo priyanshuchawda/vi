@@ -32,7 +32,18 @@ const SettingsTab = () => {
   const [hasAiDraftChanges, setHasAiDraftChanges] = useState(false);
 
   useEffect(() => {
-    void loadAiConfig();
+    const refreshAiConfig = () => {
+      void loadAiConfig();
+    };
+
+    refreshAiConfig();
+    window.addEventListener('focus', refreshAiConfig);
+    document.addEventListener('visibilitychange', refreshAiConfig);
+
+    return () => {
+      window.removeEventListener('focus', refreshAiConfig);
+      document.removeEventListener('visibilitychange', refreshAiConfig);
+    };
   }, [loadAiConfig]);
 
   useEffect(() => {
@@ -105,10 +116,10 @@ const SettingsTab = () => {
                     {aiStatus?.bedrockReady ? 'AI editor is ready' : 'AI editor setup required'}
                   </p>
                   <p className="mt-1 text-[10px] text-text-muted">
-                    {aiStatus?.usingSavedSettings
-                      ? 'Using credentials saved in QuickCut settings.'
-                      : aiStatus?.usingEnvFallback
-                        ? 'Using credentials from your .env file.'
+                    {aiStatus?.usingEnvFallback
+                      ? 'Using credentials from your .env file.'
+                      : aiStatus?.usingSavedSettings
+                        ? 'Using credentials saved in QuickCut settings.'
                         : 'No Bedrock credentials detected yet.'}
                   </p>
                 </div>
@@ -152,7 +163,8 @@ const SettingsTab = () => {
 
             <div className="flex items-center justify-between gap-3 rounded border border-border-primary bg-bg-elevated/50 px-3 py-2">
               <p className="text-[10px] text-text-muted">
-                These saved settings override `.env` values for this desktop app.
+                `.env` values take priority when present. Saved settings remain as fallback inside
+                QuickCut.
               </p>
               <button
                 onClick={() => void handleSaveAiSettings()}

@@ -3,7 +3,13 @@ import { requiresInitialSetup } from '../../src/lib/setupRequirements';
 
 describe('requiresInitialSetup', () => {
   it('requires setup when the profile is missing', () => {
-    expect(requiresInitialSetup(null, { bedrockReady: true, usingSavedSettings: true })).toBe(true);
+    expect(
+      requiresInitialSetup(null, {
+        bedrockReady: true,
+        usingSavedSettings: true,
+        usingEnvFallback: false,
+      }),
+    ).toBe(true);
   });
 
   it('requires setup when the user name is missing', () => {
@@ -13,7 +19,7 @@ describe('requiresInitialSetup', () => {
           userId: 'user-1',
           userName: '   ',
         },
-        { bedrockReady: true, usingSavedSettings: true },
+        { bedrockReady: true, usingSavedSettings: true, usingEnvFallback: false },
       ),
     ).toBe(true);
   });
@@ -25,21 +31,21 @@ describe('requiresInitialSetup', () => {
           userId: 'user-1',
           userName: 'Priyanshu',
         },
-        { bedrockReady: false, usingSavedSettings: false },
+        { bedrockReady: false, usingSavedSettings: false, usingEnvFallback: false },
       ),
     ).toBe(true);
   });
 
-  it('requires setup when credentials only come from env fallback', () => {
+  it('does not require setup when ready credentials come from env', () => {
     expect(
       requiresInitialSetup(
         {
           userId: 'user-1',
           userName: 'Priyanshu',
         },
-        { bedrockReady: true, usingSavedSettings: false },
+        { bedrockReady: true, usingSavedSettings: false, usingEnvFallback: true },
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('does not require setup when profile and bedrock are both ready', () => {
@@ -49,7 +55,7 @@ describe('requiresInitialSetup', () => {
           userId: 'user-1',
           userName: 'Priyanshu',
         },
-        { bedrockReady: true, usingSavedSettings: true },
+        { bedrockReady: true, usingSavedSettings: true, usingEnvFallback: false },
       ),
     ).toBe(false);
   });

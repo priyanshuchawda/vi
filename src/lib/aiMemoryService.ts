@@ -13,7 +13,7 @@
 
 import { converseBedrock, MODEL_ID, isBedrockConfigured } from './bedrockGateway';
 import { useAiMemoryStore } from '../stores/useAiMemoryStore';
-import type { AudioInfo, SceneInfo, VisualInfo } from '../types/aiMemory';
+import type { AudioInfo, EditorialInsights, SceneInfo, VisualInfo } from '../types/aiMemory';
 import { MediaAnalysisSchema } from './schemas/mediaAnalysis';
 import { waitForSlot } from './rateLimiter';
 import { recordUsage } from './tokenTracker';
@@ -123,16 +123,24 @@ Analyze the provided ${mediaType} file named "${fileName}" and provide a compreh
 
 <output_format>
 You MUST respond with ONLY valid JSON (no markdown, no code blocks, no extra text).
-Use this exact structure:
+Keep fields simple:
+- "analysis" must be a plain string, never an object
+- arrays should contain short strings
+- omit any field you are not confident about instead of inventing values
+- if you use storyRole, use one of: hook, setup, behind_the_scenes, proof, payoff, cta_support
+- if you use strength/energy/hook levels, use only: low, medium, high
+- if you use pacing, use only: slow, steady, fast, mixed
+Use this structure:
 {
   "summary": "1-2 sentence summary",
   "tags": ["tag1", "tag2", ...],
   "analysis": "Detailed paragraph about content, quality, pacing, etc.",
-  "scenes": [{"startTime": 0, "endTime": 5, "description": "Scene description"}],
-  "audioInfo": {"hasSpeech": true, "hasMusic": false, "languages": ["English"], "mood": "happy", "transcriptSummary": "..."},
-  "visualInfo": {"dominantColors": ["blue", "green"], "style": "cinematic", "subjects": ["person"], "composition": "...", "quality": "high"}
+  "scenes": [{"startTime": 0, "endTime": 5, "description": "Scene description", "storyRole": "hook", "editValue": "why useful", "searchHints": ["short phrase"]}],
+  "audioInfo": {"hasSpeech": true, "hasMusic": false, "languages": ["English"], "transcriptSummary": "..."},
+  "visualInfo": {"subjects": ["person"], "visibleTextHighlights": ["important text"], "style": "cinematic", "quality": "high"},
+  "editorialInsights": {"storyRole": "proof", "evidenceStrength": "high", "memoryAnchors": ["short factual memory point"], "bestFor": ["proof-first intro"], "avoidFor": ["slow process montage"], "hookMoments": ["Short factual hook idea"], "overlayIdeas": ["2-6 word text overlay idea"]}
 }
-The "scenes", "audioInfo", and "visualInfo" fields are optional — include them only if relevant.
+All fields except summary/tags/analysis are optional.
 </output_format>`;
 
   if (mediaType === 'video') {
@@ -147,6 +155,17 @@ ${tierGuidance[tier]}
 - Note dominant colors, composition style, and quality
 - Detect speech, music, and overall mood
 - Provide actionable insights for video editing
+- For each important scene, estimate energy and best editorial use
+- For each important scene, say why it matters in an edit and add 2-5 short search hints
+- Call out hook-worthy moments for the first 1-3 seconds of a short if present
+- Suggest short on-screen text overlays grounded in the actual footage
+- Distinguish between proof/payoff footage and behind-the-scenes work footage
+- Generic office work, laptop use, wiring, typing, meetings, walking, or setup footage is NOT proof unless a concrete result is visibly shown
+- Only mark hasSpeech or a language when speech is clearly audible; never infer audio from visuals alone
+- If footage only shows generic working, typing, walking, setup, or preparation without the visible result, prefer storyRole=behind_the_scenes and evidenceStrength=low
+- Use storyRole=proof only when the asset visibly shows the winning result, certificate, announcement, demo outcome, or another concrete claim on screen
+- Add 3-8 memoryAnchors: short factual points the editing agent should remember later
+- Add bestFor / avoidFor to clarify when this asset helps or should stay secondary
 </analysis_focus>`
     );
   }
@@ -179,6 +198,11 @@ ${tierGuidance[tier]}
 - Assess image quality and resolution
 - Note lighting and artistic choices
 - Provide insights for photo/video editing
+- Suggest whether the image works best as hook frame, establishing shot, payoff, or filler
+- Suggest short overlay text ideas only if clearly supported by the image
+- Extract important visible text such as winner names, certificates, event titles, rankings, and claims shown on screen
+- If the image is a screenshot/poster/social post, say so explicitly and classify whether it is proof or context
+- Add memoryAnchors that make the image easy to reuse later in script and edit planning
 </analysis_focus>`
     );
   }
@@ -194,6 +218,7 @@ ${tierGuidance[tier]}
 - Extract key information and themes
 - Identify document type and structure
 - Note any production-relevant details
+- Extract concise visible text highlights that matter for editing or story proof
 </analysis_focus>`
   );
 }
@@ -274,41 +299,624 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
-/**
- * Parse the JSON analysis response with Zod validation
- */
-function parseAnalysisResponse(responseText: string): {
+type ParsedAnalysisResult = {
   summary: string;
   tags: string[];
   analysis: string;
   scenes?: SceneInfo[];
   audioInfo?: AudioInfo;
   visualInfo?: VisualInfo;
-} {
-  try {
-    // Clean the response — remove markdown code blocks if present
-    let cleaned = responseText.trim();
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+  editorialInsights?: EditorialInsights;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isDefined<T>(value: T | undefined): value is T {
+  return value !== undefined;
+}
+
+function cleanText(value: string, maxLength: number = 400): string {
+  return value.replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
+function keyToLabel(key: string): string {
+  return key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .trim();
+}
+
+function toText(value: unknown, maxLength: number = 400): string | undefined {
+  if (typeof value === 'string') {
+    const cleaned = cleanText(value, maxLength);
+    return cleaned || undefined;
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((item) => toText(item, Math.max(40, Math.floor(maxLength / Math.max(1, value.length)))))
+      .filter(Boolean) as string[];
+    if (!parts.length) return undefined;
+    return cleanText(parts.join('; '), maxLength);
+  }
+
+  if (isRecord(value)) {
+    const preferredKeys = [
+      'summary',
+      'description',
+      'content',
+      'analysis',
+      'value',
+      'reason',
+      'note',
+    ];
+    const preferredParts = preferredKeys
+      .map((key) => toText(value[key], maxLength))
+      .filter(Boolean) as string[];
+    if (preferredParts.length) {
+      return cleanText(preferredParts.join('. '), maxLength);
     }
 
-    const parsed = JSON.parse(cleaned);
+    const parts = Object.entries(value)
+      .slice(0, 6)
+      .map(([key, nested]) => {
+        const text = toText(nested, 120);
+        return text ? `${keyToLabel(key)}: ${text}` : undefined;
+      })
+      .filter(Boolean) as string[];
 
-    // Validate with Zod schema for runtime type safety
-    const result = MediaAnalysisSchema.safeParse(parsed);
+    if (!parts.length) return undefined;
+    return cleanText(parts.join('. '), maxLength);
+  }
+
+  return undefined;
+}
+
+function toStringArray(
+  value: unknown,
+  options?: {
+    maxItems?: number;
+    maxItemLength?: number;
+    splitDelimited?: boolean;
+  },
+): string[] {
+  const maxItems = options?.maxItems ?? 8;
+  const maxItemLength = options?.maxItemLength ?? 120;
+  const splitDelimited = options?.splitDelimited ?? true;
+  const rawValues = Array.isArray(value) ? value : value == null ? [] : [value];
+  const items: string[] = [];
+
+  for (const rawValue of rawValues) {
+    const text = toText(rawValue, maxItemLength * 2);
+    if (!text) continue;
+
+    const segments = splitDelimited && /[,\n|]/.test(text) ? text.split(/[,\n|]+/) : [text];
+
+    for (const segment of segments) {
+      const cleaned = cleanText(segment, maxItemLength);
+      if (!cleaned) continue;
+      if (!items.some((item) => item.toLowerCase() === cleaned.toLowerCase())) {
+        items.push(cleaned);
+      }
+      if (items.length >= maxItems) {
+        return items;
+      }
+    }
+  }
+
+  return items;
+}
+
+function toNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function toBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value !== 'string') return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  if (['true', 'yes', 'y', 'present', 'detected'].includes(normalized)) return true;
+  if (['false', 'no', 'n', 'none', 'absent', 'not detected'].includes(normalized)) return false;
+  return undefined;
+}
+
+function normalizeLevel(
+  value: unknown,
+  kind: 'strength' | 'pacing',
+): 'low' | 'medium' | 'high' | 'slow' | 'steady' | 'fast' | 'mixed' | undefined {
+  const text = toText(value, 80)?.toLowerCase();
+  if (!text) return undefined;
+
+  if (kind === 'pacing') {
+    if (/(mixed|varied|changes|combination)/.test(text)) return 'mixed';
+    if (/(fast|quick|rapid|energetic|dynamic|snappy)/.test(text)) return 'fast';
+    if (/(slow|calm|gentle|lingering)/.test(text)) return 'slow';
+    if (/(steady|balanced|consistent|moderate|medium)/.test(text)) return 'steady';
+    return undefined;
+  }
+
+  if (/(high|strong|clear|very high|excellent|major)/.test(text)) return 'high';
+  if (/(medium|moderate|some|partial|mid)/.test(text)) return 'medium';
+  if (/(low|weak|limited|minor|small)/.test(text)) return 'low';
+  return undefined;
+}
+
+function normalizeStoryRole(value: unknown): SceneInfo['storyRole'] | undefined {
+  const text = toText(value, 120)?.toLowerCase();
+  if (!text) return undefined;
+
+  if (/(cta|call to action)/.test(text)) return 'cta_support';
+  if (/(payoff|ending|result reveal|final reveal|resolution|celebration)/.test(text))
+    return 'payoff';
+  if (
+    /(proof|announcement|winner|winning|award|certificate|result|outcome|achievement|evidence)/.test(
+      text,
+    )
+  ) {
+    return 'proof';
+  }
+  if (/(behind|bts|process|making|build|work|working|setup footage|preparation)/.test(text)) {
+    return 'behind_the_scenes';
+  }
+  if (/(setup|intro|context|establishing|opening context)/.test(text)) return 'setup';
+  if (/(hook|attention|opening hit|thumbstop)/.test(text)) return 'hook';
+  return undefined;
+}
+
+function normalizeScene(scene: unknown): SceneInfo | undefined {
+  if (!isRecord(scene)) return undefined;
+
+  const description = toText(scene.description || scene.summary || scene.scene, 240);
+  const startTime = toNumber(scene.startTime ?? scene.start ?? scene.from);
+  const endTime = toNumber(scene.endTime ?? scene.end ?? scene.to);
+  if (!description || startTime == null || endTime == null) {
+    return undefined;
+  }
+
+  const safeStart = Math.max(0, Math.min(startTime, endTime));
+  const safeEnd = Math.max(safeStart, Math.max(startTime, endTime));
+  const normalized: SceneInfo = {
+    startTime: safeStart,
+    endTime: safeEnd === safeStart ? safeStart + 0.1 : safeEnd,
+    description,
+  };
+
+  const keyElements = toStringArray(scene.keyElements, { maxItems: 6 });
+  if (keyElements.length) normalized.keyElements = keyElements;
+
+  const energyLevel = normalizeLevel(scene.energyLevel ?? scene.energy, 'strength');
+  if (energyLevel === 'low' || energyLevel === 'medium' || energyLevel === 'high') {
+    normalized.energyLevel = energyLevel;
+  }
+
+  const recommendedUse = toText(scene.recommendedUse ?? scene.use ?? scene.editorialUse, 120);
+  if (recommendedUse) normalized.recommendedUse = recommendedUse;
+
+  const storyRole = normalizeStoryRole(scene.storyRole ?? scene.role ?? scene.momentType);
+  if (storyRole) normalized.storyRole = storyRole;
+
+  const hookPotential = normalizeLevel(scene.hookPotential ?? scene.hookStrength, 'strength');
+  if (hookPotential === 'low' || hookPotential === 'medium' || hookPotential === 'high') {
+    normalized.hookPotential = hookPotential;
+  }
+
+  const editValue = toText(scene.editValue ?? scene.whyItMatters ?? scene.reason, 180);
+  if (editValue) normalized.editValue = editValue;
+
+  const searchHints = toStringArray(scene.searchHints ?? scene.searchTerms ?? scene.findWith, {
+    maxItems: 5,
+    maxItemLength: 80,
+  });
+  if (searchHints.length) normalized.searchHints = searchHints;
+
+  return normalized;
+}
+
+function normalizeAudioInfo(audioInfo: unknown): AudioInfo | undefined {
+  if (!isRecord(audioInfo)) return undefined;
+
+  const transcriptSummary = toText(audioInfo.transcriptSummary ?? audioInfo.transcript, 240);
+  const languages = toStringArray(audioInfo.languages ?? audioInfo.language, {
+    maxItems: 4,
+    maxItemLength: 40,
+  });
+  const mood = toText(audioInfo.mood ?? audioInfo.tone, 80);
+  const confidenceNotes = toText(audioInfo.confidenceNotes ?? audioInfo.notes, 180);
+
+  const hasSpeech =
+    toBoolean(audioInfo.hasSpeech ?? audioInfo.speechPresent) ??
+    Boolean(transcriptSummary || languages.length);
+  const hasMusic = toBoolean(audioInfo.hasMusic ?? audioInfo.musicPresent) ?? false;
+
+  if (
+    !hasSpeech &&
+    !hasMusic &&
+    !transcriptSummary &&
+    !languages.length &&
+    !mood &&
+    !confidenceNotes
+  ) {
+    return undefined;
+  }
+
+  return {
+    hasSpeech,
+    hasMusic,
+    languages: languages.length ? languages : undefined,
+    mood: mood || undefined,
+    transcriptSummary: transcriptSummary || undefined,
+    confidenceNotes: confidenceNotes || undefined,
+  };
+}
+
+function normalizeVisualInfo(visualInfo: unknown): VisualInfo | undefined {
+  if (!isRecord(visualInfo)) return undefined;
+
+  const dominantColors = toStringArray(visualInfo.dominantColors ?? visualInfo.colors, {
+    maxItems: 6,
+    maxItemLength: 30,
+  });
+  const style = toText(visualInfo.style, 80);
+  const subjects = toStringArray(visualInfo.subjects ?? visualInfo.objects, {
+    maxItems: 8,
+    maxItemLength: 60,
+  });
+  const composition = toText(visualInfo.composition ?? visualInfo.camera, 160);
+  const quality = toText(visualInfo.quality ?? visualInfo.resolution, 80);
+  const visibleTextHighlights = toStringArray(
+    visualInfo.visibleTextHighlights ?? visualInfo.visibleText ?? visualInfo.onScreenText,
+    {
+      maxItems: 8,
+      maxItemLength: 120,
+    },
+  );
+
+  if (
+    !dominantColors.length &&
+    !style &&
+    !subjects.length &&
+    !composition &&
+    !quality &&
+    !visibleTextHighlights.length
+  ) {
+    return undefined;
+  }
+
+  return {
+    dominantColors: dominantColors.length ? dominantColors : undefined,
+    style: style || undefined,
+    subjects: subjects.length ? subjects : undefined,
+    composition: composition || undefined,
+    quality: quality || undefined,
+    visibleTextHighlights: visibleTextHighlights.length ? visibleTextHighlights : undefined,
+  };
+}
+
+function normalizeEditorialInsights(editorialInsights: unknown): EditorialInsights | undefined {
+  if (!isRecord(editorialInsights)) return undefined;
+
+  const shortFormPotential = normalizeLevel(
+    editorialInsights.shortFormPotential ?? editorialInsights.shortFormScore,
+    'strength',
+  );
+  const pacing = normalizeLevel(editorialInsights.pacing, 'pacing');
+  const storyRole = normalizeStoryRole(
+    editorialInsights.storyRole ?? editorialInsights.role ?? editorialInsights.primaryRole,
+  );
+  const evidenceStrength = normalizeLevel(
+    editorialInsights.evidenceStrength ?? editorialInsights.proofStrength,
+    'strength',
+  );
+  const memoryAnchors = toStringArray(
+    editorialInsights.memoryAnchors ?? editorialInsights.remember,
+    {
+      maxItems: 8,
+      maxItemLength: 120,
+    },
+  );
+  const hookMoments = toStringArray(editorialInsights.hookMoments ?? editorialInsights.hooks, {
+    maxItems: 5,
+    maxItemLength: 120,
+  });
+  const bestFor = toStringArray(editorialInsights.bestFor ?? editorialInsights.goodFor, {
+    maxItems: 5,
+    maxItemLength: 100,
+  });
+  const avoidFor = toStringArray(editorialInsights.avoidFor ?? editorialInsights.weakFor, {
+    maxItems: 5,
+    maxItemLength: 100,
+  });
+  const recommendedUses = toStringArray(
+    editorialInsights.recommendedUses ?? editorialInsights.uses ?? editorialInsights.recommendedUse,
+    {
+      maxItems: 5,
+      maxItemLength: 100,
+    },
+  );
+  const overlayIdeas = toStringArray(editorialInsights.overlayIdeas ?? editorialInsights.overlays, {
+    maxItems: 5,
+    maxItemLength: 80,
+  });
+  const cautions = toStringArray(editorialInsights.cautions ?? editorialInsights.notes, {
+    maxItems: 4,
+    maxItemLength: 120,
+  });
+
+  if (
+    !shortFormPotential &&
+    !pacing &&
+    !storyRole &&
+    !evidenceStrength &&
+    !memoryAnchors.length &&
+    !hookMoments.length &&
+    !bestFor.length &&
+    !avoidFor.length &&
+    !recommendedUses.length &&
+    !overlayIdeas.length &&
+    !cautions.length
+  ) {
+    return undefined;
+  }
+
+  return {
+    shortFormPotential:
+      shortFormPotential === 'low' ||
+      shortFormPotential === 'medium' ||
+      shortFormPotential === 'high'
+        ? shortFormPotential
+        : undefined,
+    pacing:
+      pacing === 'slow' || pacing === 'steady' || pacing === 'fast' || pacing === 'mixed'
+        ? pacing
+        : undefined,
+    storyRole,
+    evidenceStrength:
+      evidenceStrength === 'low' || evidenceStrength === 'medium' || evidenceStrength === 'high'
+        ? evidenceStrength
+        : undefined,
+    memoryAnchors: memoryAnchors.length ? memoryAnchors : undefined,
+    hookMoments: hookMoments.length ? hookMoments : undefined,
+    bestFor: bestFor.length ? bestFor : undefined,
+    avoidFor: avoidFor.length ? avoidFor : undefined,
+    recommendedUses: recommendedUses.length ? recommendedUses : undefined,
+    overlayIdeas: overlayIdeas.length ? overlayIdeas : undefined,
+    cautions: cautions.length ? cautions : undefined,
+  };
+}
+
+const PROOF_SIGNAL_TERMS = [
+  'winner',
+  'winning',
+  'won',
+  'award',
+  'certificate',
+  'announcement',
+  'result',
+  'results',
+  'rank',
+  'ranking',
+  'trophy',
+  'prize',
+  'selected',
+  'finalist',
+];
+
+const PROCESS_SIGNAL_TERMS = [
+  'office',
+  'desk',
+  'laptop',
+  'typing',
+  'wire',
+  'wires',
+  'cable',
+  'setup',
+  'preparation',
+  'building',
+  'build',
+  'prototype',
+  'coding',
+  'work',
+  'working',
+  'assembling',
+  'testing',
+];
+
+function countSignalHits(text: string, terms: string[]): number {
+  const lower = text.toLowerCase();
+  return terms.filter((term) => lower.includes(term)).length;
+}
+
+function deriveFactualSignalText(result: ParsedAnalysisResult): string {
+  return [
+    result.summary,
+    result.analysis,
+    ...(result.tags || []),
+    ...(result.visualInfo?.visibleTextHighlights || []),
+    ...(result.visualInfo?.subjects || []),
+    ...(result.scenes || []).flatMap((scene) => [
+      scene.description,
+      ...(scene.keyElements || []),
+      ...(scene.searchHints || []),
+      scene.editValue || '',
+    ]),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+function rebalanceEditorialSignals(result: ParsedAnalysisResult): ParsedAnalysisResult {
+  const factualText = deriveFactualSignalText(result);
+  const proofHits = countSignalHits(factualText, PROOF_SIGNAL_TERMS);
+  const processHits = countSignalHits(factualText, PROCESS_SIGNAL_TERMS);
+  const hasVisibleProofText = countSignalHits(
+    (result.visualInfo?.visibleTextHighlights || []).join(' ').toLowerCase(),
+    PROOF_SIGNAL_TERMS,
+  );
+  const looksLikeProcessOnly = hasVisibleProofText === 0 && proofHits === 0 && processHits >= 2;
+
+  const scenes = result.scenes?.map((scene) => {
+    const sceneText = [
+      scene.description,
+      ...(scene.keyElements || []),
+      ...(scene.searchHints || []),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    const sceneProofHits = countSignalHits(sceneText, PROOF_SIGNAL_TERMS);
+    const sceneProcessHits = countSignalHits(sceneText, PROCESS_SIGNAL_TERMS);
+
+    if (scene.storyRole === 'proof' && sceneProofHits === 0 && sceneProcessHits >= 1) {
+      return { ...scene, storyRole: 'behind_the_scenes' as const };
+    }
+    return scene;
+  });
+
+  if (!looksLikeProcessOnly) {
+    return scenes ? { ...result, scenes } : result;
+  }
+
+  const editorialInsights: EditorialInsights = {
+    ...(result.editorialInsights || {}),
+    storyRole: 'behind_the_scenes',
+    evidenceStrength: 'low',
+  };
+
+  const bestFor = new Set(editorialInsights.bestFor || []);
+  bestFor.add('process montage');
+  bestFor.add('setup');
+  editorialInsights.bestFor = Array.from(bestFor).slice(0, 5);
+
+  const avoidFor = new Set(editorialInsights.avoidFor || []);
+  avoidFor.add('proof-first intro');
+  editorialInsights.avoidFor = Array.from(avoidFor).slice(0, 5);
+
+  return {
+    ...result,
+    scenes,
+    editorialInsights,
+  };
+}
+
+function extractJsonPayload(responseText: string): unknown {
+  let cleaned = responseText.trim();
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+  }
+
+  const directCandidates = [cleaned, cleaned.replace(/,\s*([}\]])/g, '$1')];
+  for (const candidate of directCandidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Try balanced extraction below.
+    }
+  }
+
+  const start = cleaned.indexOf('{');
+  if (start < 0) {
+    throw new Error('No JSON object found in model response');
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < cleaned.length; index++) {
+    const char = cleaned[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '{') depth++;
+    if (char === '}') {
+      depth--;
+      if (depth === 0) {
+        const candidate = cleaned.slice(start, index + 1);
+        try {
+          return JSON.parse(candidate);
+        } catch {
+          return JSON.parse(candidate.replace(/,\s*([}\]])/g, '$1'));
+        }
+      }
+    }
+  }
+
+  throw new Error('Could not extract a complete JSON object from model response');
+}
+
+function normalizeParsedAnalysis(payload: unknown): ParsedAnalysisResult {
+  const record = isRecord(payload) ? payload : {};
+  const summary =
+    toText(record.summary ?? record.overview ?? record.title, 240) || 'No summary available';
+  const analysis =
+    toText(record.analysis, 1000) ||
+    toText(record.details ?? record.observations ?? record.description, 1000) ||
+    summary;
+  const tags = toStringArray(record.tags ?? record.labels ?? record.keywords, {
+    maxItems: 10,
+    maxItemLength: 40,
+  });
+  const scenes = Array.isArray(record.scenes)
+    ? record.scenes.map((scene) => normalizeScene(scene)).filter(isDefined)
+    : [];
+  const audioInfo = normalizeAudioInfo(record.audioInfo);
+  const visualInfo = normalizeVisualInfo(record.visualInfo);
+  const editorialInsights = normalizeEditorialInsights(record.editorialInsights);
+
+  return rebalanceEditorialSignals({
+    summary,
+    tags,
+    analysis,
+    scenes: scenes.length ? scenes : undefined,
+    audioInfo,
+    visualInfo,
+    editorialInsights,
+  });
+}
+
+/**
+ * Parse the JSON analysis response with Zod validation
+ */
+export function parseAnalysisResponse(responseText: string): ParsedAnalysisResult {
+  try {
+    const parsed = extractJsonPayload(responseText);
+    const normalized = normalizeParsedAnalysis(parsed);
+    const result = MediaAnalysisSchema.safeParse(normalized);
 
     if (!result.success) {
-      console.warn('Schema validation failed:', result.error.format());
-      return {
-        summary: parsed.summary || 'No summary available',
-        tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 10) : [],
-        analysis: parsed.analysis || 'No detailed analysis available',
-        scenes: Array.isArray(parsed.scenes) ? parsed.scenes : undefined,
-        audioInfo: parsed.audioInfo || undefined,
-        visualInfo: parsed.visualInfo || undefined,
-      };
+      console.warn('Schema validation failed after normalization:', result.error.format());
+      return normalized;
     }
 
     return result.data;
@@ -461,6 +1069,9 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
 2. Extract structured information useful for video editors
 3. Be specific and detail-oriented in your analysis
 4. You MUST respond with ONLY valid JSON — no markdown, no extra text
+5. If text is visible on screen, capture the most important phrases exactly or near-exactly
+6. Do not infer audio, speech, or language from visuals alone
+7. Optimize the output for later retrieval during AI video editing, not for human prose beauty
 </instructions>
 
 <constraints>
@@ -508,6 +1119,7 @@ You are a specialized media analysis AI for QuickCut, a professional video editi
         scenes: parsed.scenes,
         audioInfo: parsed.audioInfo,
         visualInfo: parsed.visualInfo,
+        editorialInsights: parsed.editorialInsights,
       });
 
       console.log(` Analysis complete for "${task.fileName}": ${parsed.summary}`);

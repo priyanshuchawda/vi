@@ -11,6 +11,11 @@ describe('preload build contract', () => {
     ) as {
       scripts?: Record<string, string>;
     };
+    const electronTsconfig = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, 'tsconfig.electron.json'), 'utf-8'),
+    ) as {
+      exclude?: string[];
+    };
     const mainSource = fs.readFileSync(path.join(repoRoot, 'electron/main.ts'), 'utf-8');
 
     expect(packageJson.scripts?.['build:electron']).toBe(
@@ -20,6 +25,7 @@ describe('preload build contract', () => {
       'node scripts/build/build-electron-preload.mjs --watch',
     );
     expect(mainSource).toContain("preload: path.join(__dirname, 'preload.js')");
+    expect(electronTsconfig.exclude).toContain('electron/preload.ts');
     expect(fs.existsSync(path.join(repoRoot, 'electron/preload.ts'))).toBe(true);
     expect(fs.existsSync(path.join(repoRoot, 'scripts/build/build-electron-preload.mjs'))).toBe(
       true,

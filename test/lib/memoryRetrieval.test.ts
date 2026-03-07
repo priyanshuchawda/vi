@@ -21,6 +21,7 @@ function buildEntry(overrides: Partial<MediaAnalysisEntry>): MediaAnalysisEntry 
     scenes: overrides.scenes,
     audioInfo: overrides.audioInfo,
     visualInfo: overrides.visualInfo,
+    editorialInsights: overrides.editorialInsights,
     createdAt: overrides.createdAt || Date.now(),
     updatedAt: overrides.updatedAt || Date.now(),
     clipId: overrides.clipId,
@@ -82,5 +83,117 @@ describe('memoryRetrieval', () => {
     expect(context).toContain('<retrieved-memory');
     expect(context).toContain('Top relevant analyzed assets');
     expect(context.length).toBeLessThanOrEqual(650);
+  });
+
+  it('surfaces editorial insights for shorts-style retrieval', () => {
+    const hits = retrieveRelevantMemory({
+      query: 'viral hook overlay for youtube shorts vlog',
+      entries: [
+        buildEntry({
+          id: 'hooky',
+          fileName: 'ocean.mp4',
+          summary: 'Boat vlog hook with birds swarming over the ocean.',
+          tags: ['ocean', 'boat', 'birds', 'vlog', 'hook'],
+          editorialInsights: {
+            shortFormPotential: 'high',
+            memoryAnchors: ['Birds rush overhead', 'Boat moving across open sea'],
+            recommendedUses: ['opening hook', 'payoff'],
+            overlayIdeas: ['POV: the sea showed off'],
+            hookMoments: ['Birds rush the boat in the first two seconds'],
+          },
+        }),
+      ],
+      maxEntries: 3,
+    });
+
+    expect(hits[0].entry.id).toBe('hooky');
+
+    const context = formatRetrievedMemoryContext(
+      hits,
+      'viral hook overlay for youtube shorts vlog',
+      800,
+    );
+    expect(context).toContain('shorts: high');
+    expect(context).toContain('overlays: POV: the sea showed off');
+    expect(context).toContain('memory: Birds rush overhead');
+  });
+
+  it('prioritizes winner-proof images over behind-the-scenes work for hackathon intro asks', () => {
+    const entries: MediaAnalysisEntry[] = [
+      buildEntry({
+        id: 'proof-image',
+        fileName: 'winner-post.jpeg',
+        mediaType: 'image',
+        summary: 'Screenshot announcing the winning team in a cybersecurity hackathon.',
+        tags: ['hackathon', 'winner', 'award', 'team'],
+        visualInfo: {
+          style: 'announcement screenshot',
+          quality: 'good',
+          visibleTextHighlights: ['winning teams', 'AllKnighters', 'cyber security'],
+        },
+        editorialInsights: {
+          shortFormPotential: 'medium',
+          storyRole: 'proof',
+          evidenceStrength: 'high',
+          memoryAnchors: ['Winner announcement screenshot', 'AllKnighters visible on screen'],
+          recommendedUses: ['proof/demo', 'payoff'],
+        },
+      }),
+      buildEntry({
+        id: 'bts-video',
+        fileName: 'office-work.mp4',
+        mediaType: 'video',
+        summary: 'Two teammates work on laptops in an office.',
+        tags: ['office', 'work', 'laptop', 'team'],
+        editorialInsights: {
+          shortFormPotential: 'medium',
+          storyRole: 'behind_the_scenes',
+          evidenceStrength: 'low',
+          recommendedUses: ['b-roll', 'setup'],
+        },
+      }),
+    ];
+
+    const hits = retrieveRelevantMemory({
+      query: 'create a 16 second intro of how i won the hackathon with proof first',
+      entries,
+      maxEntries: 2,
+    });
+
+    expect(hits.length).toBe(2);
+    expect(hits[0].entry.id).toBe('proof-image');
+  });
+
+  it('matches scene search hints and edit value for generic editing asks', () => {
+    const entries: MediaAnalysisEntry[] = [
+      buildEntry({
+        id: 'process-video',
+        fileName: 'build.mp4',
+        summary: 'Team assembling and testing a prototype on a desk.',
+        scenes: [
+          {
+            startTime: 1,
+            endTime: 4,
+            description: 'Hands connect wires on a prototype board.',
+            storyRole: 'behind_the_scenes',
+            editValue: 'Useful process shot before the final reveal.',
+            searchHints: ['prototype wiring', 'building process', 'hands on desk'],
+          },
+        ],
+        editorialInsights: {
+          storyRole: 'behind_the_scenes',
+          bestFor: ['process montage', 'setup'],
+        },
+      }),
+    ];
+
+    const hits = retrieveRelevantMemory({
+      query: 'show the building process before the reveal',
+      entries,
+      maxEntries: 1,
+    });
+
+    expect(hits).toHaveLength(1);
+    expect(hits[0].entry.id).toBe('process-video');
   });
 });

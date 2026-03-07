@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { parse as parseDotenv } from 'dotenv';
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { ChannelAnalysisService } from './channelAnalysisService.js';
@@ -26,6 +27,11 @@ export interface AiConfigStatus {
 const DEFAULT_REGION = 'us-east-1';
 const DEFAULT_MODEL_ID = 'amazon.nova-lite-v1:0';
 const SETTINGS_FILE_NAME = 'ai-settings.json';
+
+interface AiConfigServiceOptions {
+  env?: NodeJS.ProcessEnv;
+  envFilePath?: string;
+}
 
 function inferNovaProfilePrefix(region: string): 'us' | 'eu' | 'apac' {
   const normalized = region.toLowerCase();
@@ -65,6 +71,30 @@ function emptySettings(): AiConfigSettings {
   };
 }
 
+function blankSettings(): AiConfigSettings {
+  return {
+    youtubeApiKey: '',
+    awsRegion: '',
+    awsAccessKeyId: '',
+    awsSecretAccessKey: '',
+    awsSessionToken: '',
+    bedrockInferenceProfileId: '',
+    bedrockModelId: '',
+  };
+}
+
+function hasMeaningfulSettings(settings: AiConfigSettings): boolean {
+  return (
+    settings.youtubeApiKey.length > 0 ||
+    settings.awsAccessKeyId.length > 0 ||
+    settings.awsSecretAccessKey.length > 0 ||
+    settings.awsSessionToken.length > 0 ||
+    settings.bedrockInferenceProfileId.length > 0 ||
+    settings.awsRegion !== DEFAULT_REGION ||
+    settings.bedrockModelId !== DEFAULT_MODEL_ID
+  );
+}
+
 function normalizeSettings(
   raw: Partial<AiConfigSettings> | undefined,
   fallback: AiConfigSettings,
@@ -82,6 +112,18 @@ function normalizeSettings(
     bedrockModelId:
       String(raw?.bedrockModelId ?? fallback.bedrockModelId ?? DEFAULT_MODEL_ID).trim() ||
       DEFAULT_MODEL_ID,
+  };
+}
+
+function normalizeEnvSettings(raw: Partial<AiConfigSettings> | undefined): AiConfigSettings {
+  return {
+    youtubeApiKey: String(raw?.youtubeApiKey ?? '').trim(),
+    awsRegion: String(raw?.awsRegion ?? '').trim(),
+    awsAccessKeyId: String(raw?.awsAccessKeyId ?? '').trim(),
+    awsSecretAccessKey: String(raw?.awsSecretAccessKey ?? '').trim(),
+    awsSessionToken: String(raw?.awsSessionToken ?? '').trim(),
+    bedrockInferenceProfileId: String(raw?.bedrockInferenceProfileId ?? '').trim(),
+    bedrockModelId: String(raw?.bedrockModelId ?? '').trim(),
   };
 }
 
@@ -105,41 +147,81 @@ export class AiConfigService {
   private analysisService: ChannelAnalysisService | null = null;
   private bedrockClient: BedrockRuntimeClient | null = null;
   private readonly filePath: string;
-  private readonly envSettings: AiConfigSettings;
+  private envSettings: AiConfigSettings;
+  private readonly baseEnv: NodeJS.ProcessEnv;
+  private readonly envFilePath: string;
+  private settingsFingerprint = '';
 
-  constructor(userDataPath: string, env: NodeJS.ProcessEnv = process.env) {
+  constructor(userDataPath: string, options: AiConfigServiceOptions = {}) {
     this.filePath = path.join(userDataPath, SETTINGS_FILE_NAME);
-    this.envSettings = normalizeSettings(
-      {
-        youtubeApiKey: env.YOUTUBE_API_KEY,
-        awsRegion: env.AWS_REGION,
-        awsAccessKeyId: env.AWS_ACCESS_KEY_ID,
-        awsSecretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-        awsSessionToken: env.AWS_SESSION_TOKEN,
-        bedrockInferenceProfileId: env.BEDROCK_INFERENCE_PROFILE_ID,
-        bedrockModelId: env.BEDROCK_MODEL_ID,
-      },
-      emptySettings(),
-    );
-    this.savedSettings = normalizeSettings(
+    this.baseEnv = options.env ?? process.env;
+    this.envFilePath = options.envFilePath ?? path.join(process.cwd(), '.env');
+    this.envSettings = blankSettings();
+    this.savedSettings = emptySettings();
+    this.effectiveSettings = emptySettings();
+    this.syncSettings();
+  }
+
+  private loadEnvSettings(): AiConfigSettings {
+    let fileEnv: Record<string, string> = {};
+
+    try {
+      if (fs.existsSync(this.envFilePath)) {
+        fileEnv = parseDotenv(fs.readFileSync(this.envFilePath, 'utf8'));
+      }
+    } catch {
+      fileEnv = {};
+    }
+
+    return normalizeEnvSettings({
+      youtubeApiKey: fileEnv.YOUTUBE_API_KEY ?? this.baseEnv.YOUTUBE_API_KEY,
+      awsRegion: fileEnv.AWS_REGION ?? this.baseEnv.AWS_REGION,
+      awsAccessKeyId: fileEnv.AWS_ACCESS_KEY_ID ?? this.baseEnv.AWS_ACCESS_KEY_ID,
+      awsSecretAccessKey: fileEnv.AWS_SECRET_ACCESS_KEY ?? this.baseEnv.AWS_SECRET_ACCESS_KEY,
+      awsSessionToken: fileEnv.AWS_SESSION_TOKEN ?? this.baseEnv.AWS_SESSION_TOKEN,
+      bedrockInferenceProfileId:
+        fileEnv.BEDROCK_INFERENCE_PROFILE_ID ?? this.baseEnv.BEDROCK_INFERENCE_PROFILE_ID,
+      bedrockModelId: fileEnv.BEDROCK_MODEL_ID ?? this.baseEnv.BEDROCK_MODEL_ID,
+    });
+  }
+
+  private syncSettings(): void {
+    const nextEnvSettings = this.loadEnvSettings();
+    const nextSavedSettings = normalizeSettings(
       readJsonFile<Partial<AiConfigSettings>>(this.filePath) || undefined,
       emptySettings(),
     );
-    this.effectiveSettings = this.buildEffectiveSettings();
+    const nextEffectiveSettings = this.buildEffectiveSettings(nextSavedSettings, nextEnvSettings);
+    const nextFingerprint = JSON.stringify({
+      env: nextEnvSettings,
+      saved: nextSavedSettings,
+      effective: nextEffectiveSettings,
+    });
+
+    if (nextFingerprint === this.settingsFingerprint) {
+      return;
+    }
+
+    this.settingsFingerprint = nextFingerprint;
+    this.envSettings = nextEnvSettings;
+    this.savedSettings = nextSavedSettings;
+    this.effectiveSettings = nextEffectiveSettings;
     this.rebuildClients();
   }
 
-  private buildEffectiveSettings(): AiConfigSettings {
+  private buildEffectiveSettings(
+    savedSettings: AiConfigSettings = this.savedSettings,
+    envSettings: AiConfigSettings = this.envSettings,
+  ): AiConfigSettings {
     return {
-      youtubeApiKey: this.savedSettings.youtubeApiKey || this.envSettings.youtubeApiKey,
-      awsRegion: this.savedSettings.awsRegion || this.envSettings.awsRegion || DEFAULT_REGION,
-      awsAccessKeyId: this.savedSettings.awsAccessKeyId || this.envSettings.awsAccessKeyId,
-      awsSecretAccessKey:
-        this.savedSettings.awsSecretAccessKey || this.envSettings.awsSecretAccessKey,
-      awsSessionToken: this.savedSettings.awsSessionToken || this.envSettings.awsSessionToken,
+      youtubeApiKey: envSettings.youtubeApiKey || savedSettings.youtubeApiKey,
+      awsRegion: envSettings.awsRegion || savedSettings.awsRegion || DEFAULT_REGION,
+      awsAccessKeyId: envSettings.awsAccessKeyId || savedSettings.awsAccessKeyId,
+      awsSecretAccessKey: envSettings.awsSecretAccessKey || savedSettings.awsSecretAccessKey,
+      awsSessionToken: envSettings.awsSessionToken || savedSettings.awsSessionToken,
       bedrockInferenceProfileId:
-        this.savedSettings.bedrockInferenceProfileId || this.envSettings.bedrockInferenceProfileId,
-      bedrockModelId: this.savedSettings.bedrockModelId || this.envSettings.bedrockModelId,
+        envSettings.bedrockInferenceProfileId || savedSettings.bedrockInferenceProfileId,
+      bedrockModelId: envSettings.bedrockModelId || savedSettings.bedrockModelId,
     };
   }
 
@@ -188,17 +270,19 @@ export class AiConfigService {
   }
 
   getSettings(): AiConfigSettings {
+    this.syncSettings();
     return { ...this.effectiveSettings };
   }
 
   getSavedSettings(): AiConfigSettings {
+    this.syncSettings();
     return { ...this.savedSettings };
   }
 
   getStatus(): AiConfigStatus {
-    const usingSavedSettings = Object.values(this.savedSettings).some(
-      (value) => String(value || '').trim().length > 0,
-    );
+    this.syncSettings();
+    const usingEnvFallback = hasMeaningfulSettings(this.envSettings);
+    const usingSavedSettings = !usingEnvFallback && hasMeaningfulSettings(this.savedSettings);
     const bedrockMissing: string[] = [];
     if (!this.effectiveSettings.awsRegion) bedrockMissing.push('AWS Region');
     if (!this.effectiveSettings.awsAccessKeyId) bedrockMissing.push('AWS Access Key ID');
@@ -211,13 +295,7 @@ export class AiConfigService {
       bedrockReady: bedrockMissing.length === 0,
       youtubeReady: youtubeMissing.length === 0,
       usingSavedSettings,
-      usingEnvFallback:
-        !usingSavedSettings &&
-        Boolean(
-          this.envSettings.awsAccessKeyId ||
-          this.envSettings.awsSecretAccessKey ||
-          this.envSettings.youtubeApiKey,
-        ),
+      usingEnvFallback,
       missingBedrockFields: bedrockMissing,
       missingYouTubeFields: youtubeMissing,
     };
@@ -226,15 +304,17 @@ export class AiConfigService {
   saveSettings(nextSettings: AiConfigSettings): void {
     this.savedSettings = normalizeSettings(nextSettings, emptySettings());
     writeJsonFile(this.filePath, this.savedSettings);
-    this.effectiveSettings = this.buildEffectiveSettings();
-    this.rebuildClients();
+    this.settingsFingerprint = '';
+    this.syncSettings();
   }
 
   getAnalysisService(): ChannelAnalysisService | null {
+    this.syncSettings();
     return this.analysisService;
   }
 
   getBedrockClient(): BedrockRuntimeClient | null {
+    this.syncSettings();
     return this.bedrockClient;
   }
 }

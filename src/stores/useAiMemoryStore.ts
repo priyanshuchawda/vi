@@ -195,6 +195,45 @@ export const useAiMemoryStore = create<AiMemoryStore>()((set, get) => ({
         if (entry.visualInfo.style) {
           contextStr += `   Visual Style: ${entry.visualInfo.style}\n`;
         }
+        if (entry.visualInfo.visibleTextHighlights?.length) {
+          contextStr += `   Visible Text: ${entry.visualInfo.visibleTextHighlights.slice(0, 4).join(' | ')}\n`;
+        }
+      }
+
+      if (entry.editorialInsights) {
+        if (entry.editorialInsights.shortFormPotential) {
+          contextStr += `   Shorts Potential: ${entry.editorialInsights.shortFormPotential}\n`;
+        }
+        if (entry.editorialInsights.pacing) {
+          contextStr += `   Pacing: ${entry.editorialInsights.pacing}\n`;
+        }
+        if (entry.editorialInsights.storyRole) {
+          contextStr += `   Story Role: ${entry.editorialInsights.storyRole}\n`;
+        }
+        if (entry.editorialInsights.evidenceStrength) {
+          contextStr += `   Evidence Strength: ${entry.editorialInsights.evidenceStrength}\n`;
+        }
+        if (entry.editorialInsights.memoryAnchors?.length) {
+          contextStr += `   Memory Anchors: ${entry.editorialInsights.memoryAnchors.slice(0, 5).join(' | ')}\n`;
+        }
+        if (entry.editorialInsights.bestFor?.length) {
+          contextStr += `   Best For: ${entry.editorialInsights.bestFor.slice(0, 4).join(', ')}\n`;
+        }
+        if (entry.editorialInsights.avoidFor?.length) {
+          contextStr += `   Avoid For: ${entry.editorialInsights.avoidFor.slice(0, 3).join(', ')}\n`;
+        }
+        if (entry.editorialInsights.recommendedUses?.length) {
+          contextStr += `   Recommended Uses: ${entry.editorialInsights.recommendedUses.join(', ')}\n`;
+        }
+        if (entry.editorialInsights.hookMoments?.length) {
+          contextStr += `   Hook Moments: ${entry.editorialInsights.hookMoments.slice(0, 3).join(' | ')}\n`;
+        }
+        if (entry.editorialInsights.overlayIdeas?.length) {
+          contextStr += `   Overlay Ideas: ${entry.editorialInsights.overlayIdeas.slice(0, 3).join(' | ')}\n`;
+        }
+        if (entry.editorialInsights.cautions?.length) {
+          contextStr += `   Cautions: ${entry.editorialInsights.cautions.slice(0, 2).join(' | ')}\n`;
+        }
       }
 
       if (entry.audioInfo) {
@@ -210,12 +249,29 @@ export const useAiMemoryStore = create<AiMemoryStore>()((set, get) => ({
         if (entry.audioInfo.transcriptSummary) {
           contextStr += `   Transcript Summary: ${entry.audioInfo.transcriptSummary}\n`;
         }
+        if (entry.audioInfo.confidenceNotes) {
+          contextStr += `   Audio Notes: ${entry.audioInfo.confidenceNotes}\n`;
+        }
       }
 
       if (entry.scenes && entry.scenes.length > 0) {
         contextStr += `   Scenes:\n`;
         for (const scene of entry.scenes.slice(0, 5)) {
-          contextStr += `     - [${scene.startTime.toFixed(1)}s - ${scene.endTime.toFixed(1)}s] ${scene.description}\n`;
+          const signals = [
+            scene.storyRole,
+            scene.recommendedUse,
+            scene.energyLevel,
+            scene.hookPotential,
+          ]
+            .filter(Boolean)
+            .join(', ');
+          contextStr += `     - [${scene.startTime.toFixed(1)}s - ${scene.endTime.toFixed(1)}s] ${scene.description}${signals ? ` (${signals})` : ''}\n`;
+          if (scene.editValue) {
+            contextStr += `       why: ${scene.editValue}\n`;
+          }
+          if (scene.searchHints?.length) {
+            contextStr += `       search: ${scene.searchHints.slice(0, 4).join(' | ')}\n`;
+          }
         }
         if (entry.scenes.length > 5) {
           contextStr += `     - ... and ${entry.scenes.length - 5} more scenes\n`;

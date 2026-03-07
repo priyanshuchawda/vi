@@ -112,6 +112,8 @@ For YouTube Shorts, Reels, hackathon win stories, or social-first edits:
 3. Keep on-screen text punchy (roughly 2-6 words per beat) and grounded in available footage/memory
 4. If script + captions are requested, prefer:
    generate_intro_script_from_timeline -> preview_caption_fit -> apply_script_as_captions
+4a. If snapshot.subtitles.count === 0, NEVER call update_subtitle or delete_subtitle first.
+    Create captions with apply_script_as_captions or add_subtitle before any subtitle updates.
 5. Avoid inventing unseen scenes or outcomes not supported by media memory/tool results
 6. For exact target-duration requests, empty timeline gaps do NOT count as usable duration
 7. Never satisfy a duration target by only moving clips later on the timeline
@@ -124,6 +126,7 @@ If a tool call fails:
 2. Common fixes:
    - "clip not found" → call get_timeline_info to get current clip IDs
    - "time out of range" → check sourceStart/sourceEnd values in the snapshot
+   - "Subtitle X not found. Valid range: 1-0" → there are no subtitles yet; use apply_script_as_captions or add_subtitle first
    - "invalid argument" → re-check the tool's parameter schema
 3. Try an alternative approach — don't repeat the exact same call
 4. If you fail 2 times on the same operation, skip it and move to the next

@@ -47,8 +47,26 @@ function scoreEntry(
     ...(entry.tags || []),
     entry.visualInfo?.style || '',
     ...(entry.visualInfo?.subjects || []),
+    ...(entry.visualInfo?.visibleTextHighlights || []),
     entry.audioInfo?.mood || '',
     entry.audioInfo?.transcriptSummary || '',
+    entry.audioInfo?.confidenceNotes || '',
+    entry.editorialInsights?.shortFormPotential || '',
+    entry.editorialInsights?.pacing || '',
+    entry.editorialInsights?.storyRole || '',
+    entry.editorialInsights?.evidenceStrength || '',
+    ...(entry.editorialInsights?.memoryAnchors || []),
+    ...(entry.editorialInsights?.bestFor || []),
+    ...(entry.editorialInsights?.avoidFor || []),
+    ...(entry.editorialInsights?.hookMoments || []),
+    ...(entry.editorialInsights?.recommendedUses || []),
+    ...(entry.editorialInsights?.overlayIdeas || []),
+    ...(entry.editorialInsights?.cautions || []),
+    ...(entry.scenes || []).flatMap((scene) => [
+      scene.storyRole || '',
+      scene.editValue || '',
+      ...(scene.searchHints || []),
+    ]),
   ];
   const haystack = haystackParts.join(' ').toLowerCase();
 
@@ -63,11 +81,53 @@ function scoreEntry(
       score += 1.2;
       reasons.push('short_form_duration_match');
     }
+    if (entry.editorialInsights?.shortFormPotential === 'high') {
+      score += 1.8;
+      reasons.push('short_form_potential_high');
+    } else if (entry.editorialInsights?.shortFormPotential === 'medium') {
+      score += 0.9;
+      reasons.push('short_form_potential_medium');
+    }
   }
 
   if (query.includes('script') && entry.audioInfo?.hasSpeech) {
     score += 1.4;
     reasons.push('speech_for_script');
+  }
+
+  if (/\b(win|won|winner|winners|hackathon|award|certificate|proof|achievement)\b/.test(query)) {
+    const visibleProof =
+      (entry.visualInfo?.visibleTextHighlights || []).join(' ').toLowerCase() +
+      ' ' +
+      (entry.editorialInsights?.storyRole || '') +
+      ' ' +
+      (entry.editorialInsights?.evidenceStrength || '');
+    const proofHits = [
+      'winner',
+      'winning',
+      'award',
+      'certificate',
+      'hackathon',
+      'allknighters',
+    ].filter((token) => visibleProof.includes(token)).length;
+    if (proofHits > 0) {
+      score += proofHits * 1.2;
+      reasons.push(`proof_text_hits:${proofHits}`);
+    }
+    if (
+      entry.editorialInsights?.storyRole === 'proof' ||
+      entry.editorialInsights?.storyRole === 'payoff'
+    ) {
+      score += 1.4;
+      reasons.push(`story_role:${entry.editorialInsights.storyRole}`);
+    }
+    if (entry.editorialInsights?.evidenceStrength === 'high') {
+      score += 1.4;
+      reasons.push('evidence_strength_high');
+    } else if (entry.editorialInsights?.evidenceStrength === 'medium') {
+      score += 0.7;
+      reasons.push('evidence_strength_medium');
+    }
   }
 
   const wantsHighEnergy =
@@ -102,6 +162,16 @@ function scoreEntry(
   if (sceneHits.length > 0) {
     score += sceneHits.reduce((acc, x) => acc + x.hitCount, 0) * 0.9;
     reasons.push(`scene_hits:${sceneHits.length}`);
+  }
+
+  if (/\b(hook|viral|scroll|retention|overlay|caption)\b/.test(query)) {
+    const hookSignals =
+      (entry.editorialInsights?.hookMoments?.length || 0) +
+      (entry.editorialInsights?.overlayIdeas?.length || 0);
+    if (hookSignals > 0) {
+      score += Math.min(2, hookSignals * 0.5);
+      reasons.push(`hook_overlay_signals:${hookSignals}`);
+    }
   }
 
   if (query.includes('video') && entry.mediaType === 'video') score += 0.8;
@@ -179,6 +249,30 @@ export function formatRetrievedMemoryContext(
     );
     if (e.summary) lines.push(`   summary: ${e.summary}`);
     if (e.tags?.length) lines.push(`   tags: ${e.tags.slice(0, 6).join(', ')}`);
+    if (e.editorialInsights?.shortFormPotential) {
+      lines.push(`   shorts: ${e.editorialInsights.shortFormPotential}`);
+    }
+    if (e.editorialInsights?.recommendedUses?.length) {
+      lines.push(`   uses: ${e.editorialInsights.recommendedUses.slice(0, 3).join(', ')}`);
+    }
+    if (e.editorialInsights?.memoryAnchors?.length) {
+      lines.push(`   memory: ${e.editorialInsights.memoryAnchors.slice(0, 3).join(' | ')}`);
+    }
+    if (e.editorialInsights?.storyRole) {
+      lines.push(`   role: ${e.editorialInsights.storyRole}`);
+    }
+    if (e.editorialInsights?.evidenceStrength) {
+      lines.push(`   evidence: ${e.editorialInsights.evidenceStrength}`);
+    }
+    if (e.editorialInsights?.bestFor?.length) {
+      lines.push(`   best_for: ${e.editorialInsights.bestFor.slice(0, 2).join(', ')}`);
+    }
+    if (e.editorialInsights?.overlayIdeas?.length) {
+      lines.push(`   overlays: ${e.editorialInsights.overlayIdeas.slice(0, 2).join(' | ')}`);
+    }
+    if (e.visualInfo?.visibleTextHighlights?.length) {
+      lines.push(`   text: ${e.visualInfo.visibleTextHighlights.slice(0, 3).join(' | ')}`);
+    }
     if (hit.matchedScenes.length) {
       hit.matchedScenes.forEach((scene) => {
         lines.push(

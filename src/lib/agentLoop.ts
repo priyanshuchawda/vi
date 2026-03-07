@@ -470,20 +470,43 @@ When the goal is fully achieved, respond with a summary (no tool calls).
           content: response.output!.message!.content!,
         });
 
-        // Add tool result back as user message (Bedrock format)
+        // Build enriched tool result for the AI — include verification + budget hints
+        const resultPayload: Record<string, unknown> = {
+          success: toolResult.success,
+          message: toolResult.output.slice(0, 2000),
+        };
+
+        // Include error info if failed
+        if (toolResult.error) {
+          resultPayload.error = toolResult.error;
+          resultPayload.hint = toolResult.error.includes('not found')
+            ? 'Call get_timeline_info to get current clip IDs.'
+            : toolResult.error.includes('out of range')
+              ? 'Check sourceStart/sourceEnd values from the snapshot.'
+              : 'Review the error and try an alternative approach.';
+        }
+
+        // Include verification data if available
+        if (step.verification) {
+          resultPayload.verification = {
+            verified: step.verification.verified,
+            details: step.verification.details?.slice(0, 500),
+          };
+        }
+
+        // Budget countdown to help AI pace itself
+        const remainingSteps = config.maxSteps - stepNumber;
+        const remainingBudget = config.maxCostUsd - costGuard.totalCostUsd;
+        resultPayload.budget = {
+          stepsRemaining: remainingSteps,
+          costRemainingUsd: Number(remainingBudget.toFixed(4)),
+        };
+
         const toolResultContent = [
           {
             toolResult: {
               toolUseId: toolUse.toolUseId,
-              content: [
-                {
-                  json: {
-                    success: toolResult.success,
-                    message: toolResult.output.slice(0, 2000),
-                    error: toolResult.error,
-                  },
-                },
-              ],
+              content: [{ json: resultPayload }],
             },
           },
         ];

@@ -94,6 +94,7 @@ vi.mock('uuid', () => ({
 import { converseBedrock } from '../../src/lib/bedrockGateway';
 import { ToolExecutor } from '../../src/lib/toolExecutor';
 import { buildAliasedSnapshotForPlanning } from '../../src/lib/aiProjectSnapshot';
+import { useProjectStore } from '../../src/stores/useProjectStore';
 import type { AgentLoopCallbacks, AgentLoopState, AgentStep } from '../../src/types/agentTypes';
 
 const mockedConverse = vi.mocked(converseBedrock);
@@ -603,20 +604,40 @@ describe('agentLoop integration', () => {
     const { runAgentLoop } = await import('../../src/lib/agentLoop');
     const callbacks = createMockCallbacks();
 
+    useProjectStore.setState({
+      clips: [
+        {
+          id: 'uuid-1',
+          path: '/tmp/clip.mp4',
+          name: 'Proof Clip',
+          duration: 5,
+          sourceDuration: 5,
+          start: 0,
+          end: 5,
+          startTime: 0,
+          mediaType: 'video',
+          trackIndex: 0,
+          volume: 1,
+          muted: false,
+        },
+      ],
+      selectedClipIds: [],
+      currentTime: 0,
+      isPlaying: false,
+      subtitles: [],
+      history: [],
+      historyIndex: -1,
+    } as any);
+
     mockedConverse
       .mockResolvedValueOnce(
         bedrockToolResponse('update_clip_bounds', { clip_id: 'clip_1', new_end: 5 }, 'tu-1'),
       )
       .mockResolvedValueOnce(bedrockEndResponse('Done!'));
 
-    // First call: the mutation, Second call: the verification (get_timeline_info)
-    mockedExecute
-      .mockResolvedValueOnce({
-        result: { success: true, message: 'Clip trimmed' },
-      } as any)
-      .mockResolvedValueOnce({
-        result: { success: true, message: 'Timeline verified: 2 clips, 10s' },
-      } as any);
+    mockedExecute.mockResolvedValueOnce({
+      result: { success: true, message: 'Clip trimmed' },
+    } as any);
 
     const result = await runAgentLoop({
       userMessage: 'trim clip 1',
@@ -626,13 +647,17 @@ describe('agentLoop integration', () => {
     });
 
     expect(result.success).toBe(true);
-    // Executor should be called twice: once for the tool, once for verification
-    expect(mockedExecute).toHaveBeenCalledTimes(2);
-    // Verify call should be get_timeline_info
-    expect(mockedExecute).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'get_timeline_info' }),
-      0,
-      1,
-    );
+    expect(mockedExecute).toHaveBeenCalledTimes(1);
+
+    const secondCall = mockedConverse.mock.calls[1]?.[0] as {
+      messages: Array<{ role: string; content: any[] }>;
+    };
+    const userToolResultMessage = secondCall.messages[secondCall.messages.length - 1];
+    const verificationPayload = userToolResultMessage?.content?.[0]?.toolResult?.content?.[0]?.json
+      ?.verification;
+
+    expect(verificationPayload?.verified).toBe(true);
+    expect(verificationPayload?.snapshot?.clipCount).toBe(1);
+    expect(verificationPayload?.snapshot?.gapCount).toBe(0);
   });
 });

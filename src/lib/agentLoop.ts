@@ -30,6 +30,8 @@ import { formatCapabilityMatrixForPrompt } from './toolCapabilityMatrix';
 import { resolveAlias, type AliasMap } from './clipAliasMapper';
 import { createCostGuard, recordStepCost, evaluateCostGuard } from './agentCostGuard';
 import { selectToolsForRequest } from './toolSelection';
+import { useProjectStore } from '../stores/useProjectStore';
+import { useAiMemoryStore } from '../stores/useAiMemoryStore';
 import {
   createStep,
   setStepThought,
@@ -183,26 +185,151 @@ function resolveToolAliases(
   return { name: toolCall.name, args: resolvedArgs };
 }
 
+function getTargetDurationSeconds(
+  normalizedIntent: AgentLoopInput['normalizedIntent'],
+  userMessage: string,
+): number | undefined {
+  const rawTarget = Number(normalizedIntent?.constraints?.target_duration);
+  const unit = String(normalizedIntent?.constraints?.target_duration_unit || '').toLowerCase();
+  if (Number.isFinite(rawTarget) && rawTarget > 0) {
+    return unit.startsWith('min') ? rawTarget * 60 : rawTarget;
+  }
+
+  const match = String(userMessage || '').match(
+    /\b(\d+(?:\.\d+)?)\s*(s|sec|secs|second|seconds|min|mins|minute|minutes)\b/i,
+  );
+  if (!match) return undefined;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+  return match[2].toLowerCase().startsWith('min') ? value * 60 : value;
+}
+
+function buildSignalTextForClip(clip: { id: string; name: string; path?: string }): string {
+  const memoryEntries = useAiMemoryStore.getState().getCompletedEntries();
+  const memory =
+    memoryEntries.find((entry) => entry.clipId === clip.id) ||
+    memoryEntries.find((entry) => entry.filePath === clip.path);
+  return [clip.name, memory?.summary || '', memory?.analysis || '', ...(memory?.tags || [])]
+    .join(' ')
+    .toLowerCase();
+}
+
+function scoreStorySignal(signal: string): number {
+  const addIf = (pattern: RegExp, points: number) => (pattern.test(signal) ? points : 0);
+  return (
+    addIf(/\b(winner|won|award|announcement|reveal|first place|second place|third place)\b/, 10) +
+    addIf(/\b(demo|judges|pitch|present)\b/, 8) +
+    addIf(/\b(team|workspace|build|prototype|hackathon)\b/, 4)
+  );
+}
+
 /**
- * Execute verification after a mutating tool call.
- * Calls get_timeline_info to verify the state changed as expected.
+ * Execute local verification after a mutating tool call.
+ * This avoids a second tool round-trip while still giving the loop
+ * a concrete snapshot of the new timeline state.
  */
-async function verifyAfterMutation(): Promise<AgentVerification> {
+function verifyAfterMutation(input: AgentLoopInput): AgentVerification {
   try {
-    const verifyCall: FunctionCall = {
-      name: 'get_timeline_info',
-      args: {},
-    };
-    const result = ToolExecutor.executeToolCallWithLifecycle(verifyCall, 0, 1);
-    const resolved = result instanceof Promise ? await result : result;
+    const state = useProjectStore.getState();
+    const clips = state.clips
+      .slice()
+      .sort((a, b) => a.startTime - b.startTime)
+      .map((clip) => ({
+        id: clip.id,
+        name: clip.name,
+        path: clip.path,
+        startTime: clip.startTime,
+        duration: clip.duration,
+        endTime: clip.startTime + clip.duration,
+      }));
+
+    if (clips.length === 0) {
+      return {
+        verified: true,
+        method: 'timeline_check',
+        details:
+          'Mutation completed; local verification snapshot unavailable because timeline is empty.',
+        snapshot: {
+          totalDuration: 0,
+          clipCount: 0,
+          gapCount: 0,
+          totalGapDuration: 0,
+        },
+      };
+    }
+
+    let gapCount = 0;
+    let totalGapDuration = 0;
+    for (let i = 1; i < clips.length; i++) {
+      const gap = clips[i].startTime - clips[i - 1].endTime;
+      if (gap > 0.05) {
+        gapCount += 1;
+        totalGapDuration += gap;
+      }
+    }
+
+    const totalDuration = Number(Math.max(...clips.map((clip) => clip.endTime), 0).toFixed(2));
+    const targetDuration = getTargetDurationSeconds(input.normalizedIntent, input.userMessage);
+    const durationDelta =
+      targetDuration !== undefined
+        ? Number((totalDuration - targetDuration).toFixed(2))
+        : undefined;
+    const rankedSignals = clips.map((clip, index) => ({
+      index,
+      clipName: clip.name,
+      score: scoreStorySignal(buildSignalTextForClip(clip)),
+    }));
+    const strongest = [...rankedSignals].sort((a, b) => b.score - a.score)[0];
+    const strongestSignalEarly = strongest ? strongest.index <= 1 : true;
+
+    const withinDuration = targetDuration === undefined || Math.abs(durationDelta || 0) <= 0.75;
+    const verified = gapCount === 0 && withinDuration;
+
+    const detailParts = [
+      `Timeline ${totalDuration}s`,
+      `${clips.length} clip(s)`,
+      gapCount > 0
+        ? `${gapCount} gap(s) totalling ${Number(totalGapDuration.toFixed(2))}s`
+        : 'no gaps',
+    ];
+    if (targetDuration !== undefined) {
+      detailParts.push(`target ${targetDuration}s`);
+      detailParts.push(
+        Math.abs(durationDelta || 0) <= 0.75
+          ? 'duration within tolerance'
+          : `duration delta ${durationDelta}s`,
+      );
+    }
+    if (strongest) {
+      detailParts.push(
+        strongestSignalEarly
+          ? `strongest story signal is early (${strongest.clipName})`
+          : `strongest story signal is late (${strongest.clipName})`,
+      );
+    }
 
     return {
-      verified: resolved.result.success,
+      verified,
       method: 'timeline_check',
-      details:
-        typeof resolved.result.message === 'string'
-          ? resolved.result.message.slice(0, 200)
-          : 'Verification completed',
+      details: detailParts.join('; '),
+      discrepancy:
+        gapCount > 0
+          ? 'timeline_contains_gaps'
+          : !withinDuration
+            ? 'duration_target_not_met'
+            : !strongestSignalEarly
+              ? 'story_signal_is_late'
+              : undefined,
+      snapshot: {
+        totalDuration,
+        clipCount: clips.length,
+        gapCount,
+        totalGapDuration: Number(totalGapDuration.toFixed(2)),
+        targetDuration,
+        durationDelta,
+        firstClipName: clips[0]?.name,
+        strongestSignalEarly,
+      },
     };
   } catch (err) {
     return {
@@ -492,7 +619,7 @@ When the goal is fully achieved, respond with a summary (no tool calls).
         // Verify after mutations
         if (config.verifyAfterMutation && !isReadOnlyTool(toolCall.name) && toolResult.success) {
           step = updateStepStatus(step, 'verifying');
-          const verification = await verifyAfterMutation();
+          const verification = verifyAfterMutation(input);
           step = setStepVerification(step, verification);
         }
 
@@ -530,6 +657,8 @@ When the goal is fully achieved, respond with a summary (no tool calls).
           resultPayload.verification = {
             verified: step.verification.verified,
             details: step.verification.details?.slice(0, 500),
+            discrepancy: step.verification.discrepancy,
+            snapshot: step.verification.snapshot,
           };
         }
 

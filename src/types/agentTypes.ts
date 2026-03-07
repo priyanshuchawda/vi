@@ -57,6 +57,16 @@ export interface AgentVerification {
   method: 'timeline_check' | 'clip_check' | 'none';
   details?: string;
   discrepancy?: string;
+  snapshot?: {
+    totalDuration: number;
+    clipCount: number;
+    gapCount: number;
+    totalGapDuration: number;
+    targetDuration?: number;
+    durationDelta?: number;
+    firstClipName?: string;
+    strongestSignalEarly?: boolean;
+  };
 }
 
 export interface AgentLoopConfig {

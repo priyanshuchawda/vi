@@ -11,6 +11,9 @@ function lane(input: Partial<ConversationLaneInput>) {
     message: input.message || '',
     lastAssistantMessage: input.lastAssistantMessage || '',
     lastAssistantArtifact: input.lastAssistantArtifact,
+    lastActionableUserMessage: input.lastActionableUserMessage,
+    lastActionableAssistantMessage: input.lastActionableAssistantMessage,
+    lastActionableAssistantArtifact: input.lastActionableAssistantArtifact,
     hasTimeline: input.hasTimeline ?? true,
     hasPendingPlan: input.hasPendingPlan ?? false,
     hasRecentEditingContext: input.hasRecentEditingContext ?? false,
@@ -125,6 +128,77 @@ Rollback: Use Undo to revert the changes if needed.`;
 
     expect(decision.lane).toBe('timeline_edit');
     expect(decision.plannerInput).toBe('ok lets make photo to 7 second both');
+    expect(decision.plannerInput).not.toContain('Apply the script from your previous response');
+  });
+
+  it('resumes the previous full short-edit request on vague continuation', () => {
+    const decision = lane({
+      message: 'continue do it',
+      lastAssistantMessage: `Execution complete.
+
+What I understood: continue do it
+
+Operations executed:
+1. Execute update clip bounds
+
+Timeline diff:
+- Clips: 3 -> 3
+- Duration: 16.3s -> 51.3s
+Rollback: Use Undo to revert the changes if needed.`,
+      lastAssistantArtifact: {
+        type: 'tool_execution_result',
+        executable: false,
+        nextActions: ['undo_last_action', 'refine_request'],
+      },
+      lastActionableUserMessage:
+        'i want to make a yt short video which should be of total 30 seconds and should have a proper script with all editting so the video gets most of views',
+      lastActionableAssistantMessage: `### Title: "Winning the Cybersecurity Hackathon"
+
+[00:00 - 00:02]
+Voiceover: "Discover the winning moment!"
+On-screen text: "Winning Moment"
+
+Would you like to proceed with these changes?`,
+      lastActionableAssistantArtifact: {
+        type: 'script_draft',
+        executable: true,
+        nextActions: ['apply_script_as_captions', 'revise_script'],
+      },
+      hasRecentEditingContext: true,
+    });
+
+    expect(decision.lane).toBe('timeline_edit');
+    expect(decision.reason).toBe('editing_continuation_resume_previous_request');
+    expect(decision.plannerInput).toContain('Continue the previous editing request');
+    expect(decision.plannerInput).toContain('total 30 seconds');
+    expect(decision.normalizedIntent.constraints.target_duration).toBe(30);
+    expect(decision.normalizedIntent.constraints.platform).toBe('youtube_shorts');
+  });
+
+  it('uses full autonomous resume instead of caption-only apply for broad short requests', () => {
+    const decision = lane({
+      message: 'yes',
+      lastAssistantMessage: `### Title: "Winning the Cybersecurity Hackathon"
+
+[00:00 - 00:02]
+Voiceover: "Discover the winning moment!"
+On-screen text: "Winning Moment"
+
+Apply these as captions on timeline?`,
+      lastAssistantArtifact: {
+        type: 'script_draft',
+        executable: true,
+        nextActions: ['apply_script_as_captions', 'revise_script'],
+      },
+      lastActionableUserMessage:
+        'make a 30 second youtube short with proper script and editing so it gets more views',
+      hasRecentEditingContext: true,
+    });
+
+    expect(decision.lane).toBe('timeline_edit');
+    expect(decision.reason).toBe('confirmation_resume_full_edit_request');
+    expect(decision.plannerInput).toContain('full autonomous editing task');
+    expect(decision.plannerInput).toContain('30 second youtube short');
     expect(decision.plannerInput).not.toContain('Apply the script from your previous response');
   });
 });

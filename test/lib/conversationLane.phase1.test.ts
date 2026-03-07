@@ -5,6 +5,9 @@ function decide(input: Partial<ConversationLaneInput>) {
   return resolveConversationLane({
     message: input.message || '',
     lastAssistantMessage: input.lastAssistantMessage || '',
+    lastActionableUserMessage: input.lastActionableUserMessage,
+    lastActionableAssistantMessage: input.lastActionableAssistantMessage,
+    lastActionableAssistantArtifact: input.lastActionableAssistantArtifact,
     hasTimeline: input.hasTimeline ?? true,
     hasPendingPlan: input.hasPendingPlan ?? false,
     hasRecentEditingContext: input.hasRecentEditingContext ?? false,

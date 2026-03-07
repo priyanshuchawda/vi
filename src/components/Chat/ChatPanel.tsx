@@ -55,6 +55,31 @@ type ToolCallLike = {
 const STREAM_FLUSH_INTERVAL_MS = 32;
 const STREAM_MAX_BUFFERED_CHARS = 160;
 
+function isActionableUserMessage(message: string): boolean {
+  const trimmed = String(message || '').trim();
+  if (!trimmed) return false;
+  return (
+    !isExecutionConfirmation(trimmed) && !/^(continue|next|step by step|move next)$/i.test(trimmed)
+  );
+}
+
+function isActionableAssistantTurn(message: ChatRecord): boolean {
+  if (message.role !== 'assistant') return false;
+  const artifact = message.metadata?.artifact || inferAssistantArtifactFromText(message.content);
+  if (artifact?.type === 'tool_execution_result') return false;
+  if (
+    artifact?.type === 'script_draft' ||
+    artifact?.type === 'execution_plan' ||
+    artifact?.executable
+  ) {
+    return true;
+  }
+
+  return /\b(voiceover|on-screen text|caption|subtitle|execution plan|timeline|step-by-step)\b/i.test(
+    message.content,
+  );
+}
+
 const ChatPanel = () => {
   const {
     isOpen,
@@ -503,12 +528,21 @@ const ChatPanel = () => {
       }
 
       const lastAssistantTurn = [...messages].reverse().find((m) => m.role === 'assistant');
+      const lastActionableAssistantTurn = [...messages]
+        .reverse()
+        .find((m) => isActionableAssistantTurn(m));
+      const lastActionableUserTurn = [...messages]
+        .reverse()
+        .find((m) => m.role === 'user' && isActionableUserMessage(m.content));
       const lastAssistantMessage = lastAssistantTurn?.content || '';
       const recentEditingContext = hasRecentEditingContext(messages);
       const laneDecision = resolveConversationLane({
         message: content,
         lastAssistantMessage,
         lastAssistantArtifact: lastAssistantTurn?.metadata?.artifact,
+        lastActionableUserMessage: lastActionableUserTurn?.content,
+        lastActionableAssistantMessage: lastActionableAssistantTurn?.content,
+        lastActionableAssistantArtifact: lastActionableAssistantTurn?.metadata?.artifact,
         hasTimeline: clips.length > 0,
         hasPendingPlan: hasReadyPendingPlan,
         hasRecentEditingContext: recentEditingContext,

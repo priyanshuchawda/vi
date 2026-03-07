@@ -127,7 +127,7 @@ const UNSUPPORTED_OPERATIONS = [
   'Calling pseudo-functions (e.g. insert_clip, apply_transition_magic)',
   'Mutating external files directly without supported tool',
   'Assuming clip IDs, transcript, or analysis exists without lookup',
-  'Bypassing approval for state-changing operations',
+  'Skipping verification after state-changing operations',
 ];
 
 function inferSideEffects(name: string, safety: ToolSafety): string[] {

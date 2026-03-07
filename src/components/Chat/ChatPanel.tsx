@@ -103,6 +103,7 @@ const ChatPanel = () => {
   const [sessionLogs, setSessionLogs] = useState<SessionLogEntry[]>([]);
   const hasInitializedLogsRef = useRef(false);
   const seenLogIdsRef = useRef(new Set<string>());
+  const autoRecoveredDraftPlanKeysRef = useRef(new Set<string>());
 
   // Tool calling state
   const [pendingToolCalls, setPendingToolCalls] = useState<{
@@ -333,6 +334,20 @@ const ChatPanel = () => {
     }
     return `fnv32-${(hash >>> 0).toString(16)}`;
   };
+
+  const getDraftPlanRecoveryKey = (planState: {
+    plan: ExecutionPlan;
+    originalMessage: string;
+  }) =>
+    JSON.stringify({
+      message: planState.originalMessage,
+      reason: planState.plan.planReadyReason,
+      operations: planState.plan.operations.map((operation) => ({
+        name: operation.functionCall.name,
+        args: operation.functionCall.args || {},
+        readOnly: operation.isReadOnly,
+      })),
+    });
 
   const summarizeSnapshotDiff = (before: AIProjectSnapshot, after: AIProjectSnapshot): string[] => {
     const beforeClips = before?.timeline?.clips || [];
@@ -629,6 +644,10 @@ const ChatPanel = () => {
           }
 
           const clarifyRequired = plan.executionRecommendation === 'clarify_required';
+          const isReadOnlyDraftPlan =
+            !plan.planReady &&
+            plan.operations.length > 0 &&
+            plan.operations.every((operation) => operation.isReadOnly);
 
           if (clarifyRequired && !autoExecute) {
             const clarificationQuestion = buildClarificationQuestion({
@@ -660,8 +679,31 @@ const ChatPanel = () => {
             return;
           }
 
-          // Auto-execute only when the generated plan is actually ready.
-          const canAutoExecutePlan = autoExecute && plan.planReady && !hasHardValidationIssues;
+          if (autoExecute && isReadOnlyDraftPlan) {
+            setExecutionPlan({
+              plan,
+              originalMessage: plannerInput,
+              history: aiHistory,
+              normalizedIntent,
+            });
+            if (turnId) {
+              setTurnStatus(turnId, 'planning');
+            }
+            setLastPlanExecutionError(null);
+            setExecutionContext({
+              hasPendingPlan: false,
+              lastUserMessageForPlan: plannerInput,
+            });
+            assistantMessage(
+              `Generated an inspection-only draft plan. Rebuilding automatically from the current timeline before execution.`,
+            );
+            setIsTyping(false);
+            return;
+          }
+
+          // Auto-execute any executable draft when auto mode is enabled.
+          const canAutoExecutePlan =
+            autoExecute && plan.operations.length > 0 && !hasHardValidationIssues;
           const canExecuteReadOnlyPlan = plan.planReady && !plan.requiresApproval;
           if (canAutoExecutePlan || canExecuteReadOnlyPlan) {
             if (turnId) {
@@ -1161,9 +1203,7 @@ const ChatPanel = () => {
       (issue) => issue.category !== 'validation_warning',
     );
     const canForceExecute =
-      executionPlan.plan.operations.length > 0 &&
-      !hasHardValidationIssues &&
-      validationIssues.length > 0;
+      executionPlan.plan.operations.length > 0 && !hasHardValidationIssues;
 
     if (!executionPlan.plan.planReady) {
       if (!canForceExecute) {
@@ -1175,29 +1215,10 @@ const ChatPanel = () => {
         return;
       }
 
-      if (!autoExecute) {
-        const riskText = executionPlan.plan.riskNotes?.length
-          ? `\n\nRisks:\n- ${executionPlan.plan.riskNotes.join('\n- ')}`
-          : '';
-        const proceed = window.confirm(
-          `Plan is not marked ready.\n\nReason: ${executionPlan.plan.planReadyReason || 'Validation warnings present.'}${riskText}\n\nProceed anyway?`,
-        );
-        if (!proceed) {
-          addMessage(
-            'assistant',
-            'Execution canceled. Use Refine/Rebuild to improve plan readiness.',
-            {
-              error: true,
-            },
-          );
-          return;
-        }
-      } else {
-        addMessage(
-          'assistant',
-          `Plan is not fully ready (${executionPlan.plan.planReadyReason || 'validation warning'}). Proceeding automatically.`,
-        );
-      }
+      addMessage(
+        'assistant',
+        `Plan is not fully ready (${executionPlan.plan.planReadyReason || 'validation warning'}). Proceeding automatically with best effort.`,
+      );
     }
     if (executionPlan.plan.validation && hasHardValidationIssues) {
       addMessage(
@@ -1212,7 +1233,7 @@ const ChatPanel = () => {
       setTurnStatus(activeTurnId, 'executing');
       appendTurnPart(activeTurnId, {
         type: 'step_start',
-        label: 'Manual plan execution',
+        label: 'Plan execution',
         timestamp: Date.now(),
       });
     }
@@ -1265,7 +1286,7 @@ const ChatPanel = () => {
       if (activeTurnId) {
         appendTurnPart(activeTurnId, {
           type: 'step_finish',
-          label: 'Manual plan execution',
+          label: 'Plan execution',
           success: true,
           timestamp: Date.now(),
         });
@@ -1324,7 +1345,7 @@ const ChatPanel = () => {
     );
   };
 
-  const handleRebuildPlanFromCurrentTimeline = async () => {
+  const handleRebuildPlanFromCurrentTimeline = async (options?: { automatic?: boolean }) => {
     if (!executionPlan) return;
     setIsGeneratingPlan(true);
     setIsTyping(true);
@@ -1354,11 +1375,13 @@ const ChatPanel = () => {
         plan: rebuilt,
       });
       if (rebuildingTurnId) {
-        setTurnStatus(rebuildingTurnId, 'awaiting_approval');
+        setTurnStatus(rebuildingTurnId, options?.automatic ? 'planning' : 'awaiting_approval');
       }
       addMessage(
         'assistant',
-        'Rebuilt plan from current timeline state. Please review and execute.',
+        options?.automatic
+          ? 'Rebuilt plan from current timeline state. Continuing automatically.'
+          : 'Rebuilt plan from current timeline state. Please review and execute.',
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to rebuild plan';
@@ -1683,6 +1706,10 @@ const ChatPanel = () => {
     void handleExecutePlan();
   });
 
+  const handleAutoRecoverDraftPlan = useEffectEvent(() => {
+    void handleRebuildPlanFromCurrentTimeline({ automatic: true });
+  });
+
   useEffect(() => {
     if (!autoExecute || !pendingClarification || isTyping) return;
     handleAutoClarificationAnswer();
@@ -1701,10 +1728,21 @@ const ChatPanel = () => {
       (issue) => issue.category !== 'validation_warning',
     );
     const canForceExecute =
-      executionPlan.plan.operations.length > 0 &&
-      !hasHardValidationIssues &&
-      validationIssues.length > 0;
-    if (!executionPlan.plan.planReady && !canForceExecute) return;
+      executionPlan.plan.operations.length > 0 && !hasHardValidationIssues;
+    if (!executionPlan.plan.planReady) {
+      const isReadOnlyDraft =
+        executionPlan.plan.operations.length > 0 &&
+        executionPlan.plan.operations.every((operation) => operation.isReadOnly);
+      if (isReadOnlyDraft) {
+        const recoveryKey = getDraftPlanRecoveryKey(executionPlan);
+        if (!autoRecoveredDraftPlanKeysRef.current.has(recoveryKey)) {
+          autoRecoveredDraftPlanKeysRef.current.add(recoveryKey);
+          handleAutoRecoverDraftPlan();
+          return;
+        }
+      }
+      if (!canForceExecute) return;
+    }
     handleAutoExecutePlan();
   }, [
     autoExecute,
@@ -1712,6 +1750,7 @@ const ChatPanel = () => {
     isGeneratingPlan,
     isExecutingTools,
     isTyping,
+    handleAutoRecoverDraftPlan,
     pendingToolCalls,
     pendingClarification,
     lastPlanExecutionError,
@@ -2700,7 +2739,9 @@ const ChatPanel = () => {
                     Refine
                   </button>
                   <button
-                    onClick={handleRebuildPlanFromCurrentTimeline}
+                    onClick={() => {
+                      void handleRebuildPlanFromCurrentTimeline();
+                    }}
                     disabled={isGeneratingPlan || isExecutingTools}
                     className="px-3 py-1.5 text-sm border border-border-primary rounded-lg hover:bg-bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >

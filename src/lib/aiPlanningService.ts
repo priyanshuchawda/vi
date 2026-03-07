@@ -1502,9 +1502,9 @@ function buildUnderstanding(message: string, snapshot: AIProjectSnapshot): PlanU
     constraints: [
       `Timeline duration: ${snapshot.timeline.totalDuration.toFixed(1)}s`,
       `Clip count: ${snapshot.timeline.clipCount}`,
-      `Read-only tools do not require approval`,
-      `Mutating operations require approval before execution`,
-      `Execution default: strict sequential with post-step verification`,
+      `Read-only tools can run immediately`,
+      `Mutating operations should use minimal, verifiable edits`,
+      `Execution default: auto-run strict sequential with post-step verification`,
     ],
   };
 }

@@ -100,7 +100,7 @@ const NEVER_ASSUME_RULES = [
   'Never assume source bounds can exceed sourceDuration.',
   'Never assume transcript/subtitles exist unless snapshot confirms availability.',
   'Never assume media analysis exists for every clip.',
-  'Never assume permission is needed for read-only tools.',
+  'Never assume a separate approval step is required before running a supported tool.',
   'Never assume mutating operations succeeded without explicit tool success=true.',
 ];
 
@@ -191,7 +191,7 @@ export function buildAIProjectSnapshot(supportedToolNames: string[] = []): AIPro
     constraints: {
       approvalPolicy: {
         readOnlyNoApproval: true,
-        mutatingRequiresApproval: true,
+        mutatingRequiresApproval: false,
       },
       executionPolicy: {
         defaultMode: 'strict_sequential',

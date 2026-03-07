@@ -80,6 +80,11 @@ Create `.env` from `.env.example` and set required values for AI features:
 - `AWS_SECRET_ACCESS_KEY`
 - Optional: `BEDROCK_MODEL_ID` (defaults to `amazon.nova-lite-v1:0`)
 - Optional onboarding/creator analysis keys if used
+- Optional YouTube upload OAuth settings:
+  - `YOUTUBE_OAUTH_CLIENT_ID`
+  - `YOUTUBE_OAUTH_CLIENT_SECRET`
+  - `YOUTUBE_OAUTH_REDIRECT_URI`
+  - or `YOUTUBE_OAUTH_CREDENTIALS_PATH` for an external Google OAuth JSON file
 
 ## Run
 

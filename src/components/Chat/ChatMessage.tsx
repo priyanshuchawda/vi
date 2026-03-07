@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ChatMessage as ChatMessageType, MediaAttachment } from '../../types/chat';
 import { formatFileSize } from '../../types/chat';
+import { renderChatMarkdown } from '../../lib/chatMarkdown';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -158,7 +159,9 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
                 : 'bg-bg-surface border border-border-primary text-text-primary rounded-tl-sm'
           }`}
         >
-          <p className="text-[13px] leading-6 whitespace-pre-wrap break-words">{message.content}</p>
+          <div className="text-[13px] leading-6 break-words">
+            {renderChatMarkdown(message.content)}
+          </div>
         </div>
 
         {/* Timestamp and Token Badge */}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
 import { useAiConfigStore } from '../../stores/useAiConfigStore';
 import type { AiConfigSettings } from '../../types/electron';
+import { AI_CONFIG_FIELDS } from '../../lib/aiConfigFields';
 
 const SettingsTab = () => {
   const {
@@ -33,6 +34,11 @@ const SettingsTab = () => {
   useEffect(() => {
     void loadAiConfig();
   }, [loadAiConfig]);
+
+  useEffect(() => {
+    if (hasAiDraftChanges) return;
+    setDraftAiSettings(aiSettings);
+  }, [aiSettings, hasAiDraftChanges]);
 
   const handleAiFieldChange = (field: keyof AiConfigSettings, value: string) => {
     setHasAiDraftChanges(true);
@@ -123,86 +129,26 @@ const SettingsTab = () => {
               )}
             </div>
 
-            <div>
-              <label className="mb-1 block text-xs text-text-primary">AWS Region</label>
-              <input
-                value={displayedAiSettings.awsRegion}
-                onChange={(e) => handleAiFieldChange('awsRegion', e.target.value)}
-                placeholder="eu-central-1"
-                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-text-primary">AWS Access Key ID</label>
-              <input
-                value={displayedAiSettings.awsAccessKeyId}
-                onChange={(e) => handleAiFieldChange('awsAccessKeyId', e.target.value)}
-                placeholder="AKIA..."
-                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-text-primary">AWS Secret Access Key</label>
-              <input
-                type="password"
-                value={displayedAiSettings.awsSecretAccessKey}
-                onChange={(e) => handleAiFieldChange('awsSecretAccessKey', e.target.value)}
-                placeholder="Your Bedrock secret"
-                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-text-primary">
-                AWS Session Token <span className="text-text-muted">(optional)</span>
-              </label>
-              <input
-                type="password"
-                value={displayedAiSettings.awsSessionToken}
-                onChange={(e) => handleAiFieldChange('awsSessionToken', e.target.value)}
-                placeholder="Optional session token"
-                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-text-primary">
-                Bedrock Inference Profile <span className="text-text-muted">(optional)</span>
-              </label>
-              <input
-                value={displayedAiSettings.bedrockInferenceProfileId}
-                onChange={(e) => handleAiFieldChange('bedrockInferenceProfileId', e.target.value)}
-                placeholder="eu.amazon.nova-lite-v1:0"
-                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-text-primary">
-                Bedrock Model ID <span className="text-text-muted">(optional)</span>
-              </label>
-              <input
-                value={displayedAiSettings.bedrockModelId}
-                onChange={(e) => handleAiFieldChange('bedrockModelId', e.target.value)}
-                placeholder="amazon.nova-lite-v1:0"
-                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-text-primary">
-                YouTube API Key <span className="text-text-muted">(optional)</span>
-              </label>
-              <input
-                type="password"
-                value={displayedAiSettings.youtubeApiKey}
-                onChange={(e) => handleAiFieldChange('youtubeApiKey', e.target.value)}
-                placeholder="Used for channel analysis features"
-                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
-              />
-            </div>
+            {AI_CONFIG_FIELDS.map((field) => (
+              <div key={field.key}>
+                <label
+                  htmlFor={`settings-${field.key}`}
+                  className="mb-1 block text-xs text-text-primary"
+                >
+                  {field.envName}{' '}
+                  {field.optional ? <span className="text-text-muted">(optional)</span> : null}
+                </label>
+                <input
+                  id={`settings-${field.key}`}
+                  type={field.secret ? 'password' : 'text'}
+                  value={displayedAiSettings[field.key]}
+                  onChange={(e) => handleAiFieldChange(field.key, e.target.value)}
+                  placeholder={field.placeholder}
+                  className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+                />
+                <p className="mt-1 text-[10px] leading-4 text-text-muted">{field.helperText}</p>
+              </div>
+            ))}
 
             <div className="flex items-center justify-between gap-3 rounded border border-border-primary bg-bg-elevated/50 px-3 py-2">
               <p className="text-[10px] text-text-muted">
@@ -240,7 +186,7 @@ const SettingsTab = () => {
             Auto-Save
           </h4>
           <div className="space-y-3">
-            <label className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
               <span className="text-xs text-text-primary">Enable Auto-Save</span>
               <button
                 onClick={() => setAutoSaveEnabled(!autoSaveEnabled)}
@@ -254,12 +200,18 @@ const SettingsTab = () => {
                   }`}
                 />
               </button>
-            </label>
+            </div>
 
             {autoSaveEnabled && (
               <div>
-                <label className="text-xs text-text-primary block mb-2">Save Interval</label>
+                <label
+                  htmlFor="settings-auto-save-interval"
+                  className="text-xs text-text-primary block mb-2"
+                >
+                  Save Interval
+                </label>
                 <select
+                  id="settings-auto-save-interval"
                   value={autoSaveInterval}
                   onChange={(e) => setAutoSaveInterval(Number(e.target.value))}
                   className="w-full px-3 py-2 bg-bg-elevated border border-border-primary rounded text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
@@ -296,7 +248,7 @@ const SettingsTab = () => {
             Timeline
           </h4>
           <div className="space-y-3">
-            <label className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
               <span className="text-xs text-text-primary">Snap to Grid</span>
               <button
                 onClick={() => setSnapToGrid(!snapToGrid)}
@@ -310,14 +262,18 @@ const SettingsTab = () => {
                   }`}
                 />
               </button>
-            </label>
+            </div>
 
             {snapToGrid && (
               <div>
-                <label className="text-xs text-text-primary block mb-2">
+                <label
+                  htmlFor="settings-grid-size"
+                  className="text-xs text-text-primary block mb-2"
+                >
                   Grid Size: {gridSize.toFixed(2)}s
                 </label>
                 <input
+                  id="settings-grid-size"
                   type="range"
                   min="0.1"
                   max="5"
@@ -353,8 +309,14 @@ const SettingsTab = () => {
           </h4>
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-text-primary block mb-2">Display Mode</label>
+              <label
+                htmlFor="settings-subtitle-display-mode"
+                className="text-xs text-text-primary block mb-2"
+              >
+                Display Mode
+              </label>
               <select
+                id="settings-subtitle-display-mode"
                 value={subtitleStyle.displayMode}
                 onChange={(e) =>
                   updateSubtitleStyle({ displayMode: e.target.value as 'instant' | 'progressive' })
@@ -367,8 +329,14 @@ const SettingsTab = () => {
             </div>
 
             <div>
-              <label className="text-xs text-text-primary block mb-2">Position</label>
+              <label
+                htmlFor="settings-subtitle-position"
+                className="text-xs text-text-primary block mb-2"
+              >
+                Position
+              </label>
               <select
+                id="settings-subtitle-position"
                 value={subtitleStyle.position}
                 onChange={(e) =>
                   updateSubtitleStyle({ position: e.target.value as 'top' | 'bottom' })
@@ -457,7 +425,7 @@ const SettingsTab = () => {
               </p>
             </div>
 
-            <label className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
               <div className="flex-1 pr-2">
                 <span className="text-xs text-text-primary block">Snap to Silence</span>
                 <p className="text-[10px] text-text-muted mt-0.5">
@@ -482,9 +450,9 @@ const SettingsTab = () => {
                   }`}
                 />
               </button>
-            </label>
+            </div>
 
-            <label className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
               <div className="flex-1 pr-2">
                 <span className="text-xs text-text-primary block">Snap to Frames</span>
                 <p className="text-[10px] text-text-muted mt-0.5">
@@ -509,7 +477,7 @@ const SettingsTab = () => {
                   }`}
                 />
               </button>
-            </label>
+            </div>
           </div>
         </div>
 

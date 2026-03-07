@@ -57,6 +57,11 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const APP_MEDIA_SCHEME = 'app-media';
+const DEV_USER_DATA_DIR_NAME = 'QuickCut-dev';
+
+if (!app.isPackaged) {
+  app.setPath('userData', path.join(app.getPath('appData'), DEV_USER_DATA_DIR_NAME));
+}
 
 protocol.registerSchemesAsPrivileged([
   {

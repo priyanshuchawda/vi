@@ -35,14 +35,21 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
   }, [profile]);
 
   const handleSaveProfile = () => {
+    const trimmedName = userName.trim();
+    const trimmedEmail = email.trim();
+    const trimmedYouTubeUrl = youtubeUrl.trim();
+
     if (!profile) {
       // Create new profile
       const userId = crypto.randomUUID();
-      createProfile(userId, userName, email);
-    } else {
-      // Update existing profile
-      updateProfile({ userName, email });
+      createProfile(userId, trimmedName || undefined, trimmedEmail || undefined);
     }
+
+    updateProfile({
+      userName: trimmedName || undefined,
+      email: trimmedEmail || undefined,
+      youtubeChannelUrl: trimmedYouTubeUrl || undefined,
+    });
   };
 
   const handleAnalyzeChannel = async () => {
@@ -128,8 +135,14 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-2">Name</label>
+                <label
+                  htmlFor="profile-name"
+                  className="block text-sm font-medium text-text-secondary mb-2"
+                >
+                  Name
+                </label>
                 <input
+                  id="profile-name"
                   type="text"
                   value={userName}
                   onChange={(e) => setUserName(e.target.value)}
@@ -139,7 +152,10 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-2 flex items-center gap-2">
+                <label
+                  htmlFor="profile-email"
+                  className="block text-sm font-medium text-text-secondary mb-2 flex items-center gap-2"
+                >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
@@ -151,6 +167,7 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
                   Email
                 </label>
                 <input
+                  id="profile-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -172,11 +189,15 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-2">
-                  Channel URL
+                <label
+                  htmlFor="profile-youtube-url"
+                  className="block text-sm font-medium text-text-secondary mb-2"
+                >
+                  Channel URL <span className="text-text-muted">(optional)</span>
                 </label>
                 <div className="flex gap-2">
                   <input
+                    id="profile-youtube-url"
                     type="url"
                     value={youtubeUrl}
                     onChange={(e) => setYoutubeUrl(e.target.value)}

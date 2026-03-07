@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
+import { AppLogo } from './AppLogo';
 
 export type SidebarTab = 'project' | 'media' | 'text' | 'settings' | 'memory' | 'youtube';
 
@@ -160,27 +161,7 @@ const IconSidebar = ({ activeTab, onTabChange }: IconSidebarProps) => {
     <div className="w-16 bg-bg-secondary flex flex-col items-center py-4 gap-2 border-r border-border-primary/60 relative">
       {/* Logo/Brand */}
       <div className="mb-6 p-2">
-        <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center">
-          <svg
-            className="w-5 h-5 text-accent"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        </div>
+        <AppLogo size={32} iconClassName="rounded-xl shadow-[0_10px_24px_rgba(0,0,0,0.25)]" />
       </div>
 
       {/* Navigation Items */}

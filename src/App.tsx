@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import Preview from './components/Preview/Preview';
 import Timeline from './components/Timeline/Timeline';
 import Toolbar from './components/Toolbar/Toolbar';
@@ -7,11 +7,13 @@ import AutoSave from './components/AutoSave';
 import { useChatStore } from './stores/useChatStore';
 import { usePublishStore } from './stores/usePublishStore';
 import { useOnboardingStore } from './stores/useOnboardingStore';
-import { useProfileStore } from './stores/useProfileStore';
 import { useProjectStore } from './stores/useProjectStore';
+import { useProfileStore } from './stores/useProfileStore';
 import { useShallow } from 'zustand/react/shallow';
 import type { ChannelAnalysisData } from './types/electron';
 import type { SidebarTab } from './components/ui/SidebarNav';
+import { AppLogo } from './components/ui/AppLogo';
+import { requiresInitialSetup } from './lib/setupRequirements';
 
 const FilePanel = lazy(() => import('./components/FilePanel/FilePanel'));
 const RightPanel = lazy(() => import('./components/ui/RightPanel'));
@@ -47,20 +49,16 @@ function App() {
       clearPublishRequest: state.clearPublishRequest,
     })),
   );
-  const { hasCompletedOnboarding, completeOnboarding, skipOnboarding } = useOnboardingStore(
-    useShallow((state) => ({
-      hasCompletedOnboarding: state.hasCompletedOnboarding,
-      completeOnboarding: state.completeOnboarding,
-      skipOnboarding: state.skipOnboarding,
-    })),
-  );
-  const { profile, createProfile, setYouTubeChannel } = useProfileStore(
-    useShallow((state) => ({
-      profile: state.profile,
-      createProfile: state.createProfile,
-      setYouTubeChannel: state.setYouTubeChannel,
-    })),
-  );
+  const { hasCompletedOnboarding, completeOnboarding, resetOnboarding, skipOnboarding } =
+    useOnboardingStore(
+      useShallow((state) => ({
+        hasCompletedOnboarding: state.hasCompletedOnboarding,
+        completeOnboarding: state.completeOnboarding,
+        resetOnboarding: state.resetOnboarding,
+        skipOnboarding: state.skipOnboarding,
+      })),
+    );
+  const profile = useProfileStore((state) => state.profile);
   const { undo, redo, canUndo, canRedo, hasUnsavedChanges } = useProjectStore(
     useShallow((state) => ({
       undo: state.undo,
@@ -80,6 +78,8 @@ function App() {
   const [desktopTimelineHeight, setDesktopTimelineHeight] = useState(
     DESKTOP_TIMELINE_DEFAULT_HEIGHT,
   );
+  const [setupState, setSetupState] = useState<'checking' | 'required' | 'ready'>('checking');
+  const onboardingSessionStartedRef = useRef(false);
   const timelineMaxHeight = Math.floor(window.innerHeight * (isDesktop ? 0.6 : 0.5));
   const timelineHeight = isDesktop
     ? Math.min(Math.max(desktopTimelineHeight, TIMELINE_MIN_HEIGHT), timelineMaxHeight)
@@ -116,7 +116,7 @@ function App() {
   }, [isPublishPanelRequested, setChatOpen, clearPublishRequest]);
 
   useEffect(() => {
-    if (!hasCompletedOnboarding) return;
+    if (setupState !== 'ready') return;
     const idle = window.requestIdleCallback?.(() => {
       void import('./components/Chat/ChatPanel');
       void import('./components/ui/RightPanel');
@@ -127,7 +127,49 @@ function App() {
         window.cancelIdleCallback(idle);
       }
     };
-  }, [hasCompletedOnboarding]);
+  }, [setupState]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const checkSetupRequirements = async () => {
+      try {
+        const aiStatus = await window.electronAPI.aiConfig.getStatus();
+        if (!isActive) return;
+
+        const needsSetup = requiresInitialSetup(profile, aiStatus);
+
+        if (needsSetup) {
+          onboardingSessionStartedRef.current = true;
+          setSetupState('required');
+          if (hasCompletedOnboarding) {
+            resetOnboarding();
+          }
+          return;
+        }
+
+        if (onboardingSessionStartedRef.current && !hasCompletedOnboarding) {
+          setSetupState('required');
+          return;
+        }
+
+        setSetupState('ready');
+
+        if (!hasCompletedOnboarding && profile?.userId) {
+          completeOnboarding(profile.userId, profile.channelAnalysis);
+        }
+      } catch (error) {
+        console.warn('[App] Failed to verify setup requirements:', error);
+        setSetupState(profile?.userName?.trim() ? 'ready' : 'required');
+      }
+    };
+
+    void checkSetupRequirements();
+
+    return () => {
+      isActive = false;
+    };
+  }, [completeOnboarding, hasCompletedOnboarding, profile, resetOnboarding]);
 
   useEffect(() => {
     if (!isResizingSidePanel || !isDesktop) return;
@@ -182,61 +224,19 @@ function App() {
     };
   }, [isResizingTimeline, isDesktop, timelineMaxHeight]);
 
-  const handleOnboardingComplete = (analysisData?: ChannelAnalysisData) => {
-    const userId = crypto.randomUUID();
+  const handleOnboardingComplete = (userId: string, analysisData?: ChannelAnalysisData) => {
     completeOnboarding(userId, analysisData);
-
-    // Create or update profile with the analysis data
-    if (!profile) {
-      createProfile(userId);
-    }
-
-    // If analysis data is available, save it to profile and generate rules.md
-    if (analysisData) {
-      // Extract YouTube URL from the analysis data if available
-      const channelId = analysisData.channel.id;
-      const youtubeUrl = `https://www.youtube.com/channel/${channelId}`;
-      setYouTubeChannel(youtubeUrl, analysisData);
-
-      // Generate and persist compact rules.md
-      if (window.electronAPI?.rulesWrite) {
-        const { channel, analysis } = analysisData;
-        const strengths = analysis.content_strengths
-          .slice(0, 4)
-          .map((s) => `- ${s}`)
-          .join('\n');
-        const editingRecs = analysis.editing_style_recommendations
-          .slice(0, 4)
-          .map((s) => `- ${s}`)
-          .join('\n');
-        const growthFocus = analysis.growth_suggestions
-          .slice(0, 3)
-          .map((s) => `- ${s}`)
-          .join('\n');
-        const summary =
-          analysis.channel_summary.length > 300
-            ? analysis.channel_summary.slice(0, 300) + '…'
-            : analysis.channel_summary;
-        const rules = `# Creator Rules: ${channel.title}\n\nSubscribers: ${channel.subscriber_count.toLocaleString()} | Videos: ${channel.video_count}\n\n## Summary\n${summary}\n\n## Strengths\n${strengths}\n\n## Editing Style\n${editingRecs}\n\n## Growth Focus\n${growthFocus}\n`;
-        localStorage.setItem('channel-rules', rules);
-        window.electronAPI.rulesWrite(rules).catch((err: unknown) => {
-          console.warn('[App] Could not save rules.md:', err);
-        });
-      }
-    }
-
-    // Link analysis to user if provided
-    if (analysisData && window.electronAPI) {
-      window.electronAPI.linkAnalysisToUser(userId, analysisData.channel.id);
-    }
   };
 
   const handleOnboardingSkip = () => {
     skipOnboarding();
   };
 
-  // Show onboarding if not completed
-  if (!hasCompletedOnboarding) {
+  if (setupState === 'checking') {
+    return panelFallback;
+  }
+
+  if (setupState === 'required') {
     return (
       <Suspense fallback={panelFallback}>
         <OnboardingWizard onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
@@ -254,12 +254,17 @@ function App() {
       <div className="h-11 flex-shrink-0 bg-bg-secondary panel-border-b flex items-center px-3 gap-0 z-30">
         {/* Brand */}
         <div
-          className="flex items-center gap-2 pr-4 mr-1"
+          className="flex items-center pr-4 mr-1"
           style={{ borderRight: '1px solid rgba(255,255,255,0.06)' }}
         >
-          <span className="text-[13px] font-semibold text-text-primary tracking-tight">
-            QuickCut
-          </span>
+          <AppLogo
+            size={22}
+            showWordmark
+            className="gap-2.5"
+            iconClassName="rounded-md"
+            nameClassName="text-[12px]"
+            wordmarkClassName="leading-none"
+          />
         </div>
 
         {/* Project name + autosave */}

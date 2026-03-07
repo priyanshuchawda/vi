@@ -19,8 +19,8 @@
       <stop offset="1" stop-color="#FACC15" />
     </linearGradient>
     <linearGradient id="blade" x1="214" y1="180" x2="316" y2="334" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F8FAFC" />
-      <stop offset="1" stop-color="#CBD5E1" />
+      <stop stop-color="#67E8F9" />
+      <stop offset="1" stop-color="#0EA5E9" />
     </linearGradient>
     <filter id="shadow" x="92" y="120" width="336" height="276" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
       <feFlood flood-opacity="0" result="BackgroundImageFix" />
@@ -34,9 +34,10 @@
     </filter>
   </defs>
 
-  <rect x="28" y="28" width="456" height="456" rx="118" fill="url(#bg)" />
-  <rect x="28" y="28" width="456" height="456" rx="118" fill="url(#glow)" />
-  <rect x="28.5" y="28.5" width="455" height="455" rx="117.5" stroke="white" stroke-opacity="0.08" />
+  <rect width="512" height="512" fill="#020817" />
+  <rect x="8" y="8" width="496" height="496" rx="128" fill="url(#bg)" />
+  <rect x="8" y="8" width="496" height="496" rx="128" fill="url(#glow)" />
+  <rect x="8.5" y="8.5" width="495" height="495" rx="127.5" stroke="white" stroke-opacity="0.08" />
 
   <g filter="url(#shadow)">
     <rect x="108" y="152" width="254" height="96" rx="34" fill="url(#cyanStrip)" />
@@ -66,6 +67,6 @@
     />
   </g>
 
-  <circle cx="391" cy="133" r="9" fill="#F8FAFC" />
-  <circle cx="391" cy="133" r="22" stroke="#F8FAFC" stroke-opacity="0.18" stroke-width="8" />
+  <circle cx="391" cy="133" r="9" fill="#F59E0B" />
+  <circle cx="391" cy="133" r="22" stroke="#F59E0B" stroke-opacity="0.18" stroke-width="8" />
 </svg>

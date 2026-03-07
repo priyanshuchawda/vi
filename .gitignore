@@ -49,6 +49,7 @@ __pycache__/
 vosk-model-*/
 electron/vosk-model-*/
 .env
+youtube-credentials.json
 
 # FFmpeg binaries (large - download during build)
 resources/ffmpeg-win/

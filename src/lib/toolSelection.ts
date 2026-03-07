@@ -233,6 +233,10 @@ function getSeedTools(mode: ToolSelectionMode, message: string): string[] {
   const lower = message.toLowerCase();
   const seeds = new Set<string>(BASE_EDIT_TOOLS);
   const overlayRequest = /\b(text overlay|overlay|on-screen text|onscreen text)\b/.test(lower);
+  const explicitSubtitleEdit =
+    /\b(update subtitle|edit subtitle|change subtitle|subtitle \d+|caption \d+|delete subtitle)\b/.test(
+      lower,
+    );
 
   if (mode !== 'economy') {
     seeds.add('get_all_media_analysis');
@@ -248,9 +252,10 @@ function getSeedTools(mode: ToolSelectionMode, message: string): string[] {
   }
 
   if (overlayRequest) {
-    ['add_subtitle', 'update_subtitle', 'update_subtitle_style', 'get_subtitles'].forEach((tool) =>
-      seeds.add(tool),
-    );
+    ['add_subtitle', 'update_subtitle_style', 'get_subtitles'].forEach((tool) => seeds.add(tool));
+    if (explicitSubtitleEdit) {
+      ['update_subtitle', 'delete_subtitle'].forEach((tool) => seeds.add(tool));
+    }
   }
 
   if (/\b(duration|30 second|shorts|reel|tiktok)\b/.test(lower)) {
@@ -320,12 +325,15 @@ export function selectToolsForRequest(options: ToolSelectionOptions): ToolSelect
   }
 
   const overlayRequest = /\b(text overlay|overlay|on-screen text|onscreen text)\b/i.test(lower);
-  if (overlayRequest) {
-    addScore(
-      scores,
-      ['add_subtitle', 'update_subtitle', 'update_subtitle_style', 'get_subtitles'],
-      24,
+  const explicitSubtitleEdit =
+    /\b(update subtitle|edit subtitle|change subtitle|subtitle \d+|caption \d+|delete subtitle)\b/i.test(
+      lower,
     );
+  if (overlayRequest) {
+    addScore(scores, ['add_subtitle', 'update_subtitle_style', 'get_subtitles'], 24);
+    if (explicitSubtitleEdit) {
+      addScore(scores, ['update_subtitle', 'delete_subtitle'], 24);
+    }
   }
   const prefersCaptionMacro =
     /\b(shorts|reel|tiktok|script|voiceover|hook|story|caption script|apply these captions)\b/i.test(

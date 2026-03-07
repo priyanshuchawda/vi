@@ -76,4 +76,19 @@ describe('toolSelection', () => {
       ]),
     );
   });
+
+  it('avoids update_subtitle for fresh shorts overlay requests', () => {
+    const result = selectToolsForRequest({
+      message: 'make this a 30 second youtube short vlog with attractive text overlays',
+      mode: 'agentic',
+      normalizedIntent: {
+        goals: ['platform_optimized_output', 'script_generation'],
+        requestedOutputs: ['subtitle_plan', 'short_script_outline'],
+        constraints: { target_duration: 30, platform: 'youtube_shorts' },
+        operationHint: 'subtitle',
+      },
+    });
+
+    expect(result.toolNames).not.toContain('update_subtitle');
+  });
 });

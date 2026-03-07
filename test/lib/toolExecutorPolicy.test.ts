@@ -120,6 +120,24 @@ describe('ToolExecutor planning guard + policy execution', () => {
     expect(preflight.issues).toHaveLength(0);
   });
 
+  it('preflight explains how to recover when updating a missing subtitle', () => {
+    const preflight = ToolExecutor.preflightPlan([
+      {
+        name: 'update_subtitle',
+        args: {
+          index: 1,
+          text: 'Hook',
+        },
+      },
+    ]);
+
+    expect(preflight.valid).toBe(false);
+    expect(preflight.issues[0].message).toContain('Subtitle 1 not found');
+    expect(preflight.issues[0].recoveryHint).toContain(
+      'Use add_subtitle or apply_script_as_captions first',
+    );
+  });
+
   it('hybrid execution batches read-only operations safely', async () => {
     const results = await ToolExecutor.executeWithPolicy(
       [

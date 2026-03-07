@@ -1347,6 +1347,10 @@ export class ToolExecutor {
           return {
             valid: false,
             error: `Subtitle ${index} not found. Valid range: 1-${state.subtitles.length}`,
+            recoveryHint:
+              state.subtitles.length === 0
+                ? 'There are no subtitles yet. Use add_subtitle or apply_script_as_captions first.'
+                : 'Call get_subtitles to inspect existing subtitle indexes before updating.',
           };
         }
         if (start_time !== undefined && start_time < 0) {
@@ -1364,6 +1368,10 @@ export class ToolExecutor {
           return {
             valid: false,
             error: `Subtitle ${index} not found. Valid range: 1-${state.subtitles.length}`,
+            recoveryHint:
+              state.subtitles.length === 0
+                ? 'There are no subtitles to delete. Add captions first or skip subtitle deletion.'
+                : 'Call get_subtitles to inspect existing subtitle indexes before deleting.',
           };
         }
         return { valid: true };
@@ -1580,6 +1588,10 @@ export class ToolExecutor {
           return {
             valid: false,
             error: `Subtitle ${index} not found. Valid range: 1-${subtitleCount}`,
+            recoveryHint:
+              subtitleCount === 0
+                ? 'There are no subtitles yet. Use add_subtitle or apply_script_as_captions first.'
+                : 'Call get_subtitles to inspect subtitle indexes before updating.',
           };
         }
         if (start_time !== undefined && start_time < 0) {
@@ -1596,6 +1608,10 @@ export class ToolExecutor {
           return {
             valid: false,
             error: `Subtitle ${index} not found. Valid range: 1-${subtitleCount}`,
+            recoveryHint:
+              subtitleCount === 0
+                ? 'There are no subtitles to delete. Skip deletion or generate captions first.'
+                : 'Call get_subtitles to inspect subtitle indexes before deleting.',
           };
         }
         return { valid: true };
@@ -2335,6 +2351,7 @@ export class ToolExecutor {
                 visualInfo: analysis.visualInfo,
                 audioInfo: analysis.audioInfo,
                 scenes: analysis.scenes,
+                editorialInsights: analysis.editorialInsights,
                 status: analysis.status,
               },
             },
@@ -2360,6 +2377,7 @@ export class ToolExecutor {
                   tags: entry.tags,
                   visualInfo: entry.visualInfo,
                   audioInfo: entry.audioInfo,
+                  editorialInsights: entry.editorialInsights,
                   // scenes: [{startTime, endTime, description}] — use these source
                   // timestamps with update_clip_bounds to select the best segment
                   // window instead of trimming each clip uniformly.

@@ -40,6 +40,8 @@ export interface MediaAnalysisEntry {
   audioInfo?: AudioInfo;
   /** Visual characteristics (for image/video) */
   visualInfo?: VisualInfo;
+  /** Editing-focused insights derived from the analysis */
+  editorialInsights?: EditorialInsights;
   /** Timestamp when analysis was created */
   createdAt: number;
   /** Timestamp when analysis was last updated */
@@ -57,6 +59,20 @@ export interface SceneInfo {
   endTime: number;
   /** Description of the scene */
   description: string;
+  /** Key visible or audible elements within the scene */
+  keyElements?: string[];
+  /** Energy/readiness level for short-form editing */
+  energyLevel?: 'low' | 'medium' | 'high';
+  /** Suggested editorial role for this scene */
+  recommendedUse?: string;
+  /** Generic story role for this moment */
+  storyRole?: 'hook' | 'setup' | 'behind_the_scenes' | 'proof' | 'payoff' | 'cta_support';
+  /** Whether this scene has hook potential for opening moments */
+  hookPotential?: 'low' | 'medium' | 'high';
+  /** Why this moment is useful in an edit */
+  editValue?: string;
+  /** Short phrases that help the agent find this moment later */
+  searchHints?: string[];
 }
 
 export interface AudioInfo {
@@ -70,6 +86,8 @@ export interface AudioInfo {
   mood?: string;
   /** Brief transcript summary if speech detected */
   transcriptSummary?: string;
+  /** Confidence or uncertainty notes for audio observations */
+  confidenceNotes?: string;
 }
 
 export interface VisualInfo {
@@ -83,6 +101,33 @@ export interface VisualInfo {
   composition?: string;
   /** Quality assessment */
   quality?: string;
+  /** Important on-screen text or labels visible in the asset */
+  visibleTextHighlights?: string[];
+}
+
+export interface EditorialInsights {
+  /** Suitability for reels/shorts/vlog montage work */
+  shortFormPotential?: 'low' | 'medium' | 'high';
+  /** Overall pacing impression */
+  pacing?: 'slow' | 'steady' | 'fast' | 'mixed';
+  /** Primary narrative role this asset can serve */
+  storyRole?: 'hook' | 'setup' | 'behind_the_scenes' | 'proof' | 'payoff' | 'cta_support';
+  /** How strong the visual proof is for claims like winning, shipping, demo, etc. */
+  evidenceStrength?: 'low' | 'medium' | 'high';
+  /** Short factual things the agent should remember about this asset */
+  memoryAnchors?: string[];
+  /** Strongest moments worth surfacing in edits */
+  hookMoments?: string[];
+  /** Generic edit goals this asset supports well */
+  bestFor?: string[];
+  /** Cases where this asset is weak or should be secondary */
+  avoidFor?: string[];
+  /** Suggested editorial uses like hook, b-roll, payoff, CTA */
+  recommendedUses?: string[];
+  /** Short on-screen text ideas grounded in the footage */
+  overlayIdeas?: string[];
+  /** Production limitations or caution notes */
+  cautions?: string[];
 }
 
 /**

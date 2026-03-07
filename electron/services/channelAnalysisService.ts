@@ -4,7 +4,8 @@
  */
 
 import { YouTubeService } from './youtubeService.js';
-import { AIAnalysisService, AnalysisResult } from './aiAnalysisService.js';
+import { AIAnalysisService } from './aiAnalysisService.js';
+import type { AnalysisResult } from './aiAnalysisService.js';
 import { analysisCacheService } from './cacheService.js';
 
 export interface AnalysisResponse {

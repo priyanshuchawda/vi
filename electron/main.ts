@@ -80,7 +80,9 @@ protocol.registerSchemesAsPrivileged([
 config({ path: path.join(__dirname, '../.env') });
 initMainObservability();
 
-const aiConfigService = new AiConfigService(app.getPath('userData'));
+const aiConfigService = new AiConfigService(app.getPath('userData'), {
+  envFilePath: path.join(__dirname, '../.env'),
+});
 const initialAiSettings = aiConfigService.getSettings();
 const initialAiStatus = aiConfigService.getStatus();
 

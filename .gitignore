@@ -27,6 +27,8 @@ dist-ssr
 dist-electron
 release/
 build/
+!scripts/build/
+!scripts/build/*.mjs
 coverage/
 test-media/
 create_test_media.py

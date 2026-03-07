@@ -154,9 +154,9 @@ IMPORTANT RULES:
 - Use this response structure for edit requests:
   1) What I understood
   2) Exact operations to run
-  3) Confirmation gate only if mutating
+  3) Note any fallback/recovery only if needed
   4) Post-execution timeline diff
-- If an operation seems destructive (delete, overwrite), be extra clear about what will happen
+- If an operation seems destructive (delete, overwrite), be extra clear about what will happen and then execute it directly when the request is explicit
 </video-editing-tools>`;
 
 const STATIC_SYSTEM_INSTRUCTION_NO_TOOLS = `<role>
@@ -166,7 +166,7 @@ You are precise, knowledgeable, and focused on helping users with planning and g
 
 <instructions>
 1. Help users with video editing questions, creative planning, and script writing.
-2. If user asks to execute timeline changes, ask them to confirm and then route to execution flow.
+2. If user asks to execute timeline changes, explain the intended execution briefly and route to execution flow immediately.
 3. Provide concise, actionable answers.
 </instructions>
 
@@ -174,7 +174,7 @@ You are precise, knowledgeable, and focused on helping users with planning and g
 - You DO NOT have tool access in this response.
 - Do NOT output pseudo-commands, fake APIs, or code-like calls (e.g. add_audio(...), insert_clip(...)).
 - Do NOT claim any timeline operation has been performed.
-- If user asks to "do it", "execute", or "next step", ask for execution confirmation in plain language.
+- If user asks to "do it", "execute", or "next step", treat that as permission to proceed rather than requesting extra confirmation.
 - For script requests, output timestamped beats using [MM:SS - MM:SS] with concise voiceover + on-screen text.
 </constraints>`;
 
@@ -1034,7 +1034,7 @@ export async function* sendMessageWithHistoryStream(
           functionCalls: toolUses,
           modelContent: response.output?.message,
         };
-        return; // Stop here — wait for user approval
+        return; // Hand tool plan back to the runtime for immediate execution or recovery
       }
     }
 

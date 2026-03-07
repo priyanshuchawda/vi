@@ -14,59 +14,22 @@ import {
   parseStoredOAuthTokens,
   serializeStoredOAuthTokens,
 } from './youtubeOAuthSecurity.js';
+import { loadYouTubeOAuthCredentials } from './youtubeOAuthConfig.js';
 
 const SCOPES = ['https://www.googleapis.com/auth/youtube.upload'];
 const TOKEN_PATH = path.join(app.getPath('userData'), 'youtube-token.json');
-const CREDENTIALS_PATH = path.join(
-  process.cwd(),
-  'client_secret_235744043692-85hlp2prkgdp0bitbmh46gfbug5vfn2e.apps.googleusercontent.com.json',
-);
 
 let oauth2Client: OAuth2Client | null = null;
 
-interface YouTubeOAuthCredentials {
-  installed: {
-    client_id: string;
-    client_secret: string;
-    redirect_uris: string[];
-  };
-}
-
-function isYouTubeOAuthCredentials(value: unknown): value is YouTubeOAuthCredentials {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const installed = (value as { installed?: unknown }).installed;
-  if (typeof installed !== 'object' || installed === null) {
-    return false;
-  }
-  const typedInstalled = installed as {
-    client_id?: unknown;
-    client_secret?: unknown;
-    redirect_uris?: unknown;
-  };
-  return (
-    typeof typedInstalled.client_id === 'string' &&
-    typeof typedInstalled.client_secret === 'string' &&
-    Array.isArray(typedInstalled.redirect_uris) &&
-    typedInstalled.redirect_uris.every((uri) => typeof uri === 'string')
-  );
-}
-
 /**
- * Load client credentials from the JSON file
+ * Load client credentials from env or a configured credentials file.
  */
-function loadCredentials(): YouTubeOAuthCredentials {
+function loadCredentials() {
   try {
-    const content = fs.readFileSync(CREDENTIALS_PATH, 'utf-8');
-    const parsed: unknown = JSON.parse(content);
-    if (!isYouTubeOAuthCredentials(parsed)) {
-      throw new Error('Invalid credentials JSON shape');
-    }
-    return parsed;
+    return loadYouTubeOAuthCredentials(process.env, fs, process.cwd());
   } catch (error) {
     console.error('Error loading credentials:', error);
-    throw new Error('Could not load YouTube credentials file');
+    throw error instanceof Error ? error : new Error('Could not load YouTube credentials');
   }
 }
 

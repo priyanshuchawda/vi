@@ -11,7 +11,7 @@
     "dev": "concurrently \"npm run dev:react\" \"npm run dev:electron\"",
     "dev:react": "vite",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "dev:electron": "npm run build:electron && concurrently -k \"tsc -p tsconfig.electron.json -w\" \"wait-on http-get://localhost:7377 && electron . --no-sandbox\"",
+    "dev:electron": "npm run build:electron && concurrently -k \"tsc -p tsconfig.electron.json -w\" \"wait-on http-get://localhost:7377 && electron .\"",
     "build": "tsc -b && npm run build:electron && vite build",
     "dist": "npm run build && electron-builder",
     "dist:all": "npm run build && electron-builder --mac --arm64 --x64 && electron-builder --win --x64 && electron-builder --linux --x64",
@@ -110,7 +110,7 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "build/icon.icns",
+      "icon": "public/logo.png",
       "hardenedRuntime": true,
       "gatekeeperAssess": false
     },

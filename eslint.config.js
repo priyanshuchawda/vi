@@ -14,7 +14,6 @@ export default defineConfig([
     'gemini-cli/**',
     '.agent/**',
     '.kiro/**',
-    'test/**',
     '.vscode/**',
     'vscode/**',
   ]),
@@ -35,6 +34,20 @@ export default defineConfig([
       'no-async-promise-executor': 'off',
       'react-hooks/static-components': 'off',
       'react-hooks/set-state-in-effect': 'off',
+    },
+  },
+  {
+    files: ['test/**/*.{ts,tsx}'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
+    rules: {
+      // Legacy test fixtures still contain broad mock shapes; track burn-down separately in #103.
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 ]);

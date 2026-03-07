@@ -402,7 +402,85 @@ describe('agentLoop integration', () => {
     const bedrockToolNames =
       firstCall.toolConfig?.tools?.map((tool: any) => tool?.toolSpec?.name).filter(Boolean) || [];
     expect(bedrockToolNames.length).toBeLessThanOrEqual(12);
-    expect(bedrockToolNames).toEqual(expect.arrayContaining(toolNames));
+    expect(toolNames).toEqual(expect.arrayContaining(bedrockToolNames));
+    expect(bedrockToolNames.length).toBeLessThan(toolNames.length);
+  });
+
+  it('starts complex agentic turns with a read-focused tool subset', async () => {
+    const { runAgentLoop } = await import('../../src/lib/agentLoop');
+    const callbacks = createMockCallbacks();
+
+    mockedConverse
+      .mockResolvedValueOnce(
+        bedrockToolResponse('get_all_media_analysis', {}, 'tu-read-focus', 'Inspecting footage first.'),
+      )
+      .mockResolvedValueOnce(
+        bedrockEndResponse(' Completed: Reviewed the footage and prepared the edit. Timeline: 16s, 3 clips.'),
+      );
+
+    await runAgentLoop({
+      userMessage: 'make a youtube short with proper script and editing',
+      history: [],
+      callbacks,
+      normalizedIntent: {
+        mode: 'modify',
+        goals: ['platform_optimized_output', 'script_generation'],
+        constraints: { platform: 'youtube_shorts' },
+        operationHint: 'script_outline',
+        confidence: 0.9,
+      },
+    });
+
+    const firstCall = mockedConverse.mock.calls[0]?.[0] as { toolConfig?: { tools?: any[] } };
+    const firstToolNames =
+      firstCall.toolConfig?.tools?.map((tool: any) => tool?.toolSpec?.name).filter(Boolean) || [];
+
+    expect(firstToolNames).toContain('get_all_media_analysis');
+    expect(firstToolNames).toContain('get_timeline_info');
+    expect(firstToolNames).not.toContain('update_clip_bounds');
+    expect(firstToolNames).not.toContain('move_clip');
+  });
+
+  it('drops one-shot script generation tools after that phase completes', async () => {
+    const { runAgentLoop } = await import('../../src/lib/agentLoop');
+    const callbacks = createMockCallbacks();
+
+    mockedConverse
+      .mockResolvedValueOnce(
+        bedrockToolResponse('get_all_media_analysis', {}, 'tu-read', 'Checking source footage.'),
+      )
+      .mockResolvedValueOnce(
+        bedrockToolResponse(
+          'generate_intro_script_from_timeline',
+          { target_duration: 16, objective: 'how i won hackathon' },
+          'tu-script',
+          'Generating the script beats now.',
+        ),
+      )
+      .mockResolvedValueOnce(
+        bedrockEndResponse(' Completed: Built the script package. Timeline: 16s, 3 clips.'),
+      );
+
+    await runAgentLoop({
+      userMessage: 'make a youtube short with script for how i won the hackathon',
+      history: [],
+      callbacks,
+      normalizedIntent: {
+        mode: 'modify',
+        goals: ['platform_optimized_output', 'script_generation'],
+        constraints: { platform: 'youtube_shorts', target_duration: 16 },
+        operationHint: 'script_outline',
+        confidence: 0.95,
+      },
+    });
+
+    const thirdCall = mockedConverse.mock.calls[2]?.[0] as { toolConfig?: { tools?: any[] } };
+    const thirdToolNames =
+      thirdCall.toolConfig?.tools?.map((tool: any) => tool?.toolSpec?.name).filter(Boolean) || [];
+
+    expect(thirdToolNames).not.toContain('generate_intro_script_from_timeline');
+    expect(thirdToolNames).toContain('preview_caption_fit');
+    expect(thirdToolNames).toContain('apply_script_as_captions');
   });
 
   it('enforces cost budget limit', async () => {

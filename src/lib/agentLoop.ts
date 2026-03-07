@@ -51,6 +51,7 @@ import type {
   AgentLoopResult,
   AgentToolResult,
   AgentVerification,
+  AgentStep,
 } from '../types/agentTypes';
 import { DEFAULT_AGENT_LOOP_CONFIG } from '../types/agentTypes';
 
@@ -388,6 +389,79 @@ function selectRecentHistoryWindow(
   return recent.slice(firstUserIndex);
 }
 
+function deriveStepToolNames(input: {
+  allToolNames: string[];
+  steps: AgentStep[];
+  userMessage: string;
+  normalizedIntent?: AgentLoopInput['normalizedIntent'];
+}): Set<string> {
+  const next = new Set(input.allToolNames);
+  const successfulSteps = input.steps.filter((step) => step.result?.success && step.toolCall?.name);
+  const successfulToolNames = new Set(
+    successfulSteps
+      .map((step) => step.toolCall?.name)
+      .filter((name): name is string => Boolean(name)),
+  );
+  const hasSuccessfulRead = successfulSteps.some((step) =>
+    isReadOnlyTool(step.toolCall?.name || ''),
+  );
+  const targetDuration = getTargetDurationSeconds(input.normalizedIntent, input.userMessage);
+  const lastVerification = [...input.steps]
+    .reverse()
+    .find((step) => step.verification)?.verification;
+  const durationSatisfied =
+    targetDuration === undefined
+      ? false
+      : Boolean(
+          lastVerification?.snapshot &&
+          (lastVerification.snapshot.gapCount || 0) === 0 &&
+          Math.abs(lastVerification.snapshot.durationDelta || 0) <= 0.75,
+        );
+  const storySignalEarly = lastVerification?.snapshot?.strongestSignalEarly === true;
+  const wantsScript =
+    input.normalizedIntent?.goals?.includes('script_generation') === true ||
+    /\b(script|voiceover|caption|subtitle|hook|cta)\b/i.test(input.userMessage);
+
+  if (!hasSuccessfulRead) {
+    return new Set(
+      input.allToolNames.filter((name) => isReadOnlyTool(name) || name === 'ask_clarification'),
+    );
+  }
+
+  if (successfulToolNames.has('generate_intro_script_from_timeline')) {
+    next.delete('generate_intro_script_from_timeline');
+  }
+
+  if (successfulToolNames.has('preview_caption_fit')) {
+    next.delete('preview_caption_fit');
+  }
+
+  if (successfulToolNames.has('apply_script_as_captions')) {
+    next.delete('apply_script_as_captions');
+    next.delete('preview_caption_fit');
+    next.delete('generate_intro_script_from_timeline');
+  } else if (wantsScript && successfulToolNames.has('generate_intro_script_from_timeline')) {
+    next.add('apply_script_as_captions');
+    next.add('preview_caption_fit');
+  }
+
+  if (durationSatisfied && storySignalEarly) {
+    next.delete('set_clip_speed');
+    next.delete('copy_clips');
+    next.delete('paste_clips');
+    next.delete('update_clip_bounds');
+    next.delete('move_clip');
+  }
+
+  if (next.size === 0) {
+    input.allToolNames.forEach((name) => {
+      if (isReadOnlyTool(name)) next.add(name);
+    });
+  }
+
+  return next;
+}
+
 /**
  * The main agentic execution loop.
  *
@@ -513,6 +587,14 @@ When the goal is fully achieved, respond with a summary (no tool calls).
     // Wait for rate-limit slot
     await waitForSlot();
 
+    const stepToolNames = deriveStepToolNames({
+      allToolNames: toolNames,
+      steps: loopState.steps,
+      userMessage: input.userMessage,
+      normalizedIntent: input.normalizedIntent,
+    });
+    const stepToolSet = toolSet.filter((tool: any) => stepToolNames.has(tool?.toolSpec?.name));
+
     // Call Bedrock
     const routingDecision = routeBedrockModel({
       intent: 'plan',
@@ -527,7 +609,7 @@ When the goal is fully achieved, respond with a summary (no tool calls).
           modelId: routingDecision.modelId,
           messages: messages,
           system: [{ text: systemPrompt }],
-          toolConfig: { tools: toolSet },
+          toolConfig: { tools: stepToolSet },
           inferenceConfig: {
             maxTokens: AGENTIC_MAX_TOKENS,
             temperature: 0.2,

@@ -12,6 +12,11 @@ describe('intentClassifier', () => {
     expect(classifyIntent('How can I make a YouTube video from this script')).toBe('edit');
     expect(classifyIntent('whatever feels best to you do step by step')).toBe('edit');
     expect(classifyIntent('move next')).toBe('edit');
+    expect(
+      classifyIntent(
+        'create a vlog youtube short video which should be attractive and make this yt short the best',
+      ),
+    ).toBe('edit');
   });
 
   it('keeps simple acknowledgements as chat', () => {

@@ -72,7 +72,7 @@ const EDIT_PATTERNS = [
   /\bclip\s*\d+\b/i, // "clip 1", "clip 2"
   /\btrack\s*\d+\b/i, // "track 0", "track 1"
   /\b\d+%\s*(volume|loud|quiet)\b/i, // "50% volume"
-  /\b(make|create|build)\s+(a\s+)?(youtube\s+)?video\b/i, // "make a youtube video"
+  /\b(make|create|build|turn)\b[\s\S]{0,40}\b(video|short|shorts|reel|vlog|montage|highlight reel)\b/i,
   /\bstep\s*by\s*step\b/i, // "step by step"
   /\bmove\s+next\b/i, // "move next"
   /\bnext\s+step\b/i, // "next step"
@@ -96,7 +96,8 @@ const EXECUTION_CONFIRM_PATTERNS = [
 const SCRIPT_REQUEST_PATTERN = /\b(script|voiceover|narration|hook|intro)\b/i;
 const HARD_EDIT_OPERATION_PATTERN =
   /\b(trim|split|cut|crop|delete|remove|move|merge|combine|join|duplicate|copy|paste|reorder|timeline|clip|track|transition|effect|filter|fade|speed|mute|unmute|volume|subtitle|caption|transcribe|playhead|export|render)\b/i;
-const VIDEO_BUILD_PATTERN = /\b(make|create|build)\s+(a\s+)?(youtube\s+)?video\b/i;
+const VIDEO_BUILD_PATTERN =
+  /\b(make|create|build|turn)\b[\s\S]{0,40}\b(video|short|shorts|reel|vlog|montage|highlight reel)\b/i;
 const EXPLICIT_EDIT_WORD_PATTERN = /\bedit(?:ing)?\b/i;
 
 /**

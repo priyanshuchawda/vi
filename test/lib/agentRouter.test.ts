@@ -154,6 +154,23 @@ describe('agentRouter', () => {
       expect(result.mode).toBe('agentic');
     });
 
+    it('routes reconstructed autonomous resume requests to agentic', () => {
+      const result = decideExecutionMode({
+        message: `Continue the previous editing request and complete it end-to-end.
+
+Original request:
+make a 30 second youtube short with proper script and editing so it gets more views
+
+Execution requirements:
+- Treat this as a full autonomous editing task, not a partial single-step change.
+- If the request includes a target duration, fill that duration with real visible content, not empty gaps.`,
+        baseIntent: 'edit',
+        clipCount: 4,
+        hasTimeline: true,
+      });
+      expect(result.mode).toBe('agentic');
+    });
+
     it('routes to agentic for compound requests', () => {
       const result = decideExecutionMode({
         message: 'trim the clips and then add transitions between them',

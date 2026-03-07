@@ -583,15 +583,16 @@ const ChatPanel = () => {
       if (intent === 'edit') {
         // Decide: agentic loop or single-pass planning
         const { decideExecutionMode, applyModeOverrides } = await import('../../lib/agentRouter');
+        const routingMessage = plannerInput || content;
         const routingDecision = applyModeOverrides(
           decideExecutionMode({
-            message: content,
+            message: routingMessage,
             baseIntent: intent,
             normalizedIntent,
             clipCount: clips.length,
             hasTimeline: clips.length > 0,
           }),
-          content,
+          routingMessage,
         );
 
         console.log(

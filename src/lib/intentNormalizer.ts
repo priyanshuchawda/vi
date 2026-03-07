@@ -34,7 +34,8 @@ const SHORT_FORM_PATTERN = /\b(yt short|youtube short|shorts|reel|tiktok)\b/i;
 const SCRIPT_PATTERN = /\b(script|voiceover|narration|caption script|storyline|hook)\b/i;
 const EDIT_OPERATION_PATTERN =
   /\b(edit|trim|split|cut|crop|delete|remove|move|merge|combine|join|duplicate|copy|paste|reorder|timeline|clip|track|transition|effect|filter|fade|speed|audio|mute|unmute|volume|subtitle|caption|transcribe|playhead|export|render)\b/i;
-const VIDEO_BUILD_PATTERN = /\b(make|create|build)\s+(a\s+)?(youtube\s+)?video\b/i;
+const VIDEO_BUILD_PATTERN =
+  /\b(make|create|build|turn)\b[\s\S]{0,40}\b(video|short|shorts|reel|vlog|montage|highlight reel)\b/i;
 
 function isScriptOnlyRequest(message: string): boolean {
   if (!SCRIPT_PATTERN.test(message)) return false;
@@ -80,7 +81,7 @@ function detectGoals(message: string): string[] {
   if (/\bsmooth|transition|flow|properly\b/i.test(message)) {
     goals.push('smooth_transitions');
   }
-  if (/\bmodern|clean|cinematic|reel|viral|cool\b/i.test(message)) {
+  if (/\bmodern|clean|cinematic|reel|viral|cool|attractive|engaging\b/i.test(message)) {
     goals.push('style_enhancement');
   }
   if (/\bshorts|reel|youtube|yt|tiktok\b/i.test(message)) {
@@ -168,6 +169,7 @@ export function normalizeUserIntent(message: string, options: NormalizeOptions):
   const imperativeEditSignal =
     EXECUTION_PATTERN.test(lower) ||
     Boolean(operationHint) ||
+    VIDEO_BUILD_PATTERN.test(lower) ||
     /\bmy clip|my video|timeline|edit this|edit these\b/i.test(lower);
   const baseIntentIsEdit = options.baseIntent === 'edit';
   const contextSuggestsEdit = Boolean(options.hasPendingPlan || options.hasRecentEditingContext);

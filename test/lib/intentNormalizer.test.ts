@@ -73,6 +73,20 @@ describe('intentNormalizer', () => {
     expect(result.requestedOutputs).toContain('short_script_outline');
   });
 
+  it('treats broad vlog short creation asks as executable edit requests', () => {
+    const result = normalizeUserIntent(
+      'create a vlog youtube short video which should be attractive lets plan properly and make this yt short video the best',
+      { hasTimeline: true, baseIntent: 'edit' },
+    );
+
+    expect(result.intent_type).toBe('multi_video_edit');
+    expect(result.requiresPlanning).toBe(true);
+    expect(result.goals).toContain('platform_optimized_output');
+    expect(result.goals).toContain('style_enhancement');
+    expect(result.requestedOutputs).toContain('edit_plan');
+    expect(result.constraints.platform).toBe('youtube_shorts');
+  });
+
   it('flags missing duration when user asks for shorts without length', () => {
     const result = normalizeUserIntent('make this a youtube short and script it', {
       hasTimeline: true,

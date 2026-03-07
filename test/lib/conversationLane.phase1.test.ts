@@ -31,6 +31,15 @@ describe('conversationLane phase 1', () => {
     expect(result.lane).toBe('timeline_edit');
   });
 
+  it('routes broad youtube short creation asks into the edit lane', () => {
+    const result = decide({
+      message:
+        'create a vlog youtube short video which should be attractive lets plan properly and make this yt short video the best',
+      hasRecentEditingContext: true,
+    });
+    expect(result.lane).toBe('timeline_edit');
+  });
+
   it('does not execute on generic confirmation without executable artifact', () => {
     const result = decide({
       message: 'yes',

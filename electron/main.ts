@@ -333,7 +333,7 @@ function registerMediaProtocol() {
 
 function createWindow() {
   const secureWebPreferences = {
-    preload: path.join(__dirname, 'preload.cjs'),
+    preload: path.join(__dirname, 'preload.js'),
     nodeIntegration: false,
     contextIsolation: true,
     webSecurity: true,

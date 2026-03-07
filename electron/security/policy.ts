@@ -48,6 +48,27 @@ export function shouldAllowPermissionRequest(
   return false;
 }
 
+export function isTrustedRendererUrl(
+  rawUrl: string,
+  options: { packaged: boolean; devServerUrl?: string },
+): boolean {
+  if (!rawUrl) return false;
+
+  try {
+    const url = new URL(rawUrl);
+
+    if (options.packaged) {
+      return url.protocol === 'file:';
+    }
+
+    const devServerUrl = options.devServerUrl || 'http://localhost:7377';
+    const trustedDevOrigin = new URL(devServerUrl).origin;
+    return url.origin === trustedDevOrigin;
+  } catch {
+    return false;
+  }
+}
+
 export interface SecurityWebPreferences {
   preload: string;
   nodeIntegration: boolean;
@@ -87,6 +108,56 @@ export function isValidMediaProtocolPath(rawPath: string): boolean {
     return false;
   }
   return path.isAbsolute(rawPath);
+}
+
+function normalizeAbsolutePath(rawPath: string): string {
+  return path.normalize(path.resolve(rawPath));
+}
+
+export function isPathWithinAllowedRoots(rawPath: string, allowedRoots: Iterable<string>): boolean {
+  if (!isValidMediaProtocolPath(rawPath)) return false;
+
+  const normalizedPath = normalizeAbsolutePath(rawPath);
+  for (const root of allowedRoots) {
+    if (!isValidMediaProtocolPath(root)) continue;
+    const normalizedRoot = normalizeAbsolutePath(root);
+    const relative = path.relative(normalizedRoot, normalizedPath);
+    if (relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export class AuthorizedPathRegistry {
+  private readonly exactPaths = new Set<string>();
+  private readonly allowedRoots = new Set<string>();
+
+  allowFile(rawPath: string): void {
+    if (!isValidMediaProtocolPath(rawPath)) return;
+    this.exactPaths.add(normalizeAbsolutePath(rawPath));
+  }
+
+  allowFiles(rawPaths: Iterable<string>): void {
+    for (const rawPath of rawPaths) {
+      this.allowFile(rawPath);
+    }
+  }
+
+  allowRoot(rawPath: string): void {
+    if (!isValidMediaProtocolPath(rawPath)) return;
+    this.allowedRoots.add(normalizeAbsolutePath(rawPath));
+  }
+
+  isAllowed(rawPath: string): boolean {
+    if (!isValidMediaProtocolPath(rawPath)) return false;
+    const normalizedPath = normalizeAbsolutePath(rawPath);
+    if (this.exactPaths.has(normalizedPath)) {
+      return true;
+    }
+    return isPathWithinAllowedRoots(normalizedPath, this.allowedRoots);
+  }
 }
 
 export function packagedCspPolicy(): string {

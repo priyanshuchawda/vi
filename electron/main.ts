@@ -2,6 +2,7 @@ import {
   app,
   BrowserWindow,
   ipcMain,
+  type IpcMainInvokeEvent,
   dialog,
   nativeImage,
   protocol,
@@ -48,8 +49,10 @@ import { captureMainException, initMainObservability } from './services/observab
 import { log } from './utils/logger.js';
 import {
   assertSecureWebPreferences,
+  AuthorizedPathRegistry,
   isValidMediaProtocolPath,
   isAllowedExternalUrl,
+  isTrustedRendererUrl,
   packagedCspPolicy,
   shouldAllowPermissionRequest,
   shouldBlockNavigation,
@@ -158,6 +161,7 @@ app.setName('QuickCut');
 
 let mainWindow: BrowserWindow | null = null;
 let updateService: ReturnType<typeof setupAutoUpdates> | null = null;
+const authorizedPaths = new AuthorizedPathRegistry();
 
 function ipcFailure(error: unknown, code: string) {
   return {
@@ -177,6 +181,66 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getTrustedRendererDevUrl(): string {
+  return process.env.VITE_DEV_SERVER_URL || 'http://localhost:7377';
+}
+
+function assertTrustedIpcSender(event: IpcMainInvokeEvent): void {
+  const senderUrl = event.senderFrame?.url || event.sender.getURL();
+  if (
+    !isTrustedRendererUrl(senderUrl, {
+      packaged: app.isPackaged,
+      devServerUrl: getTrustedRendererDevUrl(),
+    })
+  ) {
+    throw new Error(`Blocked IPC from untrusted sender: ${senderUrl || 'unknown'}`);
+  }
+}
+
+function handleTrustedIpc<TArgs extends unknown[], TResult>(
+  channel: string,
+  handler: (event: IpcMainInvokeEvent, ...args: TArgs) => TResult | Promise<TResult>,
+): void {
+  ipcMain.handle(channel, async (event, ...args) => {
+    assertTrustedIpcSender(event);
+    return handler(event, ...(args as TArgs));
+  });
+}
+
+function authorizeFilePath(rawPath: string): string {
+  const parsedPath = filePathSchema.parse(rawPath);
+  if (!authorizedPaths.isAllowed(parsedPath)) {
+    throw new Error(`Access denied for path outside approved scope: ${parsedPath}`);
+  }
+  return parsedPath;
+}
+
+function authorizeFilePaths(rawPaths: string[]): string[] {
+  authorizedPaths.allowFiles(rawPaths);
+  return rawPaths;
+}
+
+function authorizeProjectPayloadPaths(data: unknown): void {
+  if (!data || typeof data !== 'object') return;
+
+  const candidate = data as {
+    clips?: Array<{ path?: unknown }>;
+    memory?: Array<{ filePath?: unknown }>;
+  };
+
+  for (const clip of candidate.clips || []) {
+    if (typeof clip?.path === 'string') {
+      authorizedPaths.allowFile(clip.path);
+    }
+  }
+
+  for (const entry of candidate.memory || []) {
+    if (typeof entry?.filePath === 'string') {
+      authorizedPaths.allowFile(entry.filePath);
+    }
+  }
 }
 
 function isRetryableBedrockTransportError(error: unknown): boolean {
@@ -250,8 +314,8 @@ function registerMediaProtocol() {
       const decodedPath = decodeURIComponent(encodedPath);
       const parsedPath = filePathSchema.parse(decodedPath);
 
-      if (!isValidMediaProtocolPath(parsedPath)) {
-        return new Response('Path must be absolute', { status: 400 });
+      if (!isValidMediaProtocolPath(parsedPath) || !authorizedPaths.isAllowed(parsedPath)) {
+        return new Response('Path is not authorized', { status: 403 });
       }
 
       // Forward Range header so the video element can seek within the file
@@ -285,7 +349,7 @@ function createWindow() {
     webPreferences: secureWebPreferences,
   });
 
-  const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:7377';
+  const devUrl = getTrustedRendererDevUrl();
 
   if (!app.isPackaged) {
     mainWindow.loadURL(devUrl);
@@ -349,9 +413,9 @@ process.on('unhandledRejection', (reason) => {
   captureMainException(reason, { origin: 'process:unhandledRejection' });
 });
 
-ipcMain.handle(IPC_CHANNELS.ping, async () => 'pong');
+handleTrustedIpc(IPC_CHANNELS.ping, async () => 'pong');
 
-ipcMain.handle(IPC_CHANNELS.dialog.openFile, async () => {
+handleTrustedIpc(IPC_CHANNELS.dialog.openFile, async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openFile', 'multiSelections'],
     filters: [
@@ -393,12 +457,12 @@ ipcMain.handle(IPC_CHANNELS.dialog.openFile, async () => {
   if (canceled) {
     return [];
   } else {
-    return filePaths;
+    return authorizeFilePaths(filePaths);
   }
 });
 
-ipcMain.handle(IPC_CHANNELS.media.getMetadata, async (_, rawFilePath) => {
-  const filePath = filePathSchema.parse(rawFilePath);
+handleTrustedIpc(IPC_CHANNELS.media.getMetadata, async (_, rawFilePath) => {
+  const filePath = authorizeFilePath(String(rawFilePath));
   // Check if the file is an image
   const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
   const ext = path.extname(filePath).toLowerCase();
@@ -452,8 +516,8 @@ ipcMain.handle(IPC_CHANNELS.media.getMetadata, async (_, rawFilePath) => {
   });
 });
 
-ipcMain.handle(IPC_CHANNELS.media.getThumbnail, async (_, rawFilePath, rawSeekTime?: number) => {
-  const filePath = filePathSchema.parse(rawFilePath);
+handleTrustedIpc(IPC_CHANNELS.media.getThumbnail, async (_, rawFilePath, rawSeekTime?: number) => {
+  const filePath = authorizeFilePath(String(rawFilePath));
   try {
     const base64 = await generateThumbnail(
       filePath,
@@ -466,8 +530,8 @@ ipcMain.handle(IPC_CHANNELS.media.getThumbnail, async (_, rawFilePath, rawSeekTi
   }
 });
 
-ipcMain.handle(IPC_CHANNELS.media.getWaveform, async (_, rawFilePath) => {
-  const filePath = filePathSchema.parse(rawFilePath);
+handleTrustedIpc(IPC_CHANNELS.media.getWaveform, async (_, rawFilePath) => {
+  const filePath = authorizeFilePath(String(rawFilePath));
   try {
     const base64 = await generateWaveform(filePath);
     return base64;
@@ -477,7 +541,7 @@ ipcMain.handle(IPC_CHANNELS.media.getWaveform, async (_, rawFilePath) => {
   }
 });
 
-ipcMain.handle(IPC_CHANNELS.dialog.saveFile, async (_, rawFormat = 'mp4') => {
+handleTrustedIpc(IPC_CHANNELS.dialog.saveFile, async (_, rawFormat = 'mp4') => {
   const format = saveFormatSchema.catch('mp4').parse(rawFormat);
   const extensions: { [key: string]: string } = {
     mp4: 'MP4',
@@ -493,11 +557,14 @@ ipcMain.handle(IPC_CHANNELS.dialog.saveFile, async (_, rawFormat = 'mp4') => {
   if (canceled) {
     return null;
   } else {
+    if (filePath) {
+      authorizedPaths.allowFile(filePath);
+    }
     return filePath;
   }
 });
 
-ipcMain.handle(IPC_CHANNELS.project.saveProject, async () => {
+handleTrustedIpc(IPC_CHANNELS.project.saveProject, async () => {
   const { canceled, filePath } = await dialog.showSaveDialog({
     title: 'Save Project',
     defaultPath: 'project.quickcut',
@@ -506,14 +573,17 @@ ipcMain.handle(IPC_CHANNELS.project.saveProject, async () => {
   if (canceled) {
     return null;
   } else {
+    if (filePath) {
+      authorizedPaths.allowFile(filePath);
+    }
     return filePath;
   }
 });
 
-ipcMain.handle(IPC_CHANNELS.project.writeProjectFile, async (_, rawPayload) => {
+handleTrustedIpc(IPC_CHANNELS.project.writeProjectFile, async (_, rawPayload) => {
   try {
     const { filePath, data } = projectWriteSchema.parse(rawPayload);
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    await fs.writeFile(authorizeFilePath(filePath), JSON.stringify(data, null, 2), 'utf-8');
     return { success: true };
   } catch (error) {
     console.error('Failed to write project file:', error);
@@ -521,7 +591,7 @@ ipcMain.handle(IPC_CHANNELS.project.writeProjectFile, async (_, rawPayload) => {
   }
 });
 
-ipcMain.handle(IPC_CHANNELS.project.loadProject, async () => {
+handleTrustedIpc(IPC_CHANNELS.project.loadProject, async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     title: 'Load Project',
     properties: ['openFile'],
@@ -530,24 +600,26 @@ ipcMain.handle(IPC_CHANNELS.project.loadProject, async () => {
   if (canceled || filePaths.length === 0) {
     return null;
   } else {
-    return filePaths[0];
+    return authorizeFilePaths([filePaths[0]])[0];
   }
 });
 
-ipcMain.handle(IPC_CHANNELS.project.readProjectFile, async (_, rawFilePath) => {
+handleTrustedIpc(IPC_CHANNELS.project.readProjectFile, async (_, rawFilePath) => {
   try {
-    const filePath = filePathSchema.parse(rawFilePath);
+    const filePath = authorizeFilePath(String(rawFilePath));
     const data = await fs.readFile(filePath, 'utf-8');
-    return { success: true, data: JSON.parse(data) };
+    const parsed = JSON.parse(data);
+    authorizeProjectPayloadPaths(parsed);
+    return { success: true, data: parsed };
   } catch (error) {
     console.error('Failed to read project file:', error);
     return ipcFailure(error, 'PROJECT_READ_FAILED');
   }
 });
 
-ipcMain.handle(IPC_CHANNELS.file.readTextFile, async (_, rawFilePath) => {
+handleTrustedIpc(IPC_CHANNELS.file.readTextFile, async (_, rawFilePath) => {
   try {
-    const filePath = filePathSchema.parse(rawFilePath);
+    const filePath = authorizeFilePath(String(rawFilePath));
     const data = await fs.readFile(filePath, 'utf-8');
     return { success: true, data };
   } catch (error) {
@@ -556,7 +628,7 @@ ipcMain.handle(IPC_CHANNELS.file.readTextFile, async (_, rawFilePath) => {
   }
 });
 
-ipcMain.handle(IPC_CHANNELS.media.exportVideo, async (event, rawPayload) => {
+handleTrustedIpc(IPC_CHANNELS.media.exportVideo, async (event, rawPayload) => {
   try {
     const {
       clips,
@@ -566,6 +638,17 @@ ipcMain.handle(IPC_CHANNELS.media.exportVideo, async (event, rawPayload) => {
       subtitles,
       subtitleStyle,
     } = exportVideoRequestSchema.parse(rawPayload);
+    authorizeFilePath(outputPath);
+    for (const clip of clips) {
+      if (
+        clip &&
+        typeof clip === 'object' &&
+        'path' in clip &&
+        typeof (clip as { path?: unknown }).path === 'string'
+      ) {
+        authorizeFilePath((clip as { path: string }).path);
+      }
+    }
     await exportVideo(
       clips as Parameters<typeof exportVideo>[0],
       event.sender,
@@ -583,22 +666,26 @@ ipcMain.handle(IPC_CHANNELS.media.exportVideo, async (event, rawPayload) => {
 });
 
 // Transcription handlers
-ipcMain.handle(IPC_CHANNELS.transcription.transcribeVideo, async (event, rawVideoPath: string) => {
-  try {
-    const videoPath = filePathSchema.parse(rawVideoPath);
-    const result = await transcribeVideo(videoPath, (progress) => {
-      event.sender.send(IPC_CHANNELS.transcription.progress, progress);
-    });
-    return { success: true, result };
-  } catch (error) {
-    console.error('Transcription failed:', error);
-    return ipcFailure(error, 'TRANSCRIBE_VIDEO_FAILED');
-  }
-});
+handleTrustedIpc(
+  IPC_CHANNELS.transcription.transcribeVideo,
+  async (event, rawVideoPath: string) => {
+    try {
+      const videoPath = authorizeFilePath(rawVideoPath);
+      const result = await transcribeVideo(videoPath, (progress) => {
+        event.sender.send(IPC_CHANNELS.transcription.progress, progress);
+      });
+      return { success: true, result };
+    } catch (error) {
+      console.error('Transcription failed:', error);
+      return ipcFailure(error, 'TRANSCRIBE_VIDEO_FAILED');
+    }
+  },
+);
 
-ipcMain.handle(IPC_CHANNELS.transcription.transcribeTimeline, async (event, rawClips) => {
+handleTrustedIpc(IPC_CHANNELS.transcription.transcribeTimeline, async (event, rawClips) => {
   try {
     const clips = z.array(timelineClipSchema).parse(rawClips);
+    clips.forEach((clip) => authorizeFilePath(clip.path));
     const result = await transcribeTimeline(clips, (progress) => {
       event.sender.send(IPC_CHANNELS.transcription.progress, progress);
     });
@@ -674,7 +761,7 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
+handleTrustedIpc(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
   const input = bedrockConverseInputSchema.parse(rawInput);
 
   const reviveBytes = (value: unknown): unknown => {
@@ -749,9 +836,9 @@ ipcMain.handle(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
 });
 
 // File reading for AI Memory analysis
-ipcMain.handle(IPC_CHANNELS.file.readFileAsBase64, async (_, rawFilePath: string) => {
+handleTrustedIpc(IPC_CHANNELS.file.readFileAsBase64, async (_, rawFilePath: string) => {
   try {
-    const filePath = filePathSchema.parse(rawFilePath);
+    const filePath = authorizeFilePath(rawFilePath);
     const MAX_SIZE_FOR_INLINE = 20 * 1024 * 1024; // 20MB limit for inline data
     const stat = await fs.stat(filePath);
 
@@ -770,9 +857,9 @@ ipcMain.handle(IPC_CHANNELS.file.readFileAsBase64, async (_, rawFilePath: string
 });
 
 // Get file size (for determining upload strategy)
-ipcMain.handle(IPC_CHANNELS.file.getFileSize, async (_, rawFilePath: string) => {
+handleTrustedIpc(IPC_CHANNELS.file.getFileSize, async (_, rawFilePath: string) => {
   try {
-    const filePath = filePathSchema.parse(rawFilePath);
+    const filePath = authorizeFilePath(rawFilePath);
     const stat = await fs.stat(filePath);
     return stat.size;
   } catch (error) {
@@ -994,7 +1081,7 @@ ipcMain.handle(IPC_CHANNELS.rules.read, async () => {
 // ===========================
 
 // Check if user is authenticated with YouTube
-ipcMain.handle(IPC_CHANNELS.youtube.isAuthenticated, async () => {
+handleTrustedIpc(IPC_CHANNELS.youtube.isAuthenticated, async () => {
   try {
     return isAuthenticated();
   } catch (error) {
@@ -1004,7 +1091,7 @@ ipcMain.handle(IPC_CHANNELS.youtube.isAuthenticated, async () => {
 });
 
 // Authenticate user with YouTube
-ipcMain.handle(IPC_CHANNELS.youtube.authenticate, async () => {
+handleTrustedIpc(IPC_CHANNELS.youtube.authenticate, async () => {
   try {
     if (!mainWindow) {
       throw new Error('Main window not available');
@@ -1018,7 +1105,7 @@ ipcMain.handle(IPC_CHANNELS.youtube.authenticate, async () => {
 });
 
 // Logout from YouTube
-ipcMain.handle(IPC_CHANNELS.youtube.logout, async () => {
+handleTrustedIpc(IPC_CHANNELS.youtube.logout, async () => {
   try {
     return youtubeLogout();
   } catch (error) {
@@ -1028,9 +1115,10 @@ ipcMain.handle(IPC_CHANNELS.youtube.logout, async () => {
 });
 
 // Upload video to YouTube
-ipcMain.handle(IPC_CHANNELS.youtube.uploadVideo, async (_event, rawPayload) => {
+handleTrustedIpc(IPC_CHANNELS.youtube.uploadVideo, async (_event, rawPayload) => {
   try {
     const { filePath, metadata } = youtubeUploadRequestSchema.parse(rawPayload);
+    authorizeFilePath(filePath);
     console.log('[YouTube] Starting upload:', filePath);
 
     const videoId = await uploadVideo(filePath, metadata, (progress) => {
@@ -1070,25 +1158,25 @@ app.whenReady().then(() => {
   }
 
   // Handle window:close IPC from renderer (custom close button)
-  ipcMain.handle(IPC_CHANNELS.window.close, () => {
+  handleTrustedIpc(IPC_CHANNELS.window.close, () => {
     if (mainWindow) mainWindow.close();
   });
 
-  ipcMain.handle(IPC_CHANNELS.update.check, async () => {
+  handleTrustedIpc(IPC_CHANNELS.update.check, async () => {
     if (!updateService) {
       return { enabled: false, started: false, error: 'Update service not initialized' };
     }
     return updateService.checkForUpdates();
   });
 
-  ipcMain.handle(IPC_CHANNELS.update.download, async () => {
+  handleTrustedIpc(IPC_CHANNELS.update.download, async () => {
     if (!updateService) {
       return { enabled: false, started: false, error: 'Update service not initialized' };
     }
     return updateService.downloadUpdate();
   });
 
-  ipcMain.handle(IPC_CHANNELS.update.install, () => {
+  handleTrustedIpc(IPC_CHANNELS.update.install, () => {
     if (!updateService) {
       return { enabled: false, started: false };
     }

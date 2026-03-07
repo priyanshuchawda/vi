@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AuthorizedPathRegistry,
   assertSecureWebPreferences,
   isValidMediaProtocolPath,
   isAllowedExternalUrl,
+  isTrustedRendererUrl,
   packagedCspPolicy,
   shouldAllowPermissionRequest,
   shouldBlockNavigation,
@@ -26,6 +28,23 @@ describe('electron security policy', () => {
   it('denies permissions by default', () => {
     const fakeWebContents = {} as never;
     expect(shouldAllowPermissionRequest(fakeWebContents, 'media')).toBe(false);
+  });
+
+  it('accepts only trusted renderer URLs for the current app mode', () => {
+    expect(
+      isTrustedRendererUrl('http://localhost:7377/editor', {
+        packaged: false,
+        devServerUrl: 'http://localhost:7377',
+      }),
+    ).toBe(true);
+    expect(
+      isTrustedRendererUrl('https://evil.example.com', {
+        packaged: false,
+        devServerUrl: 'http://localhost:7377',
+      }),
+    ).toBe(false);
+    expect(isTrustedRendererUrl('file:///app/dist/index.html', { packaged: true })).toBe(true);
+    expect(isTrustedRendererUrl('http://localhost:7377', { packaged: true })).toBe(false);
   });
 
   it('builds strict CSP baseline', () => {
@@ -69,5 +88,21 @@ describe('electron security policy', () => {
     expect(isValidMediaProtocolPath('/tmp/video.mp4')).toBe(true);
     expect(isValidMediaProtocolPath('relative/path.mp4')).toBe(false);
     expect(isValidMediaProtocolPath('/tmp/\0evil.mp4')).toBe(false);
+  });
+
+  it('allows only explicitly authorized file paths', () => {
+    const registry = new AuthorizedPathRegistry();
+    registry.allowFile('/tmp/video.mp4');
+
+    expect(registry.isAllowed('/tmp/video.mp4')).toBe(true);
+    expect(registry.isAllowed('/tmp/other.mp4')).toBe(false);
+  });
+
+  it('allows files inside explicitly authorized roots', () => {
+    const registry = new AuthorizedPathRegistry();
+    registry.allowRoot('/tmp/project');
+
+    expect(registry.isAllowed('/tmp/project/media/clip.mp4')).toBe(true);
+    expect(registry.isAllowed('/tmp/other/clip.mp4')).toBe(false);
   });
 });

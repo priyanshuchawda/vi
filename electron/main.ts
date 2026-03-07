@@ -187,12 +187,17 @@ function getTrustedRendererDevUrl(): string {
   return process.env.VITE_DEV_SERVER_URL || 'http://localhost:7377';
 }
 
+function getTrustedPackagedRendererUrl(): string {
+  return pathToFileURL(path.join(__dirname, '../dist/index.html')).toString();
+}
+
 function assertTrustedIpcSender(event: IpcMainInvokeEvent): void {
   const senderUrl = event.senderFrame?.url || event.sender.getURL();
   if (
     !isTrustedRendererUrl(senderUrl, {
       packaged: app.isPackaged,
       devServerUrl: getTrustedRendererDevUrl(),
+      packagedRendererUrl: app.isPackaged ? getTrustedPackagedRendererUrl() : undefined,
     })
   ) {
     throw new Error(`Blocked IPC from untrusted sender: ${senderUrl || 'unknown'}`);
@@ -350,11 +355,12 @@ function createWindow() {
   });
 
   const devUrl = getTrustedRendererDevUrl();
+  const packagedUrl = getTrustedPackagedRendererUrl();
 
   if (!app.isPackaged) {
     mainWindow.loadURL(devUrl);
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadURL(packagedUrl);
   }
 
   // Start maximized (not true fullscreen) so OS title-bar controls remain visible.
@@ -697,7 +703,7 @@ handleTrustedIpc(IPC_CHANNELS.transcription.transcribeTimeline, async (event, ra
 });
 
 // Channel Analysis handlers
-ipcMain.handle(IPC_CHANNELS.analysis.analyzeChannel, async (_event, rawChannelUrl: string) => {
+handleTrustedIpc(IPC_CHANNELS.analysis.analyzeChannel, async (_event, rawChannelUrl: string) => {
   if (!analysisService) {
     return {
       success: false,
@@ -721,7 +727,7 @@ ipcMain.handle(IPC_CHANNELS.analysis.analyzeChannel, async (_event, rawChannelUr
   }
 });
 
-ipcMain.handle(IPC_CHANNELS.analysis.getUserAnalysis, async (_event, rawUserId: string) => {
+handleTrustedIpc(IPC_CHANNELS.analysis.getUserAnalysis, async (_event, rawUserId: string) => {
   if (!analysisService) {
     return ipcFailure('Analysis service not initialized', 'ANALYSIS_SERVICE_UNAVAILABLE');
   }
@@ -740,7 +746,7 @@ ipcMain.handle(IPC_CHANNELS.analysis.getUserAnalysis, async (_event, rawUserId: 
   }
 });
 
-ipcMain.handle(
+handleTrustedIpc(
   IPC_CHANNELS.analysis.linkToUser,
   async (_event, rawUserId: string, rawChannelUrl: string) => {
     if (!analysisService) {
@@ -892,7 +898,7 @@ async function ensureMemoryDirs(projectId?: string) {
 }
 
 // Save full memory state to disk
-ipcMain.handle(IPC_CHANNELS.memory.save, async (_, rawData) => {
+handleTrustedIpc(IPC_CHANNELS.memory.save, async (_, rawData) => {
   try {
     const data = memoryStateSchema.parse(rawData);
     const projectId = data.projectId;
@@ -910,7 +916,7 @@ ipcMain.handle(IPC_CHANNELS.memory.save, async (_, rawData) => {
 });
 
 // Load memory state from disk
-ipcMain.handle(IPC_CHANNELS.memory.load, async (_, projectId?: string) => {
+handleTrustedIpc(IPC_CHANNELS.memory.load, async (_, projectId?: string) => {
   try {
     const safeProjectId = projectId ? nonEmptyStringSchema.parse(projectId) : undefined;
     const paths = getProjectMemoryPaths(safeProjectId);
@@ -935,7 +941,7 @@ ipcMain.handle(IPC_CHANNELS.memory.load, async (_, projectId?: string) => {
 });
 
 //  TESTING MODE - Read all memory files from a directory
-ipcMain.handle(IPC_CHANNELS.memory.readMemoryFiles, async (_, rawMemoryDir: string) => {
+handleTrustedIpc(IPC_CHANNELS.memory.readMemoryFiles, async (_, rawMemoryDir: string) => {
   try {
     const memoryDir = filePathSchema.parse(rawMemoryDir);
     console.log(` [TESTING MODE] Reading memory from ${memoryDir}...`);
@@ -964,7 +970,7 @@ ipcMain.handle(IPC_CHANNELS.memory.readMemoryFiles, async (_, rawMemoryDir: stri
 });
 
 // Save an individual analysis as a human-readable Markdown file
-ipcMain.handle(
+handleTrustedIpc(
   IPC_CHANNELS.memory.saveAnalysisMarkdown,
   async (_, rawEntry, projectId?: string) => {
     try {
@@ -1037,7 +1043,7 @@ ipcMain.handle(
 );
 
 // Get memory directory path (returns base directory)
-ipcMain.handle(IPC_CHANNELS.memory.getDir, async () => {
+handleTrustedIpc(IPC_CHANNELS.memory.getDir, async () => {
   const paths = getProjectMemoryPaths(); // Default project
   await ensureMemoryDirs();
   return { dir: MEMORY_BASE_DIR, index: paths.index, analyses: paths.analyses };
@@ -1050,7 +1056,7 @@ ipcMain.handle(IPC_CHANNELS.memory.getDir, async () => {
 const RULES_PATH = path.join(app.getPath('userData'), 'rules.md');
 
 // Write rules.md to userData directory
-ipcMain.handle(IPC_CHANNELS.rules.write, async (_, rawContent: string) => {
+handleTrustedIpc(IPC_CHANNELS.rules.write, async (_, rawContent: string) => {
   try {
     const content = nonEmptyStringSchema.parse(rawContent);
     await fs.writeFile(RULES_PATH, content, 'utf-8');
@@ -1063,7 +1069,7 @@ ipcMain.handle(IPC_CHANNELS.rules.write, async (_, rawContent: string) => {
 });
 
 // Read rules.md from userData directory
-ipcMain.handle(IPC_CHANNELS.rules.read, async () => {
+handleTrustedIpc(IPC_CHANNELS.rules.read, async () => {
   try {
     const content = await fs.readFile(RULES_PATH, 'utf-8');
     return { success: true, content };

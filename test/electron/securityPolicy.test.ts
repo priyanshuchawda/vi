@@ -23,6 +23,12 @@ describe('electron security policy', () => {
       shouldBlockNavigation('http://localhost:7377/editor', 'http://localhost:7377/settings'),
     ).toBe(false);
     expect(shouldBlockNavigation('http://localhost:7377/editor', 'https://github.com')).toBe(true);
+    expect(
+      shouldBlockNavigation('file:///app/dist/index.html', 'file:///app/dist/index.html'),
+    ).toBe(false);
+    expect(
+      shouldBlockNavigation('file:///app/dist/index.html', 'file:///tmp/untrusted.html'),
+    ).toBe(true);
   });
 
   it('denies permissions by default', () => {
@@ -43,8 +49,24 @@ describe('electron security policy', () => {
         devServerUrl: 'http://localhost:7377',
       }),
     ).toBe(false);
-    expect(isTrustedRendererUrl('file:///app/dist/index.html', { packaged: true })).toBe(true);
-    expect(isTrustedRendererUrl('http://localhost:7377', { packaged: true })).toBe(false);
+    expect(
+      isTrustedRendererUrl('file:///app/dist/index.html', {
+        packaged: true,
+        packagedRendererUrl: 'file:///app/dist/index.html',
+      }),
+    ).toBe(true);
+    expect(
+      isTrustedRendererUrl('file:///tmp/untrusted.html', {
+        packaged: true,
+        packagedRendererUrl: 'file:///app/dist/index.html',
+      }),
+    ).toBe(false);
+    expect(
+      isTrustedRendererUrl('http://localhost:7377', {
+        packaged: true,
+        packagedRendererUrl: 'file:///app/dist/index.html',
+      }),
+    ).toBe(false);
   });
 
   it('builds strict CSP baseline', () => {

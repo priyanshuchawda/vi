@@ -31,6 +31,9 @@ export function shouldBlockNavigation(currentUrl: string, targetUrl: string): bo
   try {
     const current = new URL(currentUrl);
     const target = new URL(targetUrl);
+    if (current.protocol === 'file:' || target.protocol === 'file:') {
+      return current.href !== target.href;
+    }
     return current.origin !== target.origin;
   } catch {
     return true;
@@ -50,7 +53,7 @@ export function shouldAllowPermissionRequest(
 
 export function isTrustedRendererUrl(
   rawUrl: string,
-  options: { packaged: boolean; devServerUrl?: string },
+  options: { packaged: boolean; devServerUrl?: string; packagedRendererUrl?: string },
 ): boolean {
   if (!rawUrl) return false;
 
@@ -58,7 +61,11 @@ export function isTrustedRendererUrl(
     const url = new URL(rawUrl);
 
     if (options.packaged) {
-      return url.protocol === 'file:';
+      const trustedPackagedUrl = options.packagedRendererUrl;
+      if (!trustedPackagedUrl) {
+        return false;
+      }
+      return url.href === new URL(trustedPackagedUrl).href;
     }
 
     const devServerUrl = options.devServerUrl || 'http://localhost:7377';

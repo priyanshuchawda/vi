@@ -76,12 +76,52 @@ beforeEach(() => {
         fileSize: 1234,
         duration: 6.3,
         status: 'completed',
-        analysis: 'hackathon intro scene',
-        tags: ['hackathon', 'demo', 'winner'],
-        summary: 'Team presenting demo to judges and winning announcement.',
+        analysis: 'team candid workspace scene',
+        tags: ['hackathon', 'team', 'workspace'],
+        summary: 'Team at desk and laptop refining the hackathon build.',
+        scenes: [{ startTime: 0.4, endTime: 3.6, description: 'team working together at desk' }],
         createdAt: Date.now(),
         updatedAt: Date.now(),
         clipId: 'clip-1',
+      },
+      {
+        id: 'mem-2',
+        filePath: '/tmp/team.mp4',
+        fileName: 'team.mp4',
+        mediaType: 'video',
+        mimeType: 'video/mp4',
+        fileSize: 1234,
+        duration: 5,
+        status: 'completed',
+        analysis: 'demo to judges',
+        tags: ['hackathon', 'demo', 'judges'],
+        summary: 'Team presenting demo to judges.',
+        scenes: [{ startTime: 0.5, endTime: 3.8, description: 'demo to judges' }],
+        audioInfo: {
+          hasSpeech: true,
+          hasMusic: false,
+          transcriptSummary: 'we showed the final demo to the judges',
+        },
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        clipId: 'clip-2',
+      },
+      {
+        id: 'mem-3',
+        filePath: '/tmp/win.mp4',
+        fileName: 'win.mp4',
+        mediaType: 'video',
+        mimeType: 'video/mp4',
+        fileSize: 1234,
+        duration: 5,
+        status: 'completed',
+        analysis: 'winner reveal',
+        tags: ['award', 'winner', 'second place'],
+        summary: 'Announcement shows Team AllKnighters receiving second place cybersecurity award.',
+        scenes: [{ startTime: 0.2, endTime: 2.6, description: 'second place award announcement' }],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        clipId: 'clip-3',
       },
     ],
   } as any);
@@ -110,7 +150,9 @@ describe('ToolExecutor phase 3 macro tools', () => {
     const voiceovers = blocks.map((block: any) => block.voiceover);
     const uniqueVoiceovers = new Set(voiceovers);
     expect(uniqueVoiceovers.size).toBe(voiceovers.length);
-    expect(blocks[0]?.voiceover.toLowerCase()).toContain('hackathon');
+    expect(voiceovers.join(' ').toLowerCase()).toMatch(/judges|second place|award/);
+    expect(blocks.some((block: any) => /second place|award/i.test(block.voiceover))).toBe(true);
+    expect(blocks.some((block: any) => /demo to judges|team build|award moment|second place/i.test(block.on_screen_text))).toBe(true);
     expect(blocks[blocks.length - 1]?.on_screen_text).toBe('Full Build Next');
   });
 

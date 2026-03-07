@@ -81,6 +81,12 @@ function seedState(): void {
         analysis: 'hackathon intro',
         tags: ['hackathon', 'demo', 'winner'],
         summary: 'Team presenting demo to judges and winning announcement.',
+        scenes: [{ startTime: 0.5, endTime: 3.8, description: 'demo to judges' }],
+        audioInfo: {
+          hasSpeech: true,
+          hasMusic: false,
+          transcriptSummary: 'we showed the final demo to the judges',
+        },
         createdAt: Date.now(),
         updatedAt: Date.now(),
         clipId: 'clip-1',
@@ -140,6 +146,6 @@ describe('phase 5 layman quality smoke', () => {
     expect(optimized).toContain('Avoid repeating the same sentence starter');
     expect(blocks.length).toBeGreaterThanOrEqual(4);
     expect(uniqueVoiceovers.size).toBe(voiceovers.length);
+    expect(voiceovers.join(' ').toLowerCase()).toMatch(/judges|demo|winner/);
   });
 });
-

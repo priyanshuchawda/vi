@@ -80,6 +80,19 @@ interface ToolExecutionHookEvent {
   result?: ToolResult;
 }
 
+interface StoryEvidence {
+  clipId: string;
+  clipName: string;
+  clipIndex: number;
+  startTime: number;
+  duration: number;
+  sourceText: string;
+  shortLabel: string;
+  tags: string[];
+  hasSpeech: boolean;
+  kind: 'summary' | 'scene' | 'transcript' | 'clip_name';
+}
+
 interface ExecutionLifecycleContext {
   mode?: RuntimeToolMode;
   onLifecycle?: (event: ToolExecutionLifecycleEvent) => void;
@@ -300,6 +313,288 @@ export class ToolExecutor {
     return phrases;
   }
 
+  private static cleanStorySnippet(input: string, fallback: string): string {
+    const cleaned = String(input || '')
+      .replace(/[_*#`]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!cleaned) return fallback;
+    const sentence = cleaned
+      .split(/[.!?]/)
+      .map((part) => part.trim())
+      .find((part) => part.length >= 4);
+    return sentence || cleaned || fallback;
+  }
+
+  private static toTitleCaseWords(input: string): string {
+    return input
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  private static extractPlacementPhrase(signal: string): string | null {
+    const lower = signal.toLowerCase();
+    if (/\bfirst place\b/.test(lower)) return 'first place';
+    if (/\bsecond place\b/.test(lower)) return 'second place';
+    if (/\bthird place\b/.test(lower)) return 'third place';
+    if (/\bwinner\b/.test(lower) || /\bwon\b/.test(lower)) return 'the win';
+    if (/\baward\b/.test(lower)) return 'the award';
+    return null;
+  }
+
+  private static pickLabelFromText(input: string, fallback: string): string {
+    const cleaned = String(input || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!cleaned) return fallback;
+
+    const phraseRules: Array<{ pattern: RegExp; label: string }> = [
+      { pattern: /\b(first place)\b/, label: 'First Place' },
+      { pattern: /\b(second place)\b/, label: 'Second Place' },
+      { pattern: /\b(third place)\b/, label: 'Third Place' },
+      {
+        pattern: /\b(winning announcement|winner announcement|winners announced)\b/,
+        label: 'Winner Reveal',
+      },
+      { pattern: /\b(award ceremony|receives award|receiving award)\b/, label: 'Award Moment' },
+      { pattern: /\b(demo to judges|presenting demo|demoing)\b/, label: 'Demo To Judges' },
+      { pattern: /\b(judges reaction|judges)\b/, label: 'Judges Watching' },
+      {
+        pattern: /\b(team candid|team at desk|workspace candid|desk\/laptop|desk laptop)\b/,
+        label: 'Team Build',
+      },
+      { pattern: /\b(build|prototype|coding|iteration)\b/, label: 'Build Sprint' },
+      { pattern: /\b(celebration|cheer|high fives|reaction)\b/, label: 'Team Reaction' },
+    ];
+
+    for (const rule of phraseRules) {
+      if (rule.pattern.test(cleaned)) return rule.label;
+    }
+
+    const words = cleaned
+      .split(' ')
+      .filter(
+        (word) => word.length >= 3 && !['with', 'from', 'that', 'this', 'their'].includes(word),
+      )
+      .slice(0, 3);
+    return words.length > 0 ? this.toTitleCaseWords(words.join(' ')) : fallback;
+  }
+
+  private static buildStoryEvidence(): StoryEvidence[] {
+    const store = useProjectStore.getState();
+    const memoryEntries = useAiMemoryStore.getState().getCompletedEntries();
+    const memoryByClipId = new Map(
+      memoryEntries.filter((entry) => entry.clipId).map((entry) => [entry.clipId!, entry]),
+    );
+    const memoryByFilePath = new Map(memoryEntries.map((entry) => [entry.filePath, entry]));
+    const evidence: StoryEvidence[] = [];
+
+    store.clips
+      .slice()
+      .sort((a, b) => a.startTime - b.startTime)
+      .forEach((clip, index) => {
+        const entry = memoryByClipId.get(clip.id) || memoryByFilePath.get(clip.path);
+        const shared = {
+          clipId: clip.id,
+          clipName: clip.name,
+          clipIndex: index,
+          startTime: clip.startTime,
+          duration: clip.duration,
+          tags: (entry?.tags || []).map((tag) => String(tag).toLowerCase()),
+          hasSpeech: Boolean(entry?.audioInfo?.hasSpeech),
+        };
+
+        evidence.push({
+          ...shared,
+          sourceText: clip.name,
+          shortLabel: this.pickLabelFromText(clip.name, 'Timeline Moment'),
+          kind: 'clip_name',
+        });
+
+        const summary = this.cleanStorySnippet(entry?.summary || '', '');
+        if (summary) {
+          evidence.push({
+            ...shared,
+            sourceText: summary,
+            shortLabel: this.pickLabelFromText(summary, 'Story Beat'),
+            kind: 'summary',
+          });
+        }
+
+        const transcript = this.cleanStorySnippet(entry?.audioInfo?.transcriptSummary || '', '');
+        if (transcript) {
+          evidence.push({
+            ...shared,
+            sourceText: transcript,
+            shortLabel: this.pickLabelFromText(transcript, 'Spoken Proof'),
+            kind: 'transcript',
+          });
+        }
+
+        for (const scene of entry?.scenes || []) {
+          const description = this.cleanStorySnippet(scene.description, '');
+          if (!description) continue;
+          evidence.push({
+            ...shared,
+            sourceText: description,
+            shortLabel: this.pickLabelFromText(description, 'Scene Beat'),
+            kind: 'scene',
+          });
+        }
+      });
+
+    return evidence;
+  }
+
+  private static scoreEvidenceForRole(
+    evidence: StoryEvidence,
+    role: 'hook' | 'build' | 'proof' | 'payoff',
+    objectiveSignal: string,
+  ): number {
+    const text =
+      `${evidence.clipName} ${evidence.sourceText} ${evidence.tags.join(' ')}`.toLowerCase();
+    let score = 0;
+
+    if (evidence.kind === 'summary') score += 5;
+    if (evidence.kind === 'scene') score += 4;
+    if (evidence.kind === 'transcript') score += 3;
+    if (evidence.hasSpeech) score += 1;
+
+    const addIf = (pattern: RegExp, points: number) => {
+      if (pattern.test(text)) score += points;
+    };
+
+    if (role === 'hook') {
+      addIf(/\b(win|winner|award|announcement|reveal|judges|demo|hackathon)\b/, 8);
+      if (evidence.clipIndex === 0) score += 3;
+      if (evidence.duration >= 1.5) score += 1;
+    }
+    if (role === 'build') {
+      addIf(/\b(team|build|desk|workspace|coding|prototype|iterate|prepar|work)\b/, 8);
+      addIf(/\b(demo|present)\b/, 3);
+      if (evidence.clipIndex <= 1) score += 2;
+    }
+    if (role === 'proof') {
+      addIf(/\b(demo|present|judges|pitch|proof|reaction|announcement)\b/, 8);
+      addIf(/\b(team|build)\b/, 2);
+    }
+    if (role === 'payoff') {
+      addIf(
+        /\b(win|winner|award|announcement|first place|second place|third place|celebration)\b/,
+        10,
+      );
+      if (evidence.clipIndex >= 1) score += 2;
+    }
+
+    if (/\bhackathon\b/.test(objectiveSignal)) addIf(/\bhackathon\b/, 2);
+    if (/\bshorts|reel|views|viral\b/.test(objectiveSignal))
+      addIf(/\b(team|demo|winner|award)\b/, 1);
+
+    return score;
+  }
+
+  private static pickEvidenceForRole(
+    allEvidence: StoryEvidence[],
+    role: 'hook' | 'build' | 'proof' | 'payoff',
+    objectiveSignal: string,
+    usedKeys: Set<string>,
+  ): StoryEvidence | null {
+    const ranked = allEvidence
+      .map((entry) => ({
+        entry,
+        score: this.scoreEvidenceForRole(entry, role, objectiveSignal),
+      }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (a.entry.clipIndex !== b.entry.clipIndex) return a.entry.clipIndex - b.entry.clipIndex;
+        return a.entry.kind.localeCompare(b.entry.kind);
+      });
+
+    for (const item of ranked) {
+      const key = `${item.entry.clipId}:${item.entry.kind}:${item.entry.shortLabel}`;
+      if (usedKeys.has(key)) continue;
+      usedKeys.add(key);
+      return item.entry;
+    }
+
+    return null;
+  }
+
+  private static buildRoleDrivenLine(
+    role: 'hook' | 'build' | 'proof' | 'payoff' | 'cta',
+    evidence: StoryEvidence | null,
+    objectiveSignal: string,
+    fallback: string,
+    narrativeFocus: {
+      isHackathonWin: boolean;
+      buildPhrase: string;
+      proofPhrase: string;
+      payoffPhrase: string;
+      ctaPhrase: string;
+    },
+  ): string {
+    const phrase = evidence ? this.cleanStorySnippet(evidence.sourceText, evidence.clipName) : '';
+    const label = evidence?.shortLabel || 'Key Moment';
+    const placement = this.extractPlacementPhrase(`${phrase} ${objectiveSignal}`) || '';
+
+    if (role === 'hook') {
+      if (phrase && /\b(win|winner|award|announcement|reveal|judges)\b/i.test(phrase)) {
+        if (placement && placement !== 'the win' && placement !== 'the award') {
+          return `This is the moment our hackathon run finally landed ${placement}.`;
+        }
+        return placement
+          ? `This is the moment our hackathon run turned into ${placement}.`
+          : `This is the moment our hackathon run turned into a win.`;
+      }
+      if (phrase) {
+        return `This ${label.toLowerCase()} is where our hackathon story hooks fast.`;
+      }
+    }
+
+    if (role === 'build') {
+      if (phrase && /\b(team|build|desk|workspace|coding|prototype|iterate|work)\b/i.test(phrase)) {
+        return `While everyone else slowed down, ${phrase.toLowerCase()}.`;
+      }
+      if (phrase) {
+        return `We kept building through ${phrase.toLowerCase()}.`;
+      }
+      return `We kept building through ${narrativeFocus.buildPhrase.toLowerCase()}.`;
+    }
+
+    if (role === 'proof') {
+      if (phrase && /\b(demo|present|judges|pitch|announcement)\b/i.test(phrase)) {
+        return `Then ${phrase.toLowerCase()} became the proof our idea was landing.`;
+      }
+      if (phrase) {
+        return `Then ${phrase.toLowerCase()} showed the work was paying off.`;
+      }
+      return `Then ${narrativeFocus.proofPhrase.toLowerCase()} became the proof.`;
+    }
+
+    if (role === 'payoff') {
+      if (placement) {
+        return `A few seconds later, the result was official: ${placement}.`;
+      }
+      if (phrase && /\b(win|winner|award|announcement|celebration)\b/i.test(phrase)) {
+        return `A few seconds later, ${phrase.toLowerCase()} made the result official.`;
+      }
+      return `${narrativeFocus.payoffPhrase}.`;
+    }
+
+    if (role === 'cta') {
+      return /\bfull video|full build|full breakdown|more context\b/i.test(objectiveSignal)
+        ? 'Watch the full video for the full build story.'
+        : `${narrativeFocus.ctaPhrase}.`;
+    }
+
+    return fallback;
+  }
+
   private static pickNarrativeFocus(
     objective: string,
     clipNames: string[],
@@ -452,6 +747,7 @@ export class ToolExecutor {
       .filter(Boolean);
     const keywords = this.extractMemoryKeywords(10);
     const memoryPhrases = this.extractMemoryPhrases(8);
+    const storyEvidence = this.buildStoryEvidence();
     const objective = String(args.objective || 'how I won the hackathon').trim();
     const tone = String(args.tone || 'energetic').trim();
     const requestedDuration = Number(args.target_duration || 16);
@@ -499,6 +795,13 @@ export class ToolExecutor {
     }> = [];
     const usedLines = new Set<string>();
     const usedCaptions = new Set<string>();
+    const usedEvidence = new Set<string>();
+    const roleEvidence = {
+      hook: this.pickEvidenceForRole(storyEvidence, 'hook', storySignal, usedEvidence),
+      build: this.pickEvidenceForRole(storyEvidence, 'build', storySignal, usedEvidence),
+      proof: this.pickEvidenceForRole(storyEvidence, 'proof', storySignal, usedEvidence),
+      payoff: this.pickEvidenceForRole(storyEvidence, 'payoff', storySignal, usedEvidence),
+    };
 
     const uniqueLine = (candidates: string[], fallback: string): string => {
       for (const candidate of candidates) {
@@ -542,11 +845,28 @@ export class ToolExecutor {
       const middle = lexicon.middle[i % lexicon.middle.length];
       const ending = lexicon.ending[i % lexicon.ending.length];
       const beatRole = beatRoles[i];
+      const matchedEvidence =
+        beatRole === 'hook'
+          ? roleEvidence.hook
+          : beatRole === 'build'
+            ? roleEvidence.build
+            : beatRole === 'proof'
+              ? roleEvidence.proof
+              : beatRole === 'payoff'
+                ? roleEvidence.payoff
+                : null;
 
       const voiceover = isShortFormStory
         ? beatRole === 'hook'
           ? uniqueLine(
               [
+                this.buildRoleDrivenLine(
+                  'hook',
+                  matchedEvidence,
+                  storySignal,
+                  defaultHook,
+                  narrativeFocus,
+                ),
                 defaultHook,
                 narrativeFocus.isHackathonWin ? 'We won because the demo hit immediately.' : '',
                 `Under pressure, ${objectiveLine} became our only focus.`,
@@ -557,6 +877,13 @@ export class ToolExecutor {
           : beatRole === 'build'
             ? uniqueLine(
                 [
+                  this.buildRoleDrivenLine(
+                    'build',
+                    matchedEvidence,
+                    storySignal,
+                    `We kept momentum through ${visual}.`,
+                    narrativeFocus,
+                  ),
                   narrativeFocus.isHackathonWin
                     ? `We built fast, cut hard, and sharpened the demo around ${visual}.`
                     : `We kept building around ${visual} until the story felt undeniable.`,
@@ -569,6 +896,13 @@ export class ToolExecutor {
             : beatRole === 'proof'
               ? uniqueLine(
                   [
+                    this.buildRoleDrivenLine(
+                      'proof',
+                      matchedEvidence,
+                      storySignal,
+                      `Then ${visual} proved the idea was working.`,
+                      narrativeFocus,
+                    ),
                     narrativeFocus.isHackathonWin
                       ? `Then ${visual} became the proof: ${narrativeFocus.proofPhrase}.`
                       : memoryPhrase || `Then ${visual} proved the idea was working.`,
@@ -580,6 +914,13 @@ export class ToolExecutor {
               : beatRole === 'payoff'
                 ? uniqueLine(
                     [
+                      this.buildRoleDrivenLine(
+                        'payoff',
+                        matchedEvidence,
+                        storySignal,
+                        `That is how we turned pressure into a winning finish.`,
+                        narrativeFocus,
+                      ),
                       narrativeFocus.isHackathonWin
                         ? `${narrativeFocus.payoffPhrase}.`
                         : `That momentum turned into the win.`,
@@ -591,6 +932,13 @@ export class ToolExecutor {
                 : beatRole === 'cta'
                   ? uniqueLine(
                       [
+                        this.buildRoleDrivenLine(
+                          'cta',
+                          null,
+                          storySignal,
+                          'Follow for more builder stories.',
+                          narrativeFocus,
+                        ),
                         narrativeFocus.isHackathonWin
                           ? `${narrativeFocus.ctaPhrase} for the full build breakdown.`
                           : 'Follow for more builder stories and behind-the-scenes wins.',
@@ -630,21 +978,18 @@ export class ToolExecutor {
 
       const baseCaption = isShortFormStory
         ? beatRole === 'hook'
-          ? narrativeFocus.isHackathonWin
-            ? 'We Won With AI'
-            : 'How We Won'
+          ? matchedEvidence?.shortLabel ||
+            (narrativeFocus.isHackathonWin ? 'We Won With AI' : 'How We Won')
           : beatRole === 'build'
-            ? narrativeFocus.isHackathonWin
-              ? 'Build Under Pressure'
-              : 'Build Fast'
+            ? matchedEvidence?.shortLabel ||
+              (narrativeFocus.isHackathonWin ? 'Build Under Pressure' : 'Build Fast')
             : beatRole === 'proof'
-              ? narrativeFocus.isHackathonWin
-                ? 'Demo Was Proof'
-                : this.toPunchyCaption(`${keyword} ${visual}`, 'Proof')
+              ? matchedEvidence?.shortLabel ||
+                (narrativeFocus.isHackathonWin
+                  ? 'Demo Was Proof'
+                  : this.toPunchyCaption(`${keyword} ${visual}`, 'Proof'))
               : beatRole === 'payoff'
-                ? narrativeFocus.isHackathonWin
-                  ? 'Winning Moment'
-                  : 'Winning Moment'
+                ? matchedEvidence?.shortLabel || 'Winning Moment'
                 : beatRole === 'cta'
                   ? this.toPunchyCaption(narrativeFocus.ctaPhrase, 'Follow For More')
                   : this.toPunchyCaption(`${keyword} ${visual}`, 'Proof')

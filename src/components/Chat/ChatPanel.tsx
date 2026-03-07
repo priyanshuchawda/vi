@@ -335,10 +335,7 @@ const ChatPanel = () => {
     return `fnv32-${(hash >>> 0).toString(16)}`;
   };
 
-  const getDraftPlanRecoveryKey = (planState: {
-    plan: ExecutionPlan;
-    originalMessage: string;
-  }) =>
+  const getDraftPlanRecoveryKey = (planState: { plan: ExecutionPlan; originalMessage: string }) =>
     JSON.stringify({
       message: planState.originalMessage,
       reason: planState.plan.planReadyReason,
@@ -553,8 +550,166 @@ const ChatPanel = () => {
         { mediaMode: intent === 'edit' ? 'descriptor_only' : 'inline_bytes' },
       );
 
-      // ── EDIT INTENT: Use planning pipeline ──────────────────────────
+      // ── EDIT INTENT: Route through Agent Router first ──────────────
       if (intent === 'edit') {
+        // Decide: agentic loop or single-pass planning
+        const { decideExecutionMode, applyModeOverrides } = await import('../../lib/agentRouter');
+        const routingDecision = applyModeOverrides(
+          decideExecutionMode({
+            message: content,
+            baseIntent: intent,
+            normalizedIntent,
+            clipCount: clips.length,
+            hasTimeline: clips.length > 0,
+          }),
+          content,
+        );
+
+        console.log(
+          `Agent Router: mode=${routingDecision.mode} reason=${routingDecision.reason} est_steps=${routingDecision.estimatedSteps} est_cost=$${routingDecision.estimatedCostUsd}`,
+        );
+
+        // ── AGENTIC MODE: Autonomous Plan → Act → Verify → Iterate ──
+        if (routingDecision.mode === 'agentic') {
+          if (turnId) {
+            setTurnStatus(turnId, 'agentic_running');
+            appendTurnPart(turnId, {
+              type: 'step_start',
+              label: `Agentic mode: ~${routingDecision.estimatedSteps} steps`,
+              timestamp: Date.now(),
+            });
+          }
+          setIsTyping(true);
+
+          try {
+            const { runAgentLoop } = await import('../../lib/agentLoop');
+            const agentTurnId = turnId;
+            const requestAbortController = activeAbortControllerRef.current;
+
+            const agentResult = await runAgentLoop({
+              userMessage: plannerInput,
+              history: aiHistory,
+              config: {
+                maxSteps: Math.min(routingDecision.estimatedSteps + 3, 15),
+                maxCostUsd: 0.1,
+              },
+              callbacks: {
+                onStepStart: (step) => {
+                  if (agentTurnId) {
+                    setTurnStatus(agentTurnId, 'agentic_step');
+                    appendTurnPart(agentTurnId, {
+                      type: 'agent_step',
+                      stepNumber: step.stepNumber,
+                      status: step.status,
+                      thought: step.thought,
+                      toolName: step.toolCall?.name || null,
+                      toolArgs: step.toolCall?.args || null,
+                      success: null,
+                      resultSummary: '',
+                      costUsd: step.costUsd,
+                      durationMs: step.durationMs,
+                      timestamp: Date.now(),
+                    });
+                  }
+                  assistantMessage(
+                    `🤖 Step ${step.stepNumber}: ${step.toolCall ? `Executing ${step.toolCall.name}...` : 'Thinking...'}`,
+                  );
+                },
+                onStepComplete: (step) => {
+                  if (agentTurnId) {
+                    appendTurnPart(agentTurnId, {
+                      type: 'agent_step',
+                      stepNumber: step.stepNumber,
+                      status: step.status,
+                      thought: step.thought,
+                      toolName: step.toolCall?.name || null,
+                      toolArgs: step.toolCall?.args || null,
+                      success: step.result?.success ?? null,
+                      resultSummary: step.result?.output?.slice(0, 200) || '',
+                      costUsd: step.costUsd,
+                      durationMs: step.durationMs,
+                      timestamp: Date.now(),
+                    });
+                  }
+                  // Update the last message with step result
+                  const statusIcon =
+                    step.status === 'completed' ? '✅' : step.status === 'failed' ? '❌' : '⏳';
+                  updateLastMessage(
+                    `${statusIcon} Step ${step.stepNumber}: ${step.toolCall?.name || 'thinking'} — ${step.result?.success ? 'success' : step.result?.error || 'done'}`,
+                  );
+                },
+                onLoopComplete: (loopState) => {
+                  if (agentTurnId) {
+                    appendTurnPart(agentTurnId, {
+                      type: 'agent_complete',
+                      totalSteps: loopState.steps.length,
+                      totalCostUsd: loopState.totalCostUsd,
+                      totalDurationMs: loopState.totalDurationMs,
+                      success: loopState.status === 'completed',
+                      summary: loopState.finalSummary || '',
+                      timestamp: Date.now(),
+                    });
+                  }
+                },
+                onLoopError: (errorMsg) => {
+                  if (agentTurnId) {
+                    appendTurnPart(agentTurnId, {
+                      type: 'error',
+                      message: errorMsg,
+                      timestamp: Date.now(),
+                    });
+                  }
+                },
+                onCostUpdate: () => {
+                  // Could update a cost badge in UI here
+                },
+              },
+              abortSignal: requestAbortController?.signal,
+              normalizedIntent: normalizedIntent
+                ? {
+                    mode: normalizedIntent.mode,
+                    goals: normalizedIntent.goals,
+                    constraints: normalizedIntent.constraints as Record<string, string | number>,
+                    operationHint: normalizedIntent.operationHint,
+                    confidence: normalizedIntent.confidence,
+                  }
+                : undefined,
+            });
+
+            // Replace the step-by-step messages with the final summary
+            const currentMessages = useChatStore.getState().messages;
+            useChatStore.setState({
+              messages: currentMessages.slice(0, -1),
+            });
+
+            const costInfo = `\n\n_Cost: $${agentResult.totalCostUsd.toFixed(4)} | ${agentResult.totalSteps} steps | ${(agentResult.state.totalDurationMs / 1000).toFixed(1)}s_`;
+            addMessage('assistant', agentResult.finalSummary + costInfo);
+
+            if (agentTurnId) {
+              closeTurn(agentTurnId, agentResult.success ? 'agentic_done' : 'error');
+            }
+            clearExecutionContext();
+          } catch (error) {
+            console.error('Agentic loop error:', error);
+            const errorMessage =
+              error instanceof Error ? error.message : 'Agentic execution failed';
+            assistantMessage(`❌ Agentic execution error: ${errorMessage}`, { error: true });
+            if (turnId) {
+              appendTurnPart(turnId, {
+                type: 'error',
+                message: errorMessage,
+                timestamp: Date.now(),
+              });
+              closeTurn(turnId, 'error');
+            }
+          } finally {
+            setIsTyping(false);
+            setIsGeneratingPlan(false);
+          }
+          return;
+        }
+
+        // ── SINGLE-PASS MODE: Existing planning pipeline ──────────────
         if (turnId) {
           setTurnStatus(turnId, 'planning');
           appendTurnPart(turnId, {
@@ -1202,8 +1357,7 @@ const ChatPanel = () => {
     const hasHardValidationIssues = validationIssues.some(
       (issue) => issue.category !== 'validation_warning',
     );
-    const canForceExecute =
-      executionPlan.plan.operations.length > 0 && !hasHardValidationIssues;
+    const canForceExecute = executionPlan.plan.operations.length > 0 && !hasHardValidationIssues;
 
     if (!executionPlan.plan.planReady) {
       if (!canForceExecute) {
@@ -1727,8 +1881,7 @@ const ChatPanel = () => {
     const hasHardValidationIssues = validationIssues.some(
       (issue) => issue.category !== 'validation_warning',
     );
-    const canForceExecute =
-      executionPlan.plan.operations.length > 0 && !hasHardValidationIssues;
+    const canForceExecute = executionPlan.plan.operations.length > 0 && !hasHardValidationIssues;
     if (!executionPlan.plan.planReady) {
       const isReadOnlyDraft =
         executionPlan.plan.operations.length > 0 &&

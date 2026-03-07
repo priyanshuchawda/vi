@@ -71,7 +71,7 @@ export interface Notification {
 
 export type ExportFormat = 'mp4' | 'mov' | 'avi' | 'webm';
 export type ExportResolution = '1920x1080' | '1280x720' | '854x480' | 'original';
-export type SidebarTab = 'project' | 'media' | 'text' | 'settings' | 'memory';
+export type SidebarTab = 'project' | 'media' | 'settings' | 'memory';
 
 export interface TurnAuditRecord {
   id: string;
@@ -178,6 +178,7 @@ interface ProjectState {
     frameRate: number; // Assumed frame rate for snapping (default: 30)
   };
   activeSidebarTab: SidebarTab;
+  captionsEnabled: boolean;
   defaultImageDuration: number; // Default duration for imported images in seconds
   exportedVideoPath: string | null; // Path to the last exported video
   addClip: (
@@ -234,6 +235,7 @@ interface ProjectState {
   applyTranscriptEdits: (deletionRanges: Array<{ start: number; end: number }>) => Promise<void>;
   updateTranscriptEditSettings: (settings: Partial<ProjectState['transcriptEditSettings']>) => void;
   setActiveSidebarTab: (tab: SidebarTab) => void;
+  setCaptionsEnabled: (enabled: boolean) => void;
   setDefaultImageDuration: (duration: number) => void;
   setExportedVideoPath: (path: string | null) => void;
   addTurnAudit: (audit: Omit<TurnAuditRecord, 'id' | 'createdAt'>) => void;
@@ -393,6 +395,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     frameRate: 30, // 30fps default
   },
   activeSidebarTab: (getStoredString(storageKeys.activeSidebarTab) as SidebarTab) || 'media', // Default to media tab
+  captionsEnabled: true,
   defaultImageDuration: 5, // Default 5 seconds for images
   exportedVideoPath: null, // No exported video initially
   addClip: (clip) =>
@@ -1476,6 +1479,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   setDefaultImageDuration: (duration) => {
     set({ defaultImageDuration: duration });
+  },
+
+  setCaptionsEnabled: (enabled) => {
+    set({ captionsEnabled: enabled });
   },
 
   setExportedVideoPath: (path) => {

@@ -1,7 +1,7 @@
 import { type SidebarTab } from '../ui/SidebarNav';
 import ProjectTab from './ProjectTab';
 import MediaTab from './MediaTab';
-import TextTab from './TextTab';
+
 import SettingsTab from './SettingsTab';
 import AIMemoryPanel from '../AIMemory/AIMemoryPanel';
 
@@ -15,7 +15,6 @@ interface FilePanelProps {
 const tabLabels: Record<SidebarTab, string> = {
   media: 'Media',
   project: 'Project',
-  text: 'Text',
   settings: 'Settings',
   memory: 'Memory',
 };
@@ -52,7 +51,7 @@ const FilePanel = ({ isOpen = true, onClose, activeTab = 'media' }: FilePanelPro
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {activeTab === 'project' && <ProjectTab />}
         {activeTab === 'media' && <MediaTab />}
-        {activeTab === 'text' && <TextTab />}
+
         {activeTab === 'settings' && <SettingsTab />}
         {activeTab === 'memory' && <AIMemoryPanel />}
       </div>

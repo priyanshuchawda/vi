@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { type SidebarTab } from './IconSidebar';
 import ProjectTab from '../FilePanel/ProjectTab';
 import MediaTab from '../FilePanel/MediaTab';
-import TextTab from '../FilePanel/TextTab';
+
 import SettingsTab from '../FilePanel/SettingsTab';
 import AIMemoryPanel from '../AIMemory/AIMemoryPanel';
 import YouTubeUploadTab from '../FilePanel/YouTubeUploadTab';
@@ -36,19 +36,6 @@ const tabConfig: Record<SidebarTab, { title: string; icon: React.ReactElement }>
           strokeLinejoin="round"
           strokeWidth="2"
           d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-        />
-      </svg>
-    ),
-  },
-  text: {
-    title: 'Text Editor',
-    icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
         />
       </svg>
     ),
@@ -136,8 +123,6 @@ const ContentPanel = ({ activeTab, onClose }: ContentPanelProps) => {
         return <ProjectTab />;
       case 'media':
         return <MediaTab />;
-      case 'text':
-        return <TextTab />;
       case 'settings':
         return <SettingsTab />;
       case 'memory':

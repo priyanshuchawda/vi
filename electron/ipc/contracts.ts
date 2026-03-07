@@ -164,6 +164,9 @@ export const aiConfigSettingsSchema = z.object({
   awsSessionToken: z.string().optional().default(''),
   bedrockInferenceProfileId: z.string().optional().default(''),
   bedrockModelId: z.string().optional().default(''),
+  youtubeOAuthClientId: z.string().optional().default(''),
+  youtubeOAuthClientSecret: z.string().optional().default(''),
+  youtubeOAuthRedirectUri: z.string().optional().default(''),
 });
 export const aiConfigStatusSchema = z.object({
   bedrockReady: z.boolean(),

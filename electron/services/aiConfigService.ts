@@ -13,6 +13,9 @@ export interface AiConfigSettings {
   awsSessionToken: string;
   bedrockInferenceProfileId: string;
   bedrockModelId: string;
+  youtubeOAuthClientId: string;
+  youtubeOAuthClientSecret: string;
+  youtubeOAuthRedirectUri: string;
 }
 
 export interface AiConfigStatus {
@@ -68,6 +71,9 @@ function emptySettings(): AiConfigSettings {
     awsSessionToken: '',
     bedrockInferenceProfileId: '',
     bedrockModelId: DEFAULT_MODEL_ID,
+    youtubeOAuthClientId: '',
+    youtubeOAuthClientSecret: '',
+    youtubeOAuthRedirectUri: '',
   };
 }
 
@@ -80,6 +86,9 @@ function blankSettings(): AiConfigSettings {
     awsSessionToken: '',
     bedrockInferenceProfileId: '',
     bedrockModelId: '',
+    youtubeOAuthClientId: '',
+    youtubeOAuthClientSecret: '',
+    youtubeOAuthRedirectUri: '',
   };
 }
 
@@ -112,6 +121,15 @@ function normalizeSettings(
     bedrockModelId:
       String(raw?.bedrockModelId ?? fallback.bedrockModelId ?? DEFAULT_MODEL_ID).trim() ||
       DEFAULT_MODEL_ID,
+    youtubeOAuthClientId: String(
+      raw?.youtubeOAuthClientId ?? fallback.youtubeOAuthClientId ?? '',
+    ).trim(),
+    youtubeOAuthClientSecret: String(
+      raw?.youtubeOAuthClientSecret ?? fallback.youtubeOAuthClientSecret ?? '',
+    ).trim(),
+    youtubeOAuthRedirectUri: String(
+      raw?.youtubeOAuthRedirectUri ?? fallback.youtubeOAuthRedirectUri ?? '',
+    ).trim(),
   };
 }
 
@@ -124,6 +142,9 @@ function normalizeEnvSettings(raw: Partial<AiConfigSettings> | undefined): AiCon
     awsSessionToken: String(raw?.awsSessionToken ?? '').trim(),
     bedrockInferenceProfileId: String(raw?.bedrockInferenceProfileId ?? '').trim(),
     bedrockModelId: String(raw?.bedrockModelId ?? '').trim(),
+    youtubeOAuthClientId: String(raw?.youtubeOAuthClientId ?? '').trim(),
+    youtubeOAuthClientSecret: String(raw?.youtubeOAuthClientSecret ?? '').trim(),
+    youtubeOAuthRedirectUri: String(raw?.youtubeOAuthRedirectUri ?? '').trim(),
   };
 }
 
@@ -182,6 +203,11 @@ export class AiConfigService {
       bedrockInferenceProfileId:
         fileEnv.BEDROCK_INFERENCE_PROFILE_ID ?? this.baseEnv.BEDROCK_INFERENCE_PROFILE_ID,
       bedrockModelId: fileEnv.BEDROCK_MODEL_ID ?? this.baseEnv.BEDROCK_MODEL_ID,
+      youtubeOAuthClientId: fileEnv.YOUTUBE_OAUTH_CLIENT_ID ?? this.baseEnv.YOUTUBE_OAUTH_CLIENT_ID,
+      youtubeOAuthClientSecret:
+        fileEnv.YOUTUBE_OAUTH_CLIENT_SECRET ?? this.baseEnv.YOUTUBE_OAUTH_CLIENT_SECRET,
+      youtubeOAuthRedirectUri:
+        fileEnv.YOUTUBE_OAUTH_REDIRECT_URI ?? this.baseEnv.YOUTUBE_OAUTH_REDIRECT_URI,
     });
   }
 
@@ -222,6 +248,11 @@ export class AiConfigService {
       bedrockInferenceProfileId:
         envSettings.bedrockInferenceProfileId || savedSettings.bedrockInferenceProfileId,
       bedrockModelId: envSettings.bedrockModelId || savedSettings.bedrockModelId,
+      youtubeOAuthClientId: envSettings.youtubeOAuthClientId || savedSettings.youtubeOAuthClientId,
+      youtubeOAuthClientSecret:
+        envSettings.youtubeOAuthClientSecret || savedSettings.youtubeOAuthClientSecret,
+      youtubeOAuthRedirectUri:
+        envSettings.youtubeOAuthRedirectUri || savedSettings.youtubeOAuthRedirectUri,
     };
   }
 

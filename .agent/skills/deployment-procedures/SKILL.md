@@ -11,7 +11,7 @@ allowed-tools: Read, Glob, Grep, Bash
 
 ---
 
-## ⚠️ How to Use This Skill
+## ️ How to Use This Skill
 
 This skill teaches **deployment principles**, not bash scripts to copy.
 
@@ -203,7 +203,7 @@ What are you deploying?
 
 ## 8. Anti-Patterns
 
-| ❌ Don't | ✅ Do |
+|  Don't |  Do |
 |----------|-------|
 | Deploy on Friday | Deploy early in week |
 | Rush deployment | Follow the process |

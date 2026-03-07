@@ -31,7 +31,7 @@ This command handles production deployment with pre-flight checks, deployment ex
 Before any deployment:
 
 ```markdown
-## 🚀 Pre-Deploy Checklist
+##  Pre-Deploy Checklist
 
 ### Code Quality
 - [ ] No TypeScript errors (`npx tsc --noEmit`)
@@ -95,7 +95,7 @@ Before any deployment:
          │
          ▼
 ┌─────────────────┐
-│  ✅ Complete    │
+│   Complete    │
 └─────────────────┘
 ```
 
@@ -106,7 +106,7 @@ Before any deployment:
 ### Successful Deploy
 
 ```markdown
-## 🚀 Deployment Complete
+##  Deployment Complete
 
 ### Summary
 - **Version:** v1.2.3
@@ -115,8 +115,8 @@ Before any deployment:
 - **Platform:** Vercel
 
 ### URLs
-- 🌐 Production: https://app.example.com
-- 📊 Dashboard: https://vercel.com/project
+-  Production: https://app.example.com
+-  Dashboard: https://vercel.com/project
 
 ### What Changed
 - Added user profile feature
@@ -124,15 +124,15 @@ Before any deployment:
 - Updated dependencies
 
 ### Health Check
-✅ API responding (200 OK)
-✅ Database connected
-✅ All services healthy
+ API responding (200 OK)
+ Database connected
+ All services healthy
 ```
 
 ### Failed Deploy
 
 ```markdown
-## ❌ Deployment Failed
+##  Deployment Failed
 
 ### Error
 Build failed at step: TypeScript compilation

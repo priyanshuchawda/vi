@@ -127,7 +127,7 @@ Every game has this cycle:
 
 ## Anti-Patterns
 
-| ❌ Don't | ✅ Do |
+|  Don't |  Do |
 |----------|-------|
 | Choose engine by popularity | Choose by project needs |
 | Optimize before profiling | Profile, then optimize |

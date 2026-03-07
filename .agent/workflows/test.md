@@ -54,7 +54,7 @@ When asked to test a file or feature:
 ### For Test Generation
 
 ```markdown
-## 🧪 Tests: [Target]
+##  Tests: [Target]
 
 ### Test Plan
 | Test Case | Type | Coverage |
@@ -77,11 +77,11 @@ Run with: `npm test`
 ### For Test Execution
 
 ```
-🧪 Running tests...
+ Running tests...
 
-✅ auth.test.ts (5 passed)
-✅ user.test.ts (8 passed)
-❌ order.test.ts (2 passed, 1 failed)
+ auth.test.ts (5 passed)
+ user.test.ts (8 passed)
+ order.test.ts (2 passed, 1 failed)
 
 Failed:
   ✗ should calculate total with discount

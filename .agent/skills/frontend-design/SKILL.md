@@ -11,25 +11,25 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 ---
 
-## 🎯 Selective Reading Rule (MANDATORY)
+##  Selective Reading Rule (MANDATORY)
 
 **Read REQUIRED files always, OPTIONAL only when needed:**
 
 | File | Status | When to Read |
 |------|--------|--------------|
-| [ux-psychology.md](ux-psychology.md) | 🔴 **REQUIRED** | Always read first! |
-| [color-system.md](color-system.md) | ⚪ Optional | Color/palette decisions |
-| [typography-system.md](typography-system.md) | ⚪ Optional | Font selection/pairing |
-| [visual-effects.md](visual-effects.md) | ⚪ Optional | Glassmorphism, shadows, gradients |
-| [animation-guide.md](animation-guide.md) | ⚪ Optional | Animation needed |
-| [motion-graphics.md](motion-graphics.md) | ⚪ Optional | Lottie, GSAP, 3D |
-| [decision-trees.md](decision-trees.md) | ⚪ Optional | Context templates |
+| [ux-psychology.md](ux-psychology.md) |  **REQUIRED** | Always read first! |
+| [color-system.md](color-system.md) |  Optional | Color/palette decisions |
+| [typography-system.md](typography-system.md) |  Optional | Font selection/pairing |
+| [visual-effects.md](visual-effects.md) |  Optional | Glassmorphism, shadows, gradients |
+| [animation-guide.md](animation-guide.md) |  Optional | Animation needed |
+| [motion-graphics.md](motion-graphics.md) |  Optional | Lottie, GSAP, 3D |
+| [decision-trees.md](decision-trees.md) |  Optional | Context templates |
 
-> 🔴 **ux-psychology.md = ALWAYS READ. Others = only if relevant.**
+>  **ux-psychology.md = ALWAYS READ. Others = only if relevant.**
 
 ---
 
-## 🔧 Runtime Scripts
+##  Runtime Scripts
 
 **Execute these for audits (don't read, just run):**
 
@@ -39,7 +39,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 ---
 
-## ⚠️ CRITICAL: ASK BEFORE ASSUMING (MANDATORY)
+## ️ CRITICAL: ASK BEFORE ASSUMING (MANDATORY)
 
 > **STOP! If the user's request is open-ended, DO NOT default to your favorites.**
 
@@ -54,7 +54,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 **Layout not specified?** Ask:
 > "Do you have a layout preference? (single column/grid/asymmetric/full-width?)"
 
-### ⛔ DEFAULT TENDENCIES TO AVOID (ANTI-SAFE HARBOR):
+###  DEFAULT TENDENCIES TO AVOID (ANTI-SAFE HARBOR):
 
 | AI Default Tendency | Why It's Bad | Think Instead |
 |---------------------|--------------|---------------|
@@ -67,7 +67,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 | Dark background + neon glow | Overused, "AI look" | What does the BRAND actually need? |
 | **Rounded everything** | Generic/Safe | Where can I use sharp, brutalist edges? |
 
-> 🔴 **"Every 'safe' structure you choose brings you one step closer to a generic template. TAKE RISKS."**
+>  **"Every 'safe' structure you choose brings you one step closer to a generic template. TAKE RISKS."**
 
 ---
 
@@ -232,7 +232,7 @@ Key properties:
 ├── Semi-transparent background
 ├── Backdrop blur
 ├── Subtle border for definition
-└── ⚠️ **WARNING:** Standard blue/white glassmorphism is a modern cliché. Use it radically or not at all.
+└── ️ **WARNING:** Standard blue/white glassmorphism is a modern cliché. Use it radically or not at all.
 ```
 
 ### Shadow Hierarchy
@@ -252,7 +252,7 @@ Harmonious gradients:
 ├── Adjacent colors on wheel (analogous)
 ├── OR same hue, different lightness
 ├── Avoid harsh complementary pairs
-├── 🚫 **NO Mesh/Aurora Gradients** (floating blobs)
+├──  **NO Mesh/Aurora Gradients** (floating blobs)
 └── VARY from project to project radically
 ```
 
@@ -321,7 +321,7 @@ For animation patterns: [animation-guide.md](animation-guide.md), for advanced: 
 
 ## 9. Anti-Patterns (What NOT to Do)
 
-### ❌ Lazy Design Indicators
+###  Lazy Design Indicators
 
 - Default system fonts without consideration
 - Stock imagery that doesn't match
@@ -330,17 +330,17 @@ For animation patterns: [animation-guide.md](animation-guide.md), for advanced: 
 - Walls of text without hierarchy
 - Inaccessible contrast
 
-### ❌ AI Tendency Patterns (AVOID!)
+###  AI Tendency Patterns (AVOID!)
 
 - **Same colors every project**
 - **Dark + neon as default**
-- **Purple/violet everything (PURPLE BAN ✅)**
+- **Purple/violet everything (PURPLE BAN )**
 - **Bento grids for simple landing pages**
 - **Mesh Gradients & Glow Effects**
 - **Same layout structure / Vercel clone**
 - **Not asking user preferences**
 
-### ❌ Dark Patterns (Unethical)
+###  Dark Patterns (Unethical)
 
 - Hidden costs
 - Fake urgency

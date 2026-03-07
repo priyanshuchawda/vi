@@ -165,7 +165,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 ## 10. Anti-Patterns
 
-| ❌ Don't | ✅ Do |
+|  Don't |  Do |
 |----------|-------|
 | Test implementation | Test behavior |
 | Duplicate test code | Use factories |

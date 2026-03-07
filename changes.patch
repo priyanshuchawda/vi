@@ -22,31 +22,31 @@ index 0000000..5c97276
 +## Current Tools Given to Gemini (15 Tools)
 +
 +### 1. **Timeline Query Tools**
-+- ✅ `get_timeline_info` - Get complete timeline state (clips, positions, durations, selections)
-+- ✅ `get_clip_details` - Get detailed info about a specific clip
++-  `get_timeline_info` - Get complete timeline state (clips, positions, durations, selections)
++-  `get_clip_details` - Get detailed info about a specific clip
 +
 +### 2. **Clip Manipulation Tools**
-+- ✅ `split_clip` - Split clip at a time position
-+- ✅ `delete_clips` - Remove clips from timeline
-+- ✅ `move_clip` - Reposition clips in timeline or change tracks
-+- ✅ `merge_clips` - Combine multiple clips into one
-+- ✅ `update_clip_bounds` - Trim start/end of clips
++-  `split_clip` - Split clip at a time position
++-  `delete_clips` - Remove clips from timeline
++-  `move_clip` - Reposition clips in timeline or change tracks
++-  `merge_clips` - Combine multiple clips into one
++-  `update_clip_bounds` - Trim start/end of clips
 +
 +### 3. **Selection & Clipboard Tools**
-+- ✅ `select_clips` - Select one or more clips
-+- ✅ `copy_clips` - Copy clips to clipboard
-+- ✅ `paste_clips` - Paste copied clips
++-  `select_clips` - Select one or more clips
++-  `copy_clips` - Copy clips to clipboard
++-  `paste_clips` - Paste copied clips
 +
 +### 4. **Audio Tools**
-+- ✅ `set_clip_volume` - Adjust volume (0.0 to 1.0)
-+- ✅ `toggle_clip_mute` - Mute/unmute clips
++-  `set_clip_volume` - Adjust volume (0.0 to 1.0)
++-  `toggle_clip_mute` - Mute/unmute clips
 +
 +### 5. **Playback & Navigation Tools**
-+- ✅ `set_playhead_position` - Move playhead to specific time
++-  `set_playhead_position` - Move playhead to specific time
 +
 +### 6. **History Tools**
-+- ✅ `undo_action` - Undo last action
-+- ✅ `redo_action` - Redo last undone action
++-  `undo_action` - Undo last action
++-  `redo_action` - Redo last undone action
 +
 +---
 +
@@ -62,7 +62,7 @@ index 0000000..5c97276
 +
 +## Missing Tools - HIGH PRIORITY
 +
-+### 🎬 Subtitle/Caption Tools
++###  Subtitle/Caption Tools
 +**Why needed:** User has subtitles feature but Gemini can't control it
 +
 +Suggested tools:
@@ -85,7 +85,7 @@ index 0000000..5c97276
 +- `clear_all_subtitles` - Remove all subtitles
 +```
 +
-+### 🎙️ Transcription Tools
++### ️ Transcription Tools
 +**Why needed:** Transcription exists but requires manual trigger
 +
 +Suggested tools:
@@ -102,7 +102,7 @@ index 0000000..5c97276
 +  Parameters: { deletion_ranges: Array<{start, end}> }
 +```
 +
-+### 🎨 Visual Effect Tools
++###  Visual Effect Tools
 +**Why needed:** Enhance editing capabilities
 +
 +Suggested tools:
@@ -117,7 +117,7 @@ index 0000000..5c97276
 +  Parameters: { clip_id, speed: number } // 0.5 = half speed, 2.0 = double
 +```
 +
-+### 💾 Project Management Tools
++###  Project Management Tools
 +**Why needed:** Users might ask Gemini to save/export
 +
 +Suggested tools:
@@ -131,7 +131,7 @@ index 0000000..5c97276
 +  Parameters: { format?, resolution? }
 +```
 +
-+### 📊 Analysis & Search Tools  
++###  Analysis & Search Tools  
 +**Why needed:** Leverage Gemini Memory better
 +
 +Suggested tools:
@@ -150,7 +150,7 @@ index 0000000..5c97276
 +
 +## Missing Tools - MEDIUM PRIORITY
 +
-+### 🎵 Advanced Audio Tools
++###  Advanced Audio Tools
 +```typescript
 +- `normalize_audio` - Normalize audio levels across clips
 +  
@@ -164,7 +164,7 @@ index 0000000..5c97276
 +  Parameters: { clip_id }
 +```
 +
-+### 🎬 Advanced Editing
++###  Advanced Editing
 +```typescript
 +- `add_marker` - Add timeline marker
 +  Parameters: { time, label, color? }
@@ -179,7 +179,7 @@ index 0000000..5c97276
 +  Parameters: { clip_id, time_offset? }
 +```
 +
-+### 📐 Timeline Organization
++###  Timeline Organization
 +```typescript
 +- `auto_arrange_clips` - Smart clip arrangement
 +  Parameters: { strategy: 'compact' | 'evenly_spaced' | 'by_type' }
@@ -194,7 +194,7 @@ index 0000000..5c97276
 +
 +## Missing Tools - LOW PRIORITY
 +
-+### 🎨 Color & Visual
++###  Color & Visual
 +```typescript
 +- `apply_color_grade` - Apply color preset
 +  Parameters: { clip_id, preset: 'warm' | 'cool' | 'vintage' | 'vibrant' }
@@ -203,7 +203,7 @@ index 0000000..5c97276
 +  Parameters: { clip_id, brightness: number, contrast: number }
 +```
 +
-+### 📹 Camera/Zoom
++###  Camera/Zoom
 +```typescript
 +- `add_zoom_effect` - Ken Burns effect
 +  Parameters: { clip_id, zoom_start, zoom_end, duration }
@@ -229,10 +229,10 @@ index 0000000..5c97276
 +## Tool Implementation Priority
 +
 +### Phase 1 (Immediate - High Impact):
-+1. ✅ Profile/Channel Context (DONE!)
-+2. 🎯 Subtitle manipulation (5 tools)
-+3. 🎯 Transcription control (4 tools)
-+4. 🎯 Export/Save tools (3 tools)
++1.  Profile/Channel Context (DONE!)
++2.  Subtitle manipulation (5 tools)
++3.  Transcription control (4 tools)
++4.  Export/Save tools (3 tools)
 +
 +### Phase 2 (Short-term):
 +1. Text overlay tool
@@ -257,23 +257,23 @@ index 0000000..5c97276
 +## Benefits of Adding More Tools
 +
 +### For Users:
-+- ✅ Natural language video editing ("add subtitle saying 'hello' at 5 seconds")
-+- ✅ Faster workflow (AI handles tedious tasks)
-+- ✅ Smart automation (auto-cut silences, align clips)
-+- ✅ Content-aware editing (AI knows what's in clips)
++-  Natural language video editing ("add subtitle saying 'hello' at 5 seconds")
++-  Faster workflow (AI handles tedious tasks)
++-  Smart automation (auto-cut silences, align clips)
++-  Content-aware editing (AI knows what's in clips)
 +
 +### For Your App:
-+- ✅ Unique selling point (AI-powered editing)
-+- ✅ Competitive advantage over traditional editors
-+- ✅ Better user retention (faster = more usage)
-+- ✅ Showcase Gemini capabilities
++-  Unique selling point (AI-powered editing)
++-  Competitive advantage over traditional editors
++-  Better user retention (faster = more usage)
++-  Showcase Gemini capabilities
 +
 +### Technical Considerations:
-+- ✅ Each tool needs validation logic
-+- ✅ Each tool needs executor implementation
-+- ⚠️ More tools = more tokens in function declarations
-+- ⚠️ Need clear descriptions to avoid confusion
-+- ⚠️ Some operations might be slow (transcription)
++-  Each tool needs validation logic
++-  Each tool needs executor implementation
++- ️ More tools = more tokens in function declarations
++- ️ Need clear descriptions to avoid confusion
++- ️ Some operations might be slow (transcription)
 +
 +---
 +
@@ -340,13 +340,13 @@ index 0000000..5047335
 @@ -0,0 +1,285 @@
 +# NEW GEMINI TOOLS IMPLEMENTATION SUMMARY
 +
-+## ✅ Implementation Complete
++##  Implementation Complete
 +
 +All 4 high-priority tool categories have been successfully implemented!
 +
 +---
 +
-+## 🎬 SUBTITLE TOOLS (6 tools added)
++##  SUBTITLE TOOLS (6 tools added)
 +
 +### 1. `add_subtitle`
 +- **Description:** Add new subtitle at specific time with text
@@ -378,7 +378,7 @@ index 0000000..5047335
 +
 +---
 +
-+## 🎙️ TRANSCRIPTION TOOLS (4 tools added)
++## ️ TRANSCRIPTION TOOLS (4 tools added)
 +
 +### 1. `transcribe_clip`
 +- **Description:** Transcribe audio from specific clip
@@ -400,7 +400,7 @@ index 0000000..5047335
 +
 +---
 +
-+## 💾 PROJECT MANAGEMENT TOOLS (3 tools added)
++##  PROJECT MANAGEMENT TOOLS (3 tools added)
 +
 +### 1. `save_project`
 +- **Description:** Save current project to disk
@@ -417,7 +417,7 @@ index 0000000..5047335
 +
 +---
 +
-+## 🔍 SEARCH & ANALYSIS TOOLS (3 tools added)
++##  SEARCH & ANALYSIS TOOLS (3 tools added)
 +
 +### 1. `search_clips_by_content`
 +- **Description:** Find clips by AI-analyzed content
@@ -435,15 +435,15 @@ index 0000000..5047335
 +
 +---
 +
-+## 📊 TOTAL TOOLS NOW AVAILABLE
++##  TOTAL TOOLS NOW AVAILABLE
 +
 +**Before:** 15 tools
 +**Added:** 16 new tools
-+**Total:** 31 tools 🚀
++**Total:** 31 tools 
 +
 +---
 +
-+## 🎯 USE CASE EXAMPLES
++##  USE CASE EXAMPLES
 +
 +### Natural Language Subtitle Editing
 +```
@@ -475,7 +475,7 @@ index 0000000..5047335
 +
 +---
 +
-+## 🔧 IMPLEMENTATION DETAILS
++##  IMPLEMENTATION DETAILS
 +
 +### Files Modified:
 +1. **src/lib/videoEditingTools.ts**
@@ -488,38 +488,38 @@ index 0000000..5047335
 +   - Integrated with existing stores
 +
 +### Validation Added:
-+- ✅ Empty text checks for subtitles
-+- ✅ Time range validation (start < end)
-+- ✅ Index bounds checking
-+- ✅ Format/resolution validation
-+- ✅ Query string validation
-+- ✅ Clip existence checks
++-  Empty text checks for subtitles
++-  Time range validation (start < end)
++-  Index bounds checking
++-  Format/resolution validation
++-  Query string validation
++-  Clip existence checks
 +
 +### Store Integration:
-+- ✅ useProjectStore (subtitles, transcription, save/export)
-+- ✅ useGeminiMemoryStore (media analysis, search)
-+- ✅ Async operations handled properly
-+- ✅ Error handling for all operations
++-  useProjectStore (subtitles, transcription, save/export)
++-  useGeminiMemoryStore (media analysis, search)
++-  Async operations handled properly
++-  Error handling for all operations
 +
 +---
 +
-+## ✨ WHAT USERS CAN NOW DO
++##  WHAT USERS CAN NOW DO
 +
 +### Before:
-+❌ "Add subtitle..." → Gemini explains how to click buttons
-+❌ "Transcribe this" → Manual button clicking required
-+❌ "Save my project" → "Use File > Save"
-+❌ "Find clips with..." → Not possible
++ "Add subtitle..." → Gemini explains how to click buttons
++ "Transcribe this" → Manual button clicking required
++ "Save my project" → "Use File > Save"
++ "Find clips with..." → Not possible
 +
 +### After:
-+✅ "Add subtitle..." → Done instantly!
-+✅ "Transcribe this" → Transcription starts automatically
-+✅ "Save my project" → Project saved
-+✅ "Find clips with..." → Results returned with clip IDs
++ "Add subtitle..." → Done instantly!
++ "Transcribe this" → Transcription starts automatically
++ "Save my project" → Project saved
++ "Find clips with..." → Results returned with clip IDs
 +
 +---
 +
-+## 🚀 IMPACT
++##  IMPACT
 +
 +### For Users:
 +- **10x faster** subtitle creation
@@ -535,7 +535,7 @@ index 0000000..5047335
 +
 +---
 +
-+## 🧪 TESTING CHECKLIST
++##  TESTING CHECKLIST
 +
 +### Subtitle Tools:
 +- [ ] Add subtitle with valid times
@@ -565,7 +565,7 @@ index 0000000..5047335
 +
 +---
 +
-+## 📝 NEXT STEPS TO TEST
++##  NEXT STEPS TO TEST
 +
 +1. **Start the app:** `npm run dev`
 +
@@ -589,17 +589,17 @@ index 0000000..5047335
 +
 +---
 +
-+## 🎉 SUCCESS METRICS
++##  SUCCESS METRICS
 +
-+**Tools Implemented:** 16/16 ✅
-+**Validation Coverage:** 100% ✅
-+**Execution Coverage:** 100% ✅
-+**TypeScript Errors:** 0 ✅
-+**Integration Testing:** Ready ✅
++**Tools Implemented:** 16/16 
++**Validation Coverage:** 100% 
++**Execution Coverage:** 100% 
++**TypeScript Errors:** 0 
++**Integration Testing:** Ready 
 +
 +---
 +
-+## 💡 USAGE TIPS FOR USERS
++##  USAGE TIPS FOR USERS
 +
 +1. **Subtitle Creation:** Be specific with times - "at 10 seconds for 3 seconds"
 +2. **Transcription:** May take time for long videos - Gemini will notify when complete
@@ -608,7 +608,7 @@ index 0000000..5047335
 +
 +---
 +
-+## 🔮 FUTURE ENHANCEMENTS (Optional)
++##  FUTURE ENHANCEMENTS (Optional)
 +
 +- Batch subtitle generation from transcript
 +- Smart subtitle timing based on speech detection
@@ -620,7 +620,7 @@ index 0000000..5047335
 +---
 +
 +**Implementation Date:** February 14, 2026
-+**Status:** ✅ COMPLETE & READY TO TEST
++**Status:**  COMPLETE & READY TO TEST
 +**Tools Added:** 16 new AI-powered editing tools
 +**Total Function Declarations:** 31 tools for Gemini
 diff --git a/UI_REDESIGN_SUMMARY.md b/UI_REDESIGN_SUMMARY.md
@@ -636,7 +636,7 @@ index 0000000..9bba8b4
 +
 +---
 +
-+## 🎨 Design System Changes
++##  Design System Changes
 +
 +### Color Palette (CapCut-Inspired Dark Theme)
 +```css
@@ -677,7 +677,7 @@ index 0000000..9bba8b4
 +
 +---
 +
-+## 🏗️ Layout Restructure
++## ️ Layout Restructure
 +
 +### New 3-Column Layout
 +```
@@ -756,7 +756,7 @@ index 0000000..9bba8b4
 +
 +---
 +
-+## 📁 File Changes
++##  File Changes
 +
 +### New Files Created
 +1. `src/components/ui/IconSidebar.tsx` - Icon-only left navigation
@@ -777,41 +777,41 @@ index 0000000..9bba8b4
 +
 +---
 +
-+## ✨ Key Visual Improvements
++##  Key Visual Improvements
 +
 +### Before → After
 +
 +**Left Sidebar:**
-+- ❌ Wide panel (250px+) with text labels
-+- ✅ Slim icon bar (64px) with tooltips
++-  Wide panel (250px+) with text labels
++-  Slim icon bar (64px) with tooltips
 +
 +**AI Chat:**
-+- ❌ Floating button that opens slide-in from left
-+- ✅ Always-visible right sidebar (part of layout)
++-  Floating button that opens slide-in from left
++-  Always-visible right sidebar (part of layout)
 +
 +**Timeline Clips:**
-+- ❌ Colored backgrounds per track (purple, blue, green)
-+- ❌ Thick accent borders on selection
-+- ✅ Unified dark background
-+- ✅ Soft glow on selection
-+- ✅ Rounded corners (rounded-lg)
++-  Colored backgrounds per track (purple, blue, green)
++-  Thick accent borders on selection
++-  Unified dark background
++-  Soft glow on selection
++-  Rounded corners (rounded-lg)
 +
 +**Accent Color Usage:**
-+- ❌ Green accent everywhere (#1DB954)
-+- ❌ Colored buttons scattered throughout
-+- ✅ Purple/blue accent (#6366F1)
-+- ✅ Only on: selected clips, playhead, Export button, active sidebar icon
++-  Green accent everywhere (#1DB954)
++-  Colored buttons scattered throughout
++-  Purple/blue accent (#6366F1)
++-  Only on: selected clips, playhead, Export button, active sidebar icon
 +
 +**Borders & Spacing:**
-+- ❌ Hard borders (#262626)
-+- ❌ Inconsistent spacing
-+- ✅ Minimal borders (rgba(255,255,255,0.04))
-+- ✅ 8/16/24/32px spacing system
-+- ✅ Soft elevation with shadows
++-  Hard borders (#262626)
++-  Inconsistent spacing
++-  Minimal borders (rgba(255,255,255,0.04))
++-  8/16/24/32px spacing system
++-  Soft elevation with shadows
 +
 +---
 +
-+## 🎯 Design Principles Applied
++##  Design Principles Applied
 +
 +1. **Visual Hierarchy**
 +   - Preview area is dominant (largest surface)
@@ -838,7 +838,7 @@ index 0000000..9bba8b4
 +
 +---
 +
-+## 🚀 Usage
++##  Usage
 +
 +### Opening Tab Content
 +- Click any icon in left sidebar → Content panel slides out
@@ -866,7 +866,7 @@ index 0000000..9bba8b4
 +
 +---
 +
-+## 🎨 Design Tokens Reference
++##  Design Tokens Reference
 +
 +```typescript
 +// In your components, use these Tailwind classes:
@@ -903,7 +903,7 @@ index 0000000..9bba8b4
 +
 +---
 +
-+## 📊 Metrics
++##  Metrics
 +
 +- **Reduced left sidebar width:** 250px → 64px (74% reduction)
 +- **Added permanent AI panel:** 0px → 320px (always visible)
@@ -914,14 +914,14 @@ index 0000000..9bba8b4
 +
 +---
 +
-+## 🔄 Migration Notes
++##  Migration Notes
 +
 +The redesign preserves all functionality:
-+- ✅ All 6 sidebar tabs still accessible
-+- ✅ AI chat fully functional
-+- ✅ Timeline operations unchanged
-+- ✅ Export workflow identical
-+- ✅ Keyboard shortcuts maintained
++-  All 6 sidebar tabs still accessible
++-  AI chat fully functional
++-  Timeline operations unchanged
++-  Export workflow identical
++-  Keyboard shortcuts maintained
 +
 +No breaking changes to:
 +- Video rendering
@@ -932,7 +932,7 @@ index 0000000..9bba8b4
 +
 +---
 +
-+## 🎬 Next Steps (Optional Enhancements)
++##  Next Steps (Optional Enhancements)
 +
 +1. **Animation Polish**
 +   - Add spring animations to panel slides
@@ -956,18 +956,18 @@ index 0000000..9bba8b4
 +
 +---
 +
-+## 📝 Summary
++##  Summary
 +
 +The UI has been successfully transformed into a modern, clean, professional video editor interface that:
 +
-+✅ Reduces visual clutter with icon-only left sidebar
-+✅ Makes AI copilot a first-class citizen (permanent right panel)
-+✅ Emphasizes the preview area (center-dominant)
-+✅ Uses soft elevation instead of hard borders
-+✅ Applies accent color strategically (only on key elements)
-+✅ Maintains consistent 8/16/24/32px spacing
-+✅ Implements CapCut-inspired modern dark theme
-+✅ Preserves all functionality without breaking changes
++ Reduces visual clutter with icon-only left sidebar
++ Makes AI copilot a first-class citizen (permanent right panel)
++ Emphasizes the preview area (center-dominant)
++ Uses soft elevation instead of hard borders
++ Applies accent color strategically (only on key elements)
++ Maintains consistent 8/16/24/32px spacing
++ Implements CapCut-inspired modern dark theme
++ Preserves all functionality without breaking changes
 +
 +The interface now feels **lighter, faster, and more focused** while providing better visual hierarchy and a modern AI-first aesthetic.
 diff --git a/client_secret_235744043692-85hlp2prkgdp0bitbmh46gfbug5vfn2e.apps.googleusercontent.com.json b/client_secret_235744043692-85hlp2prkgdp0bitbmh46gfbug5vfn2e.apps.googleusercontent.com.json
@@ -4479,13 +4479,13 @@ index 0000000..4810c54
 +The following models support structured output:
 +
 +Model	Structured Outputs
-+Gemini 3 Pro Preview	✔️
-+Gemini 3 Flash Preview	✔️
-+Gemini 2.5 Pro	✔️
-+Gemini 2.5 Flash	✔️
-+Gemini 2.5 Flash-Lite	✔️
-+Gemini 2.0 Flash	✔️*
-+Gemini 2.0 Flash-Lite	✔️*
++Gemini 3 Pro Preview	️
++Gemini 3 Flash Preview	️
++Gemini 2.5 Pro	️
++Gemini 2.5 Flash	️
++Gemini 2.5 Flash-Lite	️
++Gemini 2.0 Flash	️*
++Gemini 2.0 Flash-Lite	️*
 +* Note that Gemini 2.0 requires an explicit propertyOrdering list within the JSON input to define the preferred structure. You can find an example in this cookbook.
 +
 +Structured outputs vs. function calling
@@ -4655,10 +4655,10 @@ index 0000000..4810c54
 +Experimental and Preview models are not included. You can find their capabilities on the model overview page.
 +
 +Model	Grounding with Google Search
-+Gemini 2.5 Pro	✔️
-+Gemini 2.5 Flash	✔️
-+Gemini 2.5 Flash-Lite	✔️
-+Gemini 2.0 Flash	✔️
++Gemini 2.5 Pro	️
++Gemini 2.5 Flash	️
++Gemini 2.5 Flash-Lite	️
++Gemini 2.0 Flash	️
 +Note: Older models use a google_search_retrieval tool. For all current models, use the google_search tool as shown in the examples.
 +Supported tools combinations
 +You can use Grounding with Google Search with other tools like code execution and URL context to power more complex use cases.
@@ -7712,12 +7712,12 @@ index 0000000..63e8ff5
 +This section lists models and their function calling capabilities. Experimental models are not included. You can find a comprehensive capabilities overview on the model overview page.
 +
 +Model	Function Calling	Parallel Function Calling	Compositional Function Calling
-+Gemini 3 Pro	✔️	✔️	✔️
-+Gemini 3 Flash	✔️	✔️	✔️
-+Gemini 2.5 Pro	✔️	✔️	✔️
-+Gemini 2.5 Flash	✔️	✔️	✔️
-+Gemini 2.5 Flash-Lite	✔️	✔️	✔️
-+Gemini 2.0 Flash	✔️	✔️	✔️
++Gemini 3 Pro	️	️	️
++Gemini 3 Flash	️	️	️
++Gemini 2.5 Pro	️	️	️
++Gemini 2.5 Flash	️	️	️
++Gemini 2.5 Flash-Lite	️	️	️
++Gemini 2.0 Flash	️	️	️
 +Gemini 2.0 Flash-Lite	X	X	X
 +Best practices
 +Function and Parameter Descriptions: Be extremely clear and specific in your descriptions. The model relies on these to choose the correct function and provide appropriate arguments.
@@ -8985,12 +8985,12 @@ index 0000000..7628a9e
 +Using examples to show the model a pattern to follow is more effective than using
 +examples to show the model an anti pattern to avoid.
 +
-+⛔ **Negative pattern:**
++ **Negative pattern:**
 +
 +|---|
 +| **Example** ``` Don't end haikus with a question: Haiku are fun A short and simple poem Don't you enjoy them? ``` <br /> |
 +
-+✅ **Positive pattern:**
++ **Positive pattern:**
 +
 +|---|
 +| **Example** ``` Always end haikus with an assertion: Haiku are fun A short and simple poem A joy to write ``` <br /> |
@@ -9690,10 +9690,10 @@ index 0000000..a643177
 +
 +| Model | Grounding with Google Search |
 +|---|---|
-+| Gemini 2.5 Pro | ✔️ |
-+| Gemini 2.5 Flash | ✔️ |
-+| Gemini 2.5 Flash-Lite | ✔️ |
-+| Gemini 2.0 Flash | ✔️ |
++| Gemini 2.5 Pro | ️ |
++| Gemini 2.5 Flash | ️ |
++| Gemini 2.5 Flash-Lite | ️ |
++| Gemini 2.0 Flash | ️ |
 +
 +| **Note:** Older models use a `google_search_retrieval` tool. For all current models, use the `google_search` tool as shown in the examples.
 +
@@ -10200,13 +10200,13 @@ index 0000000..31c35cc
 +The following models support structured output:
 +
 +Model	Structured Outputs
-+Gemini 3 Pro Preview	✔️
-+Gemini 3 Flash Preview	✔️
-+Gemini 2.5 Pro	✔️
-+Gemini 2.5 Flash	✔️
-+Gemini 2.5 Flash-Lite	✔️
-+Gemini 2.0 Flash	✔️*
-+Gemini 2.0 Flash-Lite	✔️*
++Gemini 3 Pro Preview	️
++Gemini 3 Flash Preview	️
++Gemini 2.5 Pro	️
++Gemini 2.5 Flash	️
++Gemini 2.5 Flash-Lite	️
++Gemini 2.0 Flash	️*
++Gemini 2.0 Flash-Lite	️*
 +* Note that Gemini 2.0 requires an explicit propertyOrdering list within the JSON input to define the preferred structure. You can find an example in this cookbook.
 +
 +Structured outputs vs. function calling
@@ -11108,12 +11108,12 @@ index 0000000..31c35cc
 +This section lists models and their function calling capabilities. Experimental models are not included. You can find a comprehensive capabilities overview on the model overview page.
 +
 +Model	Function Calling	Parallel Function Calling	Compositional Function Calling
-+Gemini 3 Pro	✔️	✔️	✔️
-+Gemini 3 Flash	✔️	✔️	✔️
-+Gemini 2.5 Pro	✔️	✔️	✔️
-+Gemini 2.5 Flash	✔️	✔️	✔️
-+Gemini 2.5 Flash-Lite	✔️	✔️	✔️
-+Gemini 2.0 Flash	✔️	✔️	✔️
++Gemini 3 Pro	️	️	️
++Gemini 3 Flash	️	️	️
++Gemini 2.5 Pro	️	️	️
++Gemini 2.5 Flash	️	️	️
++Gemini 2.5 Flash-Lite	️	️	️
++Gemini 2.0 Flash	️	️	️
 +Gemini 2.0 Flash-Lite	X	X	X
 +Best practices
 +Function and Parameter Descriptions: Be extremely clear and specific in your descriptions. The model relies on these to choose the correct function and provide appropriate arguments.
@@ -12596,7 +12596,7 @@ index 0000000..6aa9374
 +        // Show success message with video link
 +        const videoUrl = `https://www.youtube.com/watch?v=${result.videoId}`;
 +        const openVideo = confirm(
-+          `✅ Upload Successful!\n\nYour video has been uploaded to YouTube.\n\nVideo ID: ${result.videoId}\n\nClick OK to open it in your browser, or Cancel to continue editing.`
++          ` Upload Successful!\n\nYour video has been uploaded to YouTube.\n\nVideo ID: ${result.videoId}\n\nClick OK to open it in your browser, or Cancel to continue editing.`
 +        );
 +        
 +        if (openVideo) {
@@ -12612,11 +12612,11 @@ index 0000000..6aa9374
 +        // Reload recent videos
 +        setTimeout(() => loadRecentVideos(), 2000);
 +      } else {
-+        alert(`❌ Upload Failed\n\n${result.error}`);
++        alert(` Upload Failed\n\n${result.error}`);
 +        setIsUploading(false);
 +      }
 +    } catch (error: any) {
-+      alert(`❌ Upload Error\n\n${error.message}`);
++      alert(` Upload Error\n\n${error.message}`);
 +      setIsUploading(false);
 +    }
 +  };
@@ -12785,7 +12785,7 @@ index 0000000..6aa9374
 +          </h3>
 +          {clips.length === 0 && (
 +            <p className="text-xs text-yellow-500 mb-2">
-+              ⚠️ Add media to your timeline first (MEDIA tab)
++              ️ Add media to your timeline first (MEDIA tab)
 +            </p>
 +          )}
 +          <button
@@ -12811,10 +12811,10 @@ index 0000000..6aa9374
 +              <div className="flex items-center justify-between mb-3">
 +                <div className="flex items-center gap-2">
 +                  {uploadProgress.status === 'completed' && (
-+                    <span className="text-2xl">✅</span>
++                    <span className="text-2xl"></span>
 +                  )}
 +                  {uploadProgress.status === 'failed' && (
-+                    <span className="text-2xl">❌</span>
++                    <span className="text-2xl"></span>
 +                  )}
 +                  {uploadProgress.status === 'uploading' && (
 +                    <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -12940,17 +12940,17 @@ index 0000000..bbeefd8
 +};
 +
 +const statusIcons: Record<string, string> = {
-+    pending: '⏳',
-+    analyzing: '🔄',
-+    completed: '✅',
-+    failed: '❌',
++    pending: '',
++    analyzing: '',
++    completed: '',
++    failed: '',
 +};
 +
 +const mediaIcons: Record<string, string> = {
-+    video: '🎬',
-+    audio: '🎵',
-+    image: '🖼️',
-+    document: '📄',
++    video: '',
++    audio: '',
++    image: '️',
++    document: '',
 +};
 +
 +function MemoryEntryCard({ entry }: { entry: MediaAnalysisEntry }) {
@@ -13140,7 +13140,7 @@ index 0000000..bbeefd8
 +            <div className="p-4 border-b border-border-primary flex-shrink-0">
 +                <div className="flex items-center justify-between mb-1">
 +                    <div className="flex items-center gap-2">
-+                        <span className="text-lg">🧠</span>
++                        <span className="text-lg"></span>
 +                        <h3 className="text-sm font-bold text-text-primary">Gemini Memory</h3>
 +                    </div>
 +                    {isAnalyzing && (
@@ -13174,7 +13174,7 @@ index 0000000..bbeefd8
 +                            : 'bg-bg-elevated text-text-muted hover:text-text-primary'
 +                            }`}
 +                    >
-+                        ✅ {completedCount}
++                         {completedCount}
 +                    </button>
 +                    <button
 +                        onClick={() => setFilterStatus('pending')}
@@ -13183,7 +13183,7 @@ index 0000000..bbeefd8
 +                            : 'bg-bg-elevated text-text-muted hover:text-text-primary'
 +                            }`}
 +                    >
-+                        ⏳ {pendingCount}
++                         {pendingCount}
 +                    </button>
 +                    <button
 +                        onClick={() => setFilterStatus('failed')}
@@ -13192,7 +13192,7 @@ index 0000000..bbeefd8
 +                            : 'bg-bg-elevated text-text-muted hover:text-text-primary'
 +                            }`}
 +                    >
-+                        ❌ {failedCount}
++                         {failedCount}
 +                    </button>
 +                </div>
 +            </div>
@@ -13201,7 +13201,7 @@ index 0000000..bbeefd8
 +            <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
 +                {filteredEntries.length === 0 ? (
 +                    <div className="text-center text-text-muted text-sm mt-10">
-+                        <div className="text-3xl mb-2">🧠</div>
++                        <div className="text-3xl mb-2"></div>
 +                        <p className="mb-1">
 +                            {entries.length === 0
 +                                ? 'No media analyzed yet'
@@ -13227,7 +13227,7 @@ index 0000000..bbeefd8
 +                        onClick={clearMemory}
 +                        className="w-full text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 py-2 rounded transition-colors font-medium"
 +                    >
-+                        🗑️ Clear All Memory
++                        ️ Clear All Memory
 +                    </button>
 +                    <p className="text-[10px] text-text-muted/60 text-center mt-2">
 +                        Memory will be saved when you save the project
@@ -13947,7 +13947,7 @@ index 0000000..5cd881f
 +      );
 +
 +      // Check if this is an editing operation by generating a plan
-+      addMessage('assistant', '🤔 Analyzing your request and generating execution plan...');
++      addMessage('assistant', ' Analyzing your request and generating execution plan...');
 +      
 +      const plan = await generateCompletePlan(content, geminiHistory, 10);
 +
@@ -13961,7 +13961,7 @@ index 0000000..5cd881f
 +
 +        // Auto-execute if enabled
 +        if (autoExecute) {
-+          addMessage('assistant', `⚡ Auto-executing ${plan.operations.length} operation${plan.operations.length > 1 ? 's' : ''}...`);
++          addMessage('assistant', ` Auto-executing ${plan.operations.length} operation${plan.operations.length > 1 ? 's' : ''}...`);
 +          
 +          try {
 +            const { executePlan } = await import('../../lib/geminiPlanningService');
@@ -13989,7 +13989,7 @@ index 0000000..5cd881f
 +            addMessage('assistant', finalResponse);
 +          } catch (error) {
 +            console.error('Auto-execution error:', error);
-+            let errorMessage = '⚠️ Error during auto-execution:\n\n';
++            let errorMessage = '️ Error during auto-execution:\n\n';
 +            if (error instanceof Error) {
 +              errorMessage += error.message;
 +            } else {
@@ -14049,7 +14049,7 @@ index 0000000..5cd881f
 +
 +    } catch (error) {
 +      console.error('Error communicating with Gemini:', error);
-+      let errorMessage = '⚠️ Error: ';
++      let errorMessage = '️ Error: ';
 +
 +      if (error instanceof Error) {
 +        if (error.message.includes('API key')) {
@@ -14104,10 +14104,10 @@ index 0000000..5cd881f
 +    } catch (error) {
 +      console.error('Plan execution error:', error);
 +      
-+      let errorMessage = '⚠️ Error executing plan:\n\n';
++      let errorMessage = '️ Error executing plan:\n\n';
 +      if (error instanceof Error) {
 +        errorMessage = error.message.includes('Some operations failed:') 
-+          ? '⚠️ Some operations failed:\n\n' + error.message.replace('Some operations failed:\n', '')
++          ? '️ Some operations failed:\n\n' + error.message.replace('Some operations failed:\n', '')
 +          : errorMessage + error.message;
 +      } else {
 +        errorMessage += 'Unknown error occurred';
@@ -14122,7 +14122,7 @@ index 0000000..5cd881f
 +  };
 +
 +  const handleRejectPlan = () => {
-+    addMessage('assistant', '❌ Execution plan rejected. How else can I help you?');
++    addMessage('assistant', ' Execution plan rejected. How else can I help you?');
 +    setExecutionPlan(null);
 +  };
 +
@@ -14248,7 +14248,7 @@ index 0000000..5cd881f
 +          <div className="p-3.5 bg-bg-elevated/50 rounded-lg border border-border-subtle/50">
 +            <div className="flex items-center gap-2.5 mb-3">
 +              <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center">
-+                <span className="text-sm">📋</span>
++                <span className="text-sm"></span>
 +              </div>
 +              <div className="flex-1">
 +                <h4 className="text-xs font-medium text-text-primary">Plan</h4>
@@ -14261,7 +14261,7 @@ index 0000000..5cd881f
 +            <div className="space-y-1.5 mb-3 max-h-40 overflow-y-auto custom-scrollbar">
 +              {executionPlan.plan.operations.map((op: any, i: number) => (
 +                <div key={i} className="text-[11px] text-text-secondary flex items-start gap-2 p-2 bg-bg-surface/30 rounded-lg">
-+                  <span className="opacity-50 text-xs">{op.isReadOnly ? '📖' : '✏️'}</span>
++                  <span className="opacity-50 text-xs">{op.isReadOnly ? '' : '️'}</span>
 +                  <span className="flex-1 leading-relaxed">{op.description}</span>
 +                </div>
 +              ))}
@@ -15659,7 +15659,7 @@ index 0000000..8a629bd
 +        // Read file as base64 first (we need the raw bytes to upload)
 +        const base64Data = await readFileAsBase64(filePath);
 +        if (!base64Data) {
-+            console.warn(`⚠️ Cannot read file for upload: ${fileName}`);
++            console.warn(`️ Cannot read file for upload: ${fileName}`);
 +            return null;
 +        }
 +
@@ -15673,7 +15673,7 @@ index 0000000..8a629bd
 +        const blob = new Blob([byteArray], { type: mimeType });
 +        const file = new File([blob], fileName, { type: mimeType });
 +
-+        console.log(`📤 Uploading "${fileName}" (${(file.size / 1024 / 1024).toFixed(1)} MB) to Gemini File API...`);
++        console.log(` Uploading "${fileName}" (${(file.size / 1024 / 1024).toFixed(1)} MB) to Gemini File API...`);
 +
 +        const uploaded = await ai.files.upload({
 +            file: file,
@@ -15684,7 +15684,7 @@ index 0000000..8a629bd
 +            throw new Error('File upload failed: no URI or name returned');
 +        }
 +
-+        console.log(`✅ File uploaded to Gemini: ${uploaded.uri} (name: ${uploaded.name})`);
++        console.log(` File uploaded to Gemini: ${uploaded.uri} (name: ${uploaded.name})`);
 +
 +        // Poll for ACTIVE state — videos need server-side processing after upload
 +        // The file transitions: PROCESSING -> ACTIVE (or FAILED)
@@ -15695,7 +15695,7 @@ index 0000000..8a629bd
 +        let fileState = uploaded.state ?? 'PROCESSING';
 +
 +        if (fileState !== 'ACTIVE') {
-+            console.log(`⏳ Waiting for "${fileName}" to finish processing (state: ${fileState})...`);
++            console.log(` Waiting for "${fileName}" to finish processing (state: ${fileState})...`);
 +        }
 +
 +        while (fileState !== 'ACTIVE' && (Date.now() - startTime) < MAX_POLL_TIME_MS) {
@@ -15706,14 +15706,14 @@ index 0000000..8a629bd
 +                fileState = fileInfo.state ?? 'PROCESSING';
 +
 +                const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-+                console.log(`⏳ File "${fileName}" state: ${fileState} (${elapsed}s elapsed)`);
++                console.log(` File "${fileName}" state: ${fileState} (${elapsed}s elapsed)`);
 +
 +                if (fileState === 'FAILED') {
 +                    throw new Error(`File processing failed on Gemini servers for "${fileName}"`);
 +                }
 +            } catch (pollError) {
 +                // If polling itself fails, log but continue — the file might still become ACTIVE
-+                console.warn(`⚠️ Poll error for "${fileName}":`, pollError);
++                console.warn(`️ Poll error for "${fileName}":`, pollError);
 +            }
 +        }
 +
@@ -15721,10 +15721,10 @@ index 0000000..8a629bd
 +            throw new Error(`File "${fileName}" did not reach ACTIVE state within ${MAX_POLL_TIME_MS / 1000}s (last state: ${fileState})`);
 +        }
 +
-+        console.log(`✅ File "${fileName}" is ACTIVE and ready for analysis`);
++        console.log(` File "${fileName}" is ACTIVE and ready for analysis`);
 +        return { uri: uploaded.uri, mimeType: uploaded.mimeType };
 +    } catch (error) {
-+        console.error(`❌ File API upload failed for "${fileName}":`, error);
++        console.error(` File API upload failed for "${fileName}":`, error);
 +        return null;
 +    }
 +}
@@ -15791,7 +15791,7 @@ index 0000000..8a629bd
 + */
 +async function analyzeFile(task: AnalysisTask): Promise<void> {
 +    if (!ai) {
-+        console.error('❌ [Gemini Memory] AI client not initialized! API key missing or invalid.');
++        console.error(' [Gemini Memory] AI client not initialized! API key missing or invalid.');
 +        console.error('Required env var: VITE_GEMINI_API_KEY');
 +        console.error('Current value:', import.meta.env.VITE_GEMINI_API_KEY ? 'Present' : 'Missing');
 +        useGeminiMemoryStore.getState().updateStatus(
@@ -15805,7 +15805,7 @@ index 0000000..8a629bd
 +    const store = useGeminiMemoryStore.getState();
 +    store.updateStatus(task.entryId, 'analyzing');
 +
-+    console.log(`🚀 [Gemini Memory] Starting analysis for "${task.fileName}" (${(task.fileSize / 1024 / 1024).toFixed(2)} MB)`);
++    console.log(` [Gemini Memory] Starting analysis for "${task.fileName}" (${(task.fileSize / 1024 / 1024).toFixed(2)} MB)`);
 +
 +    const MAX_RETRIES = 3;
 +    let lastError: Error | null = null;
@@ -15822,7 +15822,7 @@ index 0000000..8a629bd
 +
 +            if (useFileAPI) {
 +                // Use File API for videos and large files (recommended by Gemini docs)
-+                console.log(`📁 Using File API for "${task.fileName}" (${task.mediaType}, ${(task.fileSize / 1024 / 1024).toFixed(1)} MB)...`);
++                console.log(` Using File API for "${task.fileName}" (${task.mediaType}, ${(task.fileSize / 1024 / 1024).toFixed(1)} MB)...`);
 +
 +                const uploaded = await uploadFileToGeminiAPI(task.filePath, task.mimeType, task.fileName);
 +
@@ -15851,14 +15851,14 @@ index 0000000..8a629bd
 +                            filePart.videoMetadata.fps = fps;
 +                        }
 +
-+                        console.log(`✂️ Analyzing video clip from ${startTime || 0}s to ${endTime || 'end'} at ${fps || 1} FPS`);
++                        console.log(`️ Analyzing video clip from ${startTime || 0}s to ${endTime || 'end'} at ${fps || 1} FPS`);
 +                    }
 +
 +                    parts.push(filePart);
 +                } else {
 +                    // Fallback: try inline if file API fails and file is small enough
 +                    if (task.fileSize <= MAX_INLINE_FOR_ANALYSIS) {
-+                        console.log(`↩️ Falling back to inline data for "${task.fileName}"...`);
++                        console.log(`️ Falling back to inline data for "${task.fileName}"...`);
 +                        const base64Data = await readFileAsBase64(task.filePath);
 +                        if (base64Data) {
 +                            parts.push({
@@ -15866,7 +15866,7 @@ index 0000000..8a629bd
 +                            });
 +                        }
 +                    } else {
-+                        console.warn(`❌ Cannot process "${task.fileName}": File API failed and file too large for inline`);
++                        console.warn(` Cannot process "${task.fileName}": File API failed and file too large for inline`);
 +                    }
 +                }
 +            } else {
@@ -15895,12 +15895,12 @@ index 0000000..8a629bd
 +
 +            // If no media parts were added, do metadata-only analysis
 +            if (parts.length === 0) {
-+                console.log(`📝 No file data available for "${task.fileName}", performing metadata-only analysis`);
++                console.log(` No file data available for "${task.fileName}", performing metadata-only analysis`);
 +            }
 +
 +            parts.push({ text: prompt });
 +
-+            console.log(`🧠 Analyzing ${task.mediaType}: "${task.fileName}" (attempt ${attempt}/${MAX_RETRIES})...`);
++            console.log(` Analyzing ${task.mediaType}: "${task.fileName}" (attempt ${attempt}/${MAX_RETRIES})...`);
 +
 +            const response = await ai.models.generateContent({
 +                model: 'gemini-2.5-flash',
@@ -16038,7 +16038,7 @@ index 0000000..8a629bd
 +                }
 +            );
 +
-+            console.log(`✅ Analysis complete for "${task.fileName}": ${parsed.summary}`);
++            console.log(` Analysis complete for "${task.fileName}": ${parsed.summary}`);
 +            // Note: The store's updateAnalysis() auto-saves to disk via Electron IPC
 +            return; // Success — exit retry loop
 +
@@ -16055,13 +16055,13 @@ index 0000000..8a629bd
 +
 +            if (isRetryable && attempt < MAX_RETRIES) {
 +                const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 10000) + Math.random() * 1000;
-+                console.warn(`⚠️ Retryable error for "${task.fileName}" (attempt ${attempt}/${MAX_RETRIES}), retrying in ${(backoffMs / 1000).toFixed(1)}s...`, errorMsg);
++                console.warn(`️ Retryable error for "${task.fileName}" (attempt ${attempt}/${MAX_RETRIES}), retrying in ${(backoffMs / 1000).toFixed(1)}s...`, errorMsg);
 +                await sleep(backoffMs);
 +                continue;
 +            }
 +
 +            // Non-retryable error or max retries reached
-+            console.error(`❌ Analysis failed for "${task.fileName}" after ${attempt} attempt(s):`, error);
++            console.error(` Analysis failed for "${task.fileName}" after ${attempt} attempt(s):`, error);
 +            store.updateStatus(task.entryId, 'failed', errorMsg);
 +            return;
 +        }
@@ -16137,7 +16137,7 @@ index 0000000..8a629bd
 +    // Check if this file has already been analyzed
 +    const existing = store.getEntryByFilePath(params.filePath);
 +    if (existing && existing.status === 'completed') {
-+        console.log(`ℹ️ "${params.fileName}" already analyzed, skipping`);
++        console.log(`️ "${params.fileName}" already analyzed, skipping`);
 +        // Link clip ID if provided
 +        if (params.clipId && !existing.clipId) {
 +            store.linkClipId(existing.id, params.clipId);
@@ -16193,7 +16193,7 @@ index 0000000..8a629bd
 +        thumbnailDataUrl: params.thumbnailDataUrl,
 +    });
 +
-+    console.log(`📋 Queued "${params.fileName}" for Gemini analysis (${analysisQueue.length} in queue)`);
++    console.log(` Queued "${params.fileName}" for Gemini analysis (${analysisQueue.length} in queue)`);
 +
 +    // Start processing
 +    processQueue();
@@ -16638,7 +16638,7 @@ index 0000000..169b1d5
 +</role>
 +
 +<critical-planning-rules>
-+⚠️ IMPORTANT: You are in PLANNING mode. You must discover ALL operations needed to FULLY complete the user's request.
++️ IMPORTANT: You are in PLANNING mode. You must discover ALL operations needed to FULLY complete the user's request.
 +
 +1. UNDERSTAND THE COMPLETE GOAL
 +   - What is the user's final desired outcome?
@@ -16775,7 +16775,7 @@ index 0000000..169b1d5
 +      .sort((a, b) => a.startTime - b.startTime)
 +      .map((clip, index) => {
 +        const selectedMark = state.selectedClipIds.includes(clip.id) ? '✓' : ' ';
-+        const mutedMark = clip.muted ? '🔇' : '';
++        const mutedMark = clip.muted ? '' : '';
 +        const volumePct = Math.round((clip.volume || 1) * 100);
 +        const trackLabel = (clip.trackIndex ?? 0) < 10 ? `Video ${clip.trackIndex ?? 0}` : `Audio ${(clip.trackIndex ?? 10) - 10}`;
 +        
@@ -16828,7 +16828,7 @@ index 0000000..6d43128
 +const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 +
 +if (!apiKey) {
-+  console.error('⚠️ VITE_GEMINI_API_KEY not found in environment variables');
++  console.error('️ VITE_GEMINI_API_KEY not found in environment variables');
 +}
 +
 +const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
@@ -16900,7 +16900,7 @@ index 0000000..6d43128
 +      .sort((a, b) => a.startTime - b.startTime)
 +      .map((clip, index) => {
 +        const selectedMark = state.selectedClipIds.includes(clip.id) ? '✓' : ' ';
-+        const mutedMark = clip.muted ? '🔇' : '';
++        const mutedMark = clip.muted ? '' : '';
 +        const volumePct = Math.round((clip.volume || 1) * 100);
 +        const trackLabel = (clip.trackIndex ?? 0) < 10 ? `Video ${clip.trackIndex ?? 0}` : `Audio ${(clip.trackIndex ?? 10) - 10}`;
 +        
@@ -16960,7 +16960,7 @@ index 0000000..6d43128
 +async function uploadToFileApi(file: File): Promise<{ uri: string; mimeType: string }> {
 +  if (!ai) throw new Error('Gemini AI not initialized');
 +
-+  console.log(`📤 Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB) to Gemini File API...`);
++  console.log(` Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB) to Gemini File API...`);
 +
 +  const uploaded = await ai.files.upload({
 +    file: file,
@@ -16971,7 +16971,7 @@ index 0000000..6d43128
 +    throw new Error('File upload failed: no URI returned');
 +  }
 +
-+  console.log(`✅ File uploaded: ${uploaded.uri}`);
++  console.log(` File uploaded: ${uploaded.uri}`);
 +  return { uri: uploaded.uri, mimeType: uploaded.mimeType };
 +}
 +
@@ -17166,12 +17166,12 @@ index 0000000..6d43128
 +  try {
 +    // Check if current cache is still valid
 +    if (currentCache && Date.now() < cacheExpiry) {
-+      console.log('✅ Using existing cache:', currentCache);
++      console.log(' Using existing cache:', currentCache);
 +      return currentCache;
 +    }
 +
 +    // Use accurate token counting API instead of rough estimate
-+    console.log('🔢 Counting tokens for cache...');
++    console.log(' Counting tokens for cache...');
 +    const tokenCount = await ai.models.countTokens({
 +      model: 'gemini-2.5-flash-lite',
 +      contents: [{ role: 'user', parts: [{ text: systemInstruction }] }],
@@ -17181,11 +17181,11 @@ index 0000000..6d43128
 +
 +    // Only create cache if content is large enough
 +    if (!actualTokens || actualTokens < MIN_TOKENS_FOR_CACHE) {
-+      console.log(`⚠️ Content too small for caching (${actualTokens} tokens, min ${MIN_TOKENS_FOR_CACHE})`);
++      console.log(`️ Content too small for caching (${actualTokens} tokens, min ${MIN_TOKENS_FOR_CACHE})`);
 +      return null;
 +    }
 +
-+    console.log(`📦 Creating new cache (${actualTokens} tokens)...`);
++    console.log(` Creating new cache (${actualTokens} tokens)...`);
 +
 +    // Create a new cache with system instruction
 +    // Note: contents must have at least one item for cache creation
@@ -17212,7 +17212,7 @@ index 0000000..6d43128
 +    currentCache = cacheName;
 +    cacheExpiry = Date.now() + (CACHE_TTL_SECONDS * 1000);
 +
-+    console.log('✅ Cache created:', cacheName, 'Expires:', new Date(cacheExpiry).toLocaleTimeString());
++    console.log(' Cache created:', cacheName, 'Expires:', new Date(cacheExpiry).toLocaleTimeString());
 +
 +    return cacheName;
 +  } catch (error) {
@@ -17229,7 +17229,7 @@ index 0000000..6d43128
 +
 +  try {
 +    await ai.caches.delete({ name: currentCache });
-+    console.log('🗑️ Cache deleted:', currentCache);
++    console.log('️ Cache deleted:', currentCache);
 +  } catch (error) {
 +    console.error('Failed to delete cache:', error);
 +  } finally {
@@ -17453,7 +17453,7 @@ index 0000000..6d43128
 +
 +      // Log cache performance
 +      if (cachedTokens > 0) {
-+        console.log(`💰 Cache hit! Saved ${cachedTokens} tokens`);
++        console.log(` Cache hit! Saved ${cachedTokens} tokens`);
 +      }
 +    }
 +  } catch (error) {
@@ -17804,7 +17804,7 @@ index 0000000..d38f3aa
 +            // Note: Memory is saved only when user saves the project
 +            const entry = get().entries.find((e) => e.id === id);
 +            if (entry) {
-+                console.log(`[Memory Store] ✅ Analysis completed for "${entry.fileName}" (will be saved with project)`);
++                console.log(`[Memory Store]  Analysis completed for "${entry.fileName}" (will be saved with project)`);
 +            }
 +        },
 +
@@ -17861,7 +17861,7 @@ index 0000000..d38f3aa
 +            contextStr += `${context.projectSummary}\n\n`;
 +
 +            for (const entry of context.entries) {
-+                contextStr += `📁 File: "${entry.fileName}" (${entry.mediaType})\n`;
++                contextStr += ` File: "${entry.fileName}" (${entry.mediaType})\n`;
 +                if (entry.duration) contextStr += `   Duration: ${entry.duration.toFixed(1)}s\n`;
 +                contextStr += `   Summary: ${entry.summary}\n`;
 +                if (entry.tags.length > 0) contextStr += `   Tags: ${entry.tags.join(', ')}\n`;
@@ -17918,7 +17918,7 @@ index 0000000..d38f3aa
 +                isAnalyzing: false,
 +                analyzingCount: 0,
 +            });
-+            console.log('[Memory Store] 🧹 Memory cleared (project not saved)');
++            console.log('[Memory Store]  Memory cleared (project not saved)');
 +        },
 +
 +        clearPendingEntries: () => {
@@ -17946,7 +17946,7 @@ index 0000000..d38f3aa
 +                entries,
 +                isLoaded: true,
 +            });
-+            console.log(`[Memory Store] ✅ Imported ${entries.length} entries from project file`);
++            console.log(`[Memory Store]  Imported ${entries.length} entries from project file`);
 +        },
 +
 +        // Sync memory with current project state
@@ -17956,7 +17956,7 @@ index 0000000..d38f3aa
 +            // If no clips in project, clear all memory
 +            if (clipIds.length === 0) {
 +                if (currentEntries.length > 0) {
-+                    console.log('[Memory Store] 🧹 No clips in project - clearing memory');
++                    console.log('[Memory Store]  No clips in project - clearing memory');
 +                    set({ entries: [] });
 +                }
 +                return;
@@ -17969,7 +17969,7 @@ index 0000000..d38f3aa
 +            });
 +            
 +            if (validEntries.length !== currentEntries.length) {
-+                console.log(`[Memory Store] 🧹 Removed ${currentEntries.length - validEntries.length} orphaned entries`);
++                console.log(`[Memory Store]  Removed ${currentEntries.length - validEntries.length} orphaned entries`);
 +                set({ entries: validEntries });
 +            }
 +        },
@@ -18192,7 +18192,7 @@ index 0000000..75d5b62
 +    let elapsed = 0;
 +    let entry;
 +
-+    console.log('⏳ Waiting for analysis to complete...');
++    console.log(' Waiting for analysis to complete...');
 +
 +    while (elapsed < MAX_WAIT_MS) {
 +      // Get fresh state on each iteration
@@ -18200,7 +18200,7 @@ index 0000000..75d5b62
 +      entry = currentState.entries.find(e => e.id === testEntryId);
 +      
 +      if (entry?.status === 'completed') {
-+        console.log(`✅ Analysis completed in ${(elapsed / 1000).toFixed(1)}s`);
++        console.log(` Analysis completed in ${(elapsed / 1000).toFixed(1)}s`);
 +        break;
 +      }
 +
@@ -18211,7 +18211,7 @@ index 0000000..75d5b62
 +      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
 +      elapsed += POLL_INTERVAL_MS;
 +
-+      console.log(`⏳ Status: ${entry?.status} (${(elapsed / 1000).toFixed(0)}s elapsed)`);
++      console.log(` Status: ${entry?.status} (${(elapsed / 1000).toFixed(0)}s elapsed)`);
 +    }
 +
 +    // Final check with fresh state
@@ -18236,7 +18236,7 @@ index 0000000..75d5b62
 +    expect(entry?.analysis).toBeDefined();
 +    expect(entry?.analysis.length).toBeGreaterThan(50); // Should have substantial content
 +
-+    console.log('📊 Analysis Results:');
++    console.log(' Analysis Results:');
 +    console.log(`   Summary: ${entry?.summary}`);
 +    console.log(`   Tags: ${entry?.tags.join(', ')}`);
 +    console.log(`   Analysis length: ${entry?.analysis.length} chars`);
@@ -18266,7 +18266,7 @@ index 0000000..75d5b62
 +    expect(savedEntry.status).toBe('completed');
 +    expect(savedEntry.analysis).toBeDefined();
 +
-+    console.log('💾 Memory saved to:', MEMORY_FILE);
++    console.log(' Memory saved to:', MEMORY_FILE);
 +    console.log(`   Total entries: ${savedData.entries.length}`);
 +  });
 +
@@ -18278,7 +18278,7 @@ index 0000000..75d5b62
 +    expect(context.length).toBeGreaterThan(0);
 +    expect(context).toContain('videoplayback.mp4');
 +
-+    console.log('📝 Memory context length:', context.length, 'chars');
++    console.log(' Memory context length:', context.length, 'chars');
 +  });
 +});
 diff --git a/toolcall_plan.md b/toolcall_plan.md
@@ -18353,7 +18353,7 @@ index 0000000..4ab7502
 +
 +## Current State Analysis
 +
-+### What We Already Have ✅
++### What We Already Have 
 +
 +#### 1. **Complete Video Editing Operations** ([src/stores/useProjectStore.ts](src/stores/useProjectStore.ts))
 +The Zustand store exposes ~50 operations including:
@@ -18390,7 +18390,7 @@ index 0000000..4ab7502
 +- Token counter and cost tracking
 +- Message history management
 +
-+### What We Need to Build 🔨
++### What We Need to Build 
 +
 +#### 1. **Function Declarations** 
 +Define ~15-20 video editing tools as Gemini function declarations with proper schemas
@@ -18587,21 +18587,21 @@ index 0000000..4ab7502
 +### Which Operations to Expose as Tools?
 +
 +**Phase 1 - Core Editing Tools (~15 tools):**
-+1. ✅ `get_timeline_info` - Get clips, duration, selections (read-only)
-+2. ✅ `split_clip` - Split at position
-+3. ✅ `delete_clips` - Remove one or multiple clips
-+4. ✅ `move_clip` - Change position/track
-+5. ✅ `merge_clips` - Merge multiple clips
-+6. ✅ `copy_paste_clips` - Copy and paste operations
-+7. ✅ `set_volume` - Adjust clip volume
-+8. ✅ `toggle_mute` - Mute/unmute clip
-+9. ✅ `select_clips` - Select clips by ID or criteria
-+10. ✅ `undo_action` - Undo last change
-+11. ✅ `redo_action` - Redo last undo
-+12. ✅ `set_playhead` - Move playhead position
-+13. ✅ `update_clip_bounds` - Trim start/end of clip
-+14. ✅ `reorder_clips` - Change clip order
-+15. ✅ `get_clip_details` - Get detailed info about specific clip
++1.  `get_timeline_info` - Get clips, duration, selections (read-only)
++2.  `split_clip` - Split at position
++3.  `delete_clips` - Remove one or multiple clips
++4.  `move_clip` - Change position/track
++5.  `merge_clips` - Merge multiple clips
++6.  `copy_paste_clips` - Copy and paste operations
++7.  `set_volume` - Adjust clip volume
++8.  `toggle_mute` - Mute/unmute clip
++9.  `select_clips` - Select clips by ID or criteria
++10.  `undo_action` - Undo last change
++11.  `redo_action` - Redo last undo
++12.  `set_playhead` - Move playhead position
++13.  `update_clip_bounds` - Trim start/end of clip
++14.  `reorder_clips` - Change clip order
++15.  `get_clip_details` - Get detailed info about specific clip
 +
 +**Phase 2 - Advanced Tools:**
 +- Transcription operations
@@ -18791,7 +18791,7 @@ index 0000000..4ab7502
 +    .sort((a, b) => a.startTime - b.startTime)
 +    .map((clip, index) => {
 +      const selectedMark = state.selectedClipIds.includes(clip.id) ? '✓' : ' ';
-+      const mutedMark = clip.muted ? '🔇' : '';
++      const mutedMark = clip.muted ? '' : '';
 +      const volumePct = Math.round((clip.volume || 1) * 100);
 +      
 +      return `${index + 1}. [${selectedMark}] ${clip.name}
@@ -19337,7 +19337,7 @@ index 0000000..4ab7502
 +{pendingToolCalls && (
 +  <div className="border-2 border-accent-blue rounded-lg p-4 bg-bg-secondary">
 +    <div className="flex items-start gap-3">
-+      <div className="text-2xl">🤖</div>
++      <div className="text-2xl"></div>
 +      <div className="flex-1">
 +        <h3 className="font-semibold text-text-primary mb-2">
 +          AI Video Editing Plan
@@ -19452,7 +19452,7 @@ index 0000000..4ab7502
 +    
 +  } catch (error) {
 +    console.error('Tool execution error:', error);
-+    addMessage('assistant', '⚠️ Error executing operations: ' + (error as Error).message);
++    addMessage('assistant', '️ Error executing operations: ' + (error as Error).message);
 +  } finally {
 +    setIsExecutingTools(false);
 +    setIsTyping(false);
@@ -19624,7 +19624,7 @@ index 0000000..4ab7502
 +
 +```
 +┌────────────────────────────────────────────────────────┐
-+│ 🤖 AI Video Editing Plan                              │
++│  AI Video Editing Plan                              │
 +├────────────────────────────────────────────────────────┤
 +│ Gemini suggests the following operations:             │
 +│                                                        │
@@ -19667,7 +19667,7 @@ index 0000000..4ab7502
 +
 +**Validation Error (before execution):**
 +```
-+⚠️ Cannot execute plan:
++️ Cannot execute plan:
 +• Clip "intro.mp4" not found
 +• Volume 1.5 is out of range (must be 0.0-1.0)
 +
@@ -19676,7 +19676,7 @@ index 0000000..4ab7502
 +
 +**Execution Error (during operation):**
 +```
-+❌ Operation 2 of 5 failed:
++ Operation 2 of 5 failed:
 +"set_clip_volume" - Clip abc123 is locked
 +
 +Completed: 1 operation
@@ -19870,31 +19870,31 @@ index 0000000..4ab7502
 +### Phase 4: Manual Testing Scenarios
 +
 +**Simple Operations:**
-+1. ✅ "Split the first clip at 10 seconds"
-+2. ✅ "Delete the last clip"
-+3. ✅ "Move clip 2 to 5 seconds"
-+4. ✅ "Set volume to 50%"
-+5. ✅ "Mute the background music"
++1.  "Split the first clip at 10 seconds"
++2.  "Delete the last clip"
++3.  "Move clip 2 to 5 seconds"
++4.  "Set volume to 50%"
++5.  "Mute the background music"
 +
 +**Complex Operations:**
-+6. ✅ "Remove all gaps in the timeline"
-+7. ✅ "Make all clips the same volume"
-+8. ✅ "Split every clip longer than 20 seconds in half"
-+9. ✅ "Merge all clips on track 1"
-+10. ✅ "Rearrange clips by duration (shortest to longest)"
++6.  "Remove all gaps in the timeline"
++7.  "Make all clips the same volume"
++8.  "Split every clip longer than 20 seconds in half"
++9.  "Merge all clips on track 1"
++10.  "Rearrange clips by duration (shortest to longest)"
 +
 +**Error Handling:**
-+11. ✅ Invalid clip ID → AI asks for clarification
-+12. ✅ Out of range time → AI suggests valid range
-+13. ✅ Ambiguous request → AI asks follow-up questions
-+14. ✅ Locked clip → AI explains can't modify
-+15. ✅ Empty timeline → AI explains no clips to work with
++11.  Invalid clip ID → AI asks for clarification
++12.  Out of range time → AI suggests valid range
++13.  Ambiguous request → AI asks follow-up questions
++14.  Locked clip → AI explains can't modify
++15.  Empty timeline → AI explains no clips to work with
 +
 +**Conversational:**
-+16. ✅ "What's on my timeline?" → AI uses get_timeline_info
-+17. ✅ "Can you help me organize this?" → AI asks what kind of organization
-+18. ✅ "Undo that" → AI calls undo_action
-+19. ✅ "Do it again" → AI calls redo_action or repeats last operation
++16.  "What's on my timeline?" → AI uses get_timeline_info
++17.  "Can you help me organize this?" → AI asks what kind of organization
++18.  "Undo that" → AI calls undo_action
++19.  "Do it again" → AI calls redo_action or repeats last operation
 +
 +---
 +

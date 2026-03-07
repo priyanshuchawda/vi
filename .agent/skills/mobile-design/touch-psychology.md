@@ -57,8 +57,8 @@ Where:
 │                                     │ ← Hit area: 48px (padding extends)
 └─────────────────────────────────────┘
 
-✅ CORRECT: Visual can be smaller if hit area is minimum 44-48px
-❌ WRONG: Making hit area same as small visual element
+ CORRECT: Visual can be smaller if hit area is minimum 44-48px
+ WRONG: Making hit area same as small visual element
 ```
 
 ### Application Rules
@@ -237,10 +237,10 @@ Swipe actions need visual hints:
 │  └───┘                                  │
 └─────────────────────────────────────────┘
 
-✅ Good: Slight color peek at edge suggesting swipe
-✅ Good: Drag handle icon ( ≡ ) suggesting reorder
-✅ Good: Onboarding tooltip explaining gesture
-❌ Bad: Hidden gestures with no visual affordance
+ Good: Slight color peek at edge suggesting swipe
+ Good: Drag handle icon ( ≡ ) suggesting reorder
+ Good: Onboarding tooltip explaining gesture
+ Bad: Hidden gestures with no visual affordance
 ```
 
 ### Platform Gesture Differences
@@ -299,7 +299,7 @@ Without haptics:
 ### Haptic Usage Guidelines
 
 ```
-✅ DO use haptics for:
+ DO use haptics for:
 ├── Button taps
 ├── Toggle switches
 ├── Picker/slider values
@@ -309,7 +309,7 @@ Without haptics:
 ├── Swipe action thresholds
 └── Important state changes
 
-❌ DON'T use haptics for:
+ DON'T use haptics for:
 ├── Every scroll position
 ├── Every list item
 ├── Background events

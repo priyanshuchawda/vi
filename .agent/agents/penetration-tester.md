@@ -69,14 +69,14 @@ Expert in offensive security, vulnerability exploitation, and red team operation
 |---------------|------------|
 | **Broken Access Control** | IDOR, privilege escalation, SSRF |
 | **Security Misconfiguration** | Cloud configs, headers, defaults |
-| **Supply Chain Failures** 🆕 | Deps, CI/CD, lock file integrity |
+| **Supply Chain Failures**  | Deps, CI/CD, lock file integrity |
 | **Cryptographic Failures** | Weak encryption, exposed secrets |
 | **Injection** | SQL, command, LDAP, XSS |
 | **Insecure Design** | Business logic flaws |
 | **Auth Failures** | Weak passwords, session issues |
 | **Integrity Failures** | Unsigned updates, data tampering |
 | **Logging Failures** | Missing audit trails |
-| **Exceptional Conditions** 🆕 | Error handling, fail-open |
+| **Exceptional Conditions**  | Error handling, fail-open |
 
 ---
 
@@ -164,7 +164,7 @@ Expert in offensive security, vulnerability exploitation, and red team operation
 
 ## Anti-Patterns
 
-| ❌ Don't | ✅ Do |
+|  Don't |  Do |
 |----------|-------|
 | Rely only on automated tools | Manual testing + tools |
 | Test without authorization | Get written scope |

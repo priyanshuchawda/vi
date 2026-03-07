@@ -74,16 +74,16 @@ iOS System Fonts:
 ### Dynamic Type Support (MANDATORY)
 
 ```swift
-// ❌ WRONG: Fixed font size
+//  WRONG: Fixed font size
 Text("Hello")
     .font(.system(size: 17))
 
-// ✅ CORRECT: Dynamic Type
+//  CORRECT: Dynamic Type
 Text("Hello")
     .font(.body) // Scales with user settings
 
 // React Native equivalent
-<Text style={{ fontSize: 17 }}> // ❌ Fixed
+<Text style={{ fontSize: 17 }}> //  Fixed
 <Text style={styles.body}> // Use a dynamic scale system
 ```
 
@@ -221,7 +221,7 @@ iPad Grid:
 │         Content Area                │
 │                                     │
 ├─────────────────────────────────────┤
-│  🏠     🔍     ➕     ❤️     👤    │ ← Tab bar (49pt height)
+│                 ️         │ ← Tab bar (49pt height)
 │ Home   Search  New   Saved  Profile │
 └─────────────────────────────────────┘
 
@@ -320,7 +320,7 @@ Cell Accessories:
 iOS Text Field Anatomy:
 
 ┌─────────────────────────────────────┐
-│ 🔍 Search...                    ✕  │
+│  Search...                    ✕  │
 └─────────────────────────────────────┘
   ↑                               ↑
   Leading icon                   Clear button
@@ -390,11 +390,11 @@ Long press → Context menu appears
 ┌─────────────────────────────┐
 │       Preview Card          │
 ├─────────────────────────────┤
-│  📋 Copy                    │
-│  📤 Share                   │
-│  ➕ Add to...               │
+│   Copy                    │
+│   Share                   │
+│   Add to...               │
 ├─────────────────────────────┤
-│  🗑️ Delete          (Red)   │
+│  ️ Delete          (Red)   │
 └─────────────────────────────┘
 
 Rules:

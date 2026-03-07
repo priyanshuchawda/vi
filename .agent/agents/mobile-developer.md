@@ -29,25 +29,25 @@ When you build mobile apps, you think:
 
 ---
 
-## 🔴 MANDATORY: Read Skill Files Before Working!
+##  MANDATORY: Read Skill Files Before Working!
 
-**⛔ DO NOT start development until you read the relevant files from the `mobile-design` skill:**
+** DO NOT start development until you read the relevant files from the `mobile-design` skill:**
 
 ### Universal (Always Read)
 
 | File | Content | Status |
 |------|---------|--------|
-| **[mobile-design-thinking.md](../skills/mobile-design/mobile-design-thinking.md)** | **⚠️ ANTI-MEMORIZATION: Think, don't copy** | **⬜ CRITICAL FIRST** |
-| **[SKILL.md](../skills/mobile-design/SKILL.md)** | **Anti-patterns, checkpoint, overview** | **⬜ CRITICAL** |
-| **[touch-psychology.md](../skills/mobile-design/touch-psychology.md)** | **Fitts' Law, gestures, haptics** | **⬜ CRITICAL** |
-| **[mobile-performance.md](../skills/mobile-design/mobile-performance.md)** | **RN/Flutter optimization, 60fps** | **⬜ CRITICAL** |
-| **[mobile-backend.md](../skills/mobile-design/mobile-backend.md)** | **Push notifications, offline sync, mobile API** | **⬜ CRITICAL** |
-| **[mobile-testing.md](../skills/mobile-design/mobile-testing.md)** | **Testing pyramid, E2E, platform tests** | **⬜ CRITICAL** |
-| **[mobile-debugging.md](../skills/mobile-design/mobile-debugging.md)** | **Native vs JS debugging, Flipper, Logcat** | **⬜ CRITICAL** |
-| [mobile-navigation.md](../skills/mobile-design/mobile-navigation.md) | Tab/Stack/Drawer, deep linking | ⬜ Read |
-| [decision-trees.md](../skills/mobile-design/decision-trees.md) | Framework, state, storage selection | ⬜ Read |
+| **[mobile-design-thinking.md](../skills/mobile-design/mobile-design-thinking.md)** | **️ ANTI-MEMORIZATION: Think, don't copy** | ** CRITICAL FIRST** |
+| **[SKILL.md](../skills/mobile-design/SKILL.md)** | **Anti-patterns, checkpoint, overview** | ** CRITICAL** |
+| **[touch-psychology.md](../skills/mobile-design/touch-psychology.md)** | **Fitts' Law, gestures, haptics** | ** CRITICAL** |
+| **[mobile-performance.md](../skills/mobile-design/mobile-performance.md)** | **RN/Flutter optimization, 60fps** | ** CRITICAL** |
+| **[mobile-backend.md](../skills/mobile-design/mobile-backend.md)** | **Push notifications, offline sync, mobile API** | ** CRITICAL** |
+| **[mobile-testing.md](../skills/mobile-design/mobile-testing.md)** | **Testing pyramid, E2E, platform tests** | ** CRITICAL** |
+| **[mobile-debugging.md](../skills/mobile-design/mobile-debugging.md)** | **Native vs JS debugging, Flipper, Logcat** | ** CRITICAL** |
+| [mobile-navigation.md](../skills/mobile-design/mobile-navigation.md) | Tab/Stack/Drawer, deep linking |  Read |
+| [decision-trees.md](../skills/mobile-design/decision-trees.md) | Framework, state, storage selection |  Read |
 
-> 🧠 **mobile-design-thinking.md is PRIORITY!** Prevents memorized patterns, forces thinking.
+>  **mobile-design-thinking.md is PRIORITY!** Prevents memorized patterns, forces thinking.
 
 ### Platform-Specific (Read Based on Target)
 
@@ -57,13 +57,13 @@ When you build mobile apps, you think:
 | **Android** | [platform-android.md](../skills/mobile-design/platform-android.md) | Building for Android |
 | **Both** | Both above | Cross-platform (React Native/Flutter) |
 
-> 🔴 **iOS project? Read platform-ios.md FIRST!**
-> 🔴 **Android project? Read platform-android.md FIRST!**
-> 🔴 **Cross-platform? Read BOTH and apply conditional platform logic!**
+>  **iOS project? Read platform-ios.md FIRST!**
+>  **Android project? Read platform-android.md FIRST!**
+>  **Cross-platform? Read BOTH and apply conditional platform logic!**
 
 ---
 
-## ⚠️ CRITICAL: ASK BEFORE ASSUMING (MANDATORY)
+## ️ CRITICAL: ASK BEFORE ASSUMING (MANDATORY)
 
 > **STOP! If the user's request is open-ended, DO NOT default to your favorites.**
 
@@ -78,7 +78,7 @@ When you build mobile apps, you think:
 | **Offline** | "Does this need to work offline?" | Affects data strategy |
 | **Target devices** | "Phone only, or tablet support?" | Layout complexity |
 
-### ⛔ DEFAULT TENDENCIES TO AVOID:
+###  DEFAULT TENDENCIES TO AVOID:
 
 | AI Default Tendency | Why It's Bad | Think Instead |
 |---------------------|--------------|---------------|
@@ -92,11 +92,11 @@ When you build mobile apps, you think:
 
 ---
 
-## 🚫 MOBILE ANTI-PATTERNS (NEVER DO THESE!)
+##  MOBILE ANTI-PATTERNS (NEVER DO THESE!)
 
 ### Performance Sins
 
-| ❌ NEVER | ✅ ALWAYS |
+|  NEVER |  ALWAYS |
 |----------|----------|
 | `ScrollView` for lists | `FlatList` / `FlashList` / `ListView.builder` |
 | Inline `renderItem` function | `useCallback` + `React.memo` |
@@ -107,7 +107,7 @@ When you build mobile apps, you think:
 
 ### Touch/UX Sins
 
-| ❌ NEVER | ✅ ALWAYS |
+|  NEVER |  ALWAYS |
 |----------|----------|
 | Touch target < 44px | Minimum 44pt (iOS) / 48dp (Android) |
 | Spacing < 8px | Minimum 8-12px gap |
@@ -118,7 +118,7 @@ When you build mobile apps, you think:
 
 ### Security Sins
 
-| ❌ NEVER | ✅ ALWAYS |
+|  NEVER |  ALWAYS |
 |----------|----------|
 | Token in `AsyncStorage` | `SecureStore` / `Keychain` |
 | Hardcode API keys | Environment variables |
@@ -127,12 +127,12 @@ When you build mobile apps, you think:
 
 ---
 
-## 📝 CHECKPOINT (MANDATORY Before Any Mobile Work)
+##  CHECKPOINT (MANDATORY Before Any Mobile Work)
 
 > **Before writing ANY mobile code, complete this checkpoint:**
 
 ```
-🧠 CHECKPOINT:
+ CHECKPOINT:
 
 Platform:   [ iOS / Android / Both ]
 Framework:  [ React Native / Flutter / SwiftUI / Kotlin ]
@@ -150,7 +150,7 @@ Anti-Patterns I Will Avoid:
 
 **Example:**
 ```
-🧠 CHECKPOINT:
+ CHECKPOINT:
 
 Platform:   iOS + Android (Cross-platform)
 Framework:  React Native + Expo
@@ -167,7 +167,7 @@ Anti-Patterns I Will Avoid:
 3. AsyncStorage for tokens → SecureStore
 ```
 
-> 🔴 **Can't fill the checkpoint? → GO BACK AND READ THE SKILL FILES.**
+>  **Can't fill the checkpoint? → GO BACK AND READ THE SKILL FILES.**
 
 ---
 
@@ -270,9 +270,9 @@ After editing any file:
 
 ---
 
-## 🔴 BUILD VERIFICATION (MANDATORY Before "Done")
+##  BUILD VERIFICATION (MANDATORY Before "Done")
 
-> **⛔ You CANNOT declare a mobile project "complete" without running actual builds!**
+> ** You CANNOT declare a mobile project "complete" without running actual builds!**
 
 ### Why This Is Non-Negotiable
 
@@ -287,7 +287,7 @@ AI MUST:
 └── ONLY THEN say "done"
 ```
 
-### 📱 Emulator Quick Commands (All Platforms)
+###  Emulator Quick Commands (All Platforms)
 
 **Android SDK Paths by OS:**
 
@@ -324,7 +324,7 @@ emulator -avd "<AVD_NAME>"
 adb devices
 ```
 
-> 🔴 **DO NOT search randomly. Use these exact paths based on user's OS!**
+>  **DO NOT search randomly. Use these exact paths based on user's OS!**
 
 ### Build Commands by Framework
 
@@ -339,13 +339,13 @@ adb devices
 
 ```
 BUILD OUTPUT:
-├── ✅ BUILD SUCCESSFUL → Proceed
-├── ❌ BUILD FAILED → FIX before continuing
+├──  BUILD SUCCESSFUL → Proceed
+├──  BUILD FAILED → FIX before continuing
 │   ├── Read error message
 │   ├── Fix the issue
 │   ├── Re-run build
 │   └── Repeat until success
-└── ⚠️ WARNINGS → Review, fix if critical
+└── ️ WARNINGS → Review, fix if critical
 ```
 
 ### Common Build Errors to Watch For
@@ -369,8 +369,8 @@ Before saying "project complete":
 - [ ] **No console errors on launch**
 - [ ] **Critical flows work** (navigation, main features)
 
-> 🔴 **If you skip build verification and user finds build errors, you have FAILED.**
-> 🔴 **"It works in my head" is NOT verification. RUN THE BUILD.**
+>  **If you skip build verification and user finds build errors, you have FAILED.**
+>  **"It works in my head" is NOT verification. RUN THE BUILD.**
 
 ---
 

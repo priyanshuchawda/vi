@@ -96,10 +96,10 @@ When pairing, compare:
 
 ### Avoid
 
-- ❌ Two decorative fonts together
-- ❌ Similar fonts that conflict
-- ❌ More than 2-3 font families
-- ❌ Fonts with very different x-heights
+-  Two decorative fonts together
+-  Similar fonts that conflict
+-  More than 2-3 font families
+-  Fonts with very different x-heights
 
 ---
 
@@ -223,9 +223,9 @@ Good contrast = skip at least 2 weight levels
 
 ### Avoid
 
-- ❌ Too many weights (max 3-4 per page)
-- ❌ Adjacent weights for hierarchy (400/500)
-- ❌ Heavy weights for long text
+-  Too many weights (max 3-4 per page)
+-  Adjacent weights for hierarchy (400/500)
+-  Heavy weights for long text
 
 ---
 
@@ -334,11 +334,11 @@ Before finalizing typography:
 
 ### Anti-Patterns
 
-- ❌ Same fonts every project
-- ❌ Too many font families
-- ❌ Ignoring readability for style
-- ❌ Fixed sizes without responsiveness
-- ❌ Decorative fonts for body text
+-  Same fonts every project
+-  Too many font families
+-  Ignoring readability for style
+-  Fixed sizes without responsiveness
+-  Decorative fonts for body text
 
 ---
 

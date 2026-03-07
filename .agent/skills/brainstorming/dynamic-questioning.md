@@ -6,15 +6,15 @@
 
 ---
 
-## 🧠 Core Principles
+##  Core Principles
 
 ### 1. Questions Reveal Consequences
 
 A good question is not "What color do you want?" but:
 
 ```markdown
-❌ BAD: "What authentication method?"
-✅ GOOD: "Should users sign up with email/password or social login?
+ BAD: "What authentication method?"
+ GOOD: "Should users sign up with email/password or social login?
 
    Impact:
    - Email/Pass → Need password reset, hashing, 2FA infrastructure
@@ -53,8 +53,8 @@ If a question doesn't reduce implementation paths → **DELETE IT**.
 ### 4. Questions Generate Data, Not Assumptions
 
 ```markdown
-❌ ASSUMPTION: "User probably wants Stripe for payments"
-✅ QUESTION: "Which payment provider fits your needs?
+ ASSUMPTION: "User probably wants Stripe for payments"
+ QUESTION: "Which payment provider fits your needs?
 
    Stripe → Best documentation, 2.9% + $0.30, US-centric
    LemonSqueezy → Merchant of Record, 5% + $0.50, global taxes
@@ -63,7 +63,7 @@ If a question doesn't reduce implementation paths → **DELETE IT**.
 
 ---
 
-## 📋 Question Generation Algorithm
+##  Question Generation Algorithm
 
 ```
 INPUT: User request + Context (greenfield/feature/refactor/debug)
@@ -93,7 +93,7 @@ INPUT: User request + Context (greenfield/feature/refactor/debug)
 
 ---
 
-## 🎯 Domain-Specific Question Banks
+##  Domain-Specific Question Banks
 
 ### E-Commerce
 
@@ -133,12 +133,12 @@ INPUT: User request + Context (greenfield/feature/refactor/debug)
 
 ---
 
-## 📐 Dynamic Question Template
+##  Dynamic Question Template
 
 ```markdown
 Based on your request for [DOMAIN] [FEATURE]:
 
-## 🔴 CRITICAL (Blocking Decisions)
+##  CRITICAL (Blocking Decisions)
 
 ### 1. **[DECISION POINT]**
 
@@ -158,14 +158,14 @@ Based on your request for [DOMAIN] [FEATURE]:
 
 ---
 
-## 🟡 HIGH-LEVERAGE (Affects Implementation)
+##  HIGH-LEVERAGE (Affects Implementation)
 
 ### 2. **[DECISION POINT]**
 [Same format]
 
 ---
 
-## 🟢 NICE-TO-HAVE (Edge Cases)
+##  NICE-TO-HAVE (Edge Cases)
 
 ### 3. **[DECISION POINT]**
 [Same format]
@@ -173,7 +173,7 @@ Based on your request for [DOMAIN] [FEATURE]:
 
 ---
 
-## 🔄 Iterative Questioning
+##  Iterative Questioning
 
 ### First Pass (3-5 Questions)
 Focus on **blocking decisions**. Don't proceed without answers.
@@ -190,7 +190,7 @@ When functionality works:
 
 ---
 
-## 🎭 Example: Full Question Generation
+##  Example: Full Question Generation
 
 ```
 USER REQUEST: "Build an Instagram clone"
@@ -226,12 +226,12 @@ STEP 4: Format Output
 
 ---
 
-## 📊 Generated Output (Example)
+##  Generated Output (Example)
 
 ```
 Based on your Instagram clone request:
 
-## 🔴 CRITICAL DECISIONS (Cannot Proceed Without Answers)
+##  CRITICAL DECISIONS (Cannot Proceed Without Answers)
 
 ### 1. **Photo Storage Strategy**
 
@@ -291,7 +291,7 @@ Based on your Instagram clone request:
 
 ---
 
-## 🟡 HIGH-LEVERAGE (Affects Architecture)
+##  HIGH-LEVERAGE (Affects Architecture)
 
 ### 4. **Real-time Notifications**
 
@@ -312,7 +312,7 @@ Based on your Instagram clone request:
 
 ---
 
-## 🟢 NICE-TO-HAVE (Defer to v2)
+##  NICE-TO-HAVE (Defer to v2)
 
 ### 5. **Video/Reels Support**
 - Major complexity (video processing, streaming infrastructure)
@@ -324,7 +324,7 @@ Based on your Instagram clone request:
 
 ---
 
-## 📋 Summary
+##  Summary
 
 | Decision | Recommendation | If Changed |
 |----------|----------------|------------|
@@ -340,7 +340,7 @@ Based on your Instagram clone request:
 
 ---
 
-## 🎯 Principles Recap
+##  Principles Recap
 
 1. **Every question = Architectural decision** → Not data gathering
 2. **Show trade-offs** → User understands consequences

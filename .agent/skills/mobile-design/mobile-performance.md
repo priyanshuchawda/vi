@@ -35,10 +35,10 @@ If your code takes longer:
 
 ## 2. React Native Performance
 
-### 🚫 The #1 AI Mistake: ScrollView for Lists
+###  The #1 AI Mistake: ScrollView for Lists
 
 ```javascript
-// ❌ NEVER DO THIS - AI's favorite mistake
+//  NEVER DO THIS - AI's favorite mistake
 <ScrollView>
   {items.map(item => (
     <ItemComponent key={item.id} item={item} />
@@ -51,7 +51,7 @@ If your code takes longer:
 // ├── Initial render takes seconds
 // └── Scroll becomes janky
 
-// ✅ ALWAYS USE FlatList
+//  ALWAYS USE FlatList
 <FlatList
   data={items}
   renderItem={renderItem}
@@ -62,7 +62,7 @@ If your code takes longer:
 ### FlatList Optimization Checklist
 
 ```javascript
-// ✅ CORRECT: All optimizations applied
+//  CORRECT: All optimizations applied
 
 // 1. Memoize the item component
 const ListItem = React.memo(({ item }: { item: Item }) => {
@@ -111,13 +111,13 @@ const getItemLayout = useCallback(
 
 | Optimization | What It Prevents | Impact |
 |--------------|------------------|--------|
-| `React.memo` | Re-render on parent change | 🔴 Critical |
-| `useCallback renderItem` | New function every render | 🔴 Critical |
-| Stable `keyExtractor` | Wrong item recycling | 🔴 Critical |
-| `getItemLayout` | Async layout calculation | 🟡 High |
-| `removeClippedSubviews` | Memory from off-screen | 🟡 High |
-| `maxToRenderPerBatch` | Blocking main thread | 🟢 Medium |
-| `windowSize` | Memory usage | 🟢 Medium |
+| `React.memo` | Re-render on parent change |  Critical |
+| `useCallback renderItem` | New function every render |  Critical |
+| Stable `keyExtractor` | Wrong item recycling |  Critical |
+| `getItemLayout` | Async layout calculation |  High |
+| `removeClippedSubviews` | Memory from off-screen |  High |
+| `maxToRenderPerBatch` | Blocking main thread |  Medium |
+| `windowSize` | Memory usage |  Medium |
 
 ### FlashList: The Better Option
 
@@ -142,14 +142,14 @@ import { FlashList } from "@shopify/flash-list";
 ### Animation Performance
 
 ```javascript
-// ❌ JS-driven animation (blocks JS thread)
+//  JS-driven animation (blocks JS thread)
 Animated.timing(value, {
   toValue: 1,
   duration: 300,
   useNativeDriver: false, // BAD!
 }).start();
 
-// ✅ Native-driver animation (runs on UI thread)
+//  Native-driver animation (runs on UI thread)
 Animated.timing(value, {
   toValue: 1,
   duration: 300,
@@ -198,7 +198,7 @@ const Component = () => {
 ### Memory Leak Prevention
 
 ```javascript
-// ❌ Memory leak: uncleared interval
+//  Memory leak: uncleared interval
 useEffect(() => {
   const interval = setInterval(() => {
     fetchData();
@@ -206,7 +206,7 @@ useEffect(() => {
   // Missing cleanup!
 }, []);
 
-// ✅ Proper cleanup
+//  Proper cleanup
 useEffect(() => {
   const interval = setInterval(() => {
     fetchData();
@@ -250,10 +250,10 @@ useEffect(() => {
 
 ## 3. Flutter Performance
 
-### 🚫 The #1 AI Mistake: setState Overuse
+###  The #1 AI Mistake: setState Overuse
 
 ```dart
-// ❌ WRONG: setState rebuilds ENTIRE widget tree
+//  WRONG: setState rebuilds ENTIRE widget tree
 class BadCounter extends StatefulWidget {
   @override
   State<BadCounter> createState() => _BadCounterState();
@@ -284,7 +284,7 @@ class _BadCounterState extends State<BadCounter> {
 ### The `const` Constructor Revolution
 
 ```dart
-// ✅ CORRECT: const prevents rebuilds
+//  CORRECT: const prevents rebuilds
 
 class GoodCounter extends StatefulWidget {
   const GoodCounter({super.key}); // CONST constructor!
@@ -314,10 +314,10 @@ class _GoodCounterState extends State<GoodCounter> {
 ### Targeted State Management
 
 ```dart
-// ❌ setState rebuilds whole tree
+//  setState rebuilds whole tree
 setState(() => _value = newValue);
 
-// ✅ ValueListenableBuilder: surgical rebuilds
+//  ValueListenableBuilder: surgical rebuilds
 class TargetedState extends StatelessWidget {
   final ValueNotifier<int> counter = ValueNotifier(0);
   
@@ -341,13 +341,13 @@ class TargetedState extends StatelessWidget {
 ### Riverpod/Provider Best Practices
 
 ```dart
-// ❌ WRONG: Reading entire provider in build
+//  WRONG: Reading entire provider in build
 Widget build(BuildContext context) {
   final state = ref.watch(myProvider); // Rebuilds on ANY change
   return Text(state.name);
 }
 
-// ✅ CORRECT: Select only what you need
+//  CORRECT: Select only what you need
 Widget build(BuildContext context) {
   final name = ref.watch(myProvider.select((s) => s.name));
   return Text(name); // Only rebuilds when name changes
@@ -357,12 +357,12 @@ Widget build(BuildContext context) {
 ### ListView Optimization
 
 ```dart
-// ❌ WRONG: ListView without builder (renders all)
+//  WRONG: ListView without builder (renders all)
 ListView(
   children: items.map((item) => ItemWidget(item)).toList(),
 )
 
-// ✅ CORRECT: ListView.builder (lazy rendering)
+//  CORRECT: ListView.builder (lazy rendering)
 ListView.builder(
   itemCount: items.length,
   itemBuilder: (context, index) => ItemWidget(items[index]),
@@ -371,7 +371,7 @@ ListView.builder(
   cacheExtent: 100, // Pre-render distance
 )
 
-// ✅ EVEN BETTER: ListView.separated for dividers
+//  EVEN BETTER: ListView.separated for dividers
 ListView.separated(
   itemCount: items.length,
   itemBuilder: (context, index) => ItemWidget(items[index]),
@@ -382,10 +382,10 @@ ListView.separated(
 ### Image Optimization
 
 ```dart
-// ❌ WRONG: No caching, full resolution
+//  WRONG: No caching, full resolution
 Image.network(url)
 
-// ✅ CORRECT: Cached with proper sizing
+//  CORRECT: Cached with proper sizing
 CachedNetworkImage(
   imageUrl: url,
   width: 100,
@@ -579,12 +579,12 @@ Flutter:
 
 | Source | Impact | Mitigation |
 |--------|--------|------------|
-| **Screen on** | 🔴 Highest | Dark mode on OLED |
-| **GPS continuous** | 🔴 Very high | Use significant change |
-| **Network requests** | 🟡 High | Batch, cache aggressively |
-| **Animations** | 🟡 Medium | Reduce when low battery |
-| **Background work** | 🟡 Medium | Defer non-critical |
-| **CPU computation** | 🟢 Lower | Offload to backend |
+| **Screen on** |  Highest | Dark mode on OLED |
+| **GPS continuous** |  Very high | Use significant change |
+| **Network requests** |  High | Batch, cache aggressively |
+| **Animations** |  Medium | Reduce when low battery |
+| **Background work** |  Medium | Defer non-critical |
+| **CPU computation** |  Lower | Offload to backend |
 
 ### OLED Battery Saving
 
@@ -679,12 +679,12 @@ COMPRESS: Reduce payload size
 ### Test on Real Devices
 
 ```
-⚠️ NEVER trust only:
+️ NEVER trust only:
 ├── Simulator/emulator (faster than real)
 ├── Dev mode (slower than release)
 ├── High-end devices only
 
-✅ ALWAYS test on:
+ ALWAYS test on:
 ├── Low-end Android (< $200 phone)
 ├── Older iOS device (iPhone 8 or SE)
 ├── Release/profile build

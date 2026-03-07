@@ -612,7 +612,7 @@ const ChatPanel = () => {
                     });
                   }
                   assistantMessage(
-                    `🤖 Step ${step.stepNumber}: ${step.toolCall ? `Executing ${step.toolCall.name}...` : 'Thinking...'}`,
+                    ` Step ${step.stepNumber}: ${step.toolCall ? `Executing ${step.toolCall.name}...` : 'Thinking...'}`,
                   );
                 },
                 onStepComplete: (step) => {
@@ -633,7 +633,7 @@ const ChatPanel = () => {
                   }
                   // Update the last message with step result
                   const statusIcon =
-                    step.status === 'completed' ? '✅' : step.status === 'failed' ? '❌' : '⏳';
+                    step.status === 'completed' ? '' : step.status === 'failed' ? '' : '';
                   updateLastMessage(
                     `${statusIcon} Step ${step.stepNumber}: ${step.toolCall?.name || 'thinking'} — ${step.result?.success ? 'success' : step.result?.error || 'done'}`,
                   );
@@ -693,7 +693,7 @@ const ChatPanel = () => {
             console.error('Agentic loop error:', error);
             const errorMessage =
               error instanceof Error ? error.message : 'Agentic execution failed';
-            assistantMessage(`❌ Agentic execution error: ${errorMessage}`, { error: true });
+            assistantMessage(` Agentic execution error: ${errorMessage}`, { error: true });
             if (turnId) {
               appendTurnPart(turnId, {
                 type: 'error',

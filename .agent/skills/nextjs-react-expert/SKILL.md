@@ -11,67 +11,67 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 ---
 
-## 🎯 Selective Reading Rule (MANDATORY)
+##  Selective Reading Rule (MANDATORY)
 
 **Read ONLY sections relevant to your task!** Check the content map below and load what you need.
 
-> 🔴 **For performance reviews: Start with CRITICAL sections (1-2), then move to HIGH/MEDIUM.**
+>  **For performance reviews: Start with CRITICAL sections (1-2), then move to HIGH/MEDIUM.**
 
 ---
 
-## 📑 Content Map
+##  Content Map
 
 | File                                    | Impact             | Rules    | When to Read                                                    |
 | --------------------------------------- | ------------------ | -------- | --------------------------------------------------------------- |
-| `1-async-eliminating-waterfalls.md`     | 🔴 **CRITICAL**    | 5 rules  | Slow page loads, sequential API calls, data fetching waterfalls |
-| `2-bundle-bundle-size-optimization.md`  | 🔴 **CRITICAL**    | 5 rules  | Large bundle size, slow Time to Interactive, First Load issues  |
-| `3-server-server-side-performance.md`   | 🟠 **HIGH**        | 7 rules  | Slow SSR, API route optimization, server-side waterfalls        |
-| `4-client-client-side-data-fetching.md` | 🟡 **MEDIUM-HIGH** | 4 rules  | Client data management, SWR patterns, deduplication             |
-| `5-rerender-re-render-optimization.md`  | 🟡 **MEDIUM**      | 12 rules | Excessive re-renders, React performance, memoization            |
-| `6-rendering-rendering-performance.md`  | 🟡 **MEDIUM**      | 9 rules  | Rendering bottlenecks, virtualization, image optimization       |
-| `7-js-javascript-performance.md`        | ⚪ **LOW-MEDIUM**  | 12 rules | Micro-optimizations, caching, loop performance                  |
-| `8-advanced-advanced-patterns.md`       | 🔵 **VARIABLE**    | 3 rules  | Advanced React patterns, useLatest, init-once                   |
+| `1-async-eliminating-waterfalls.md`     |  **CRITICAL**    | 5 rules  | Slow page loads, sequential API calls, data fetching waterfalls |
+| `2-bundle-bundle-size-optimization.md`  |  **CRITICAL**    | 5 rules  | Large bundle size, slow Time to Interactive, First Load issues  |
+| `3-server-server-side-performance.md`   |  **HIGH**        | 7 rules  | Slow SSR, API route optimization, server-side waterfalls        |
+| `4-client-client-side-data-fetching.md` |  **MEDIUM-HIGH** | 4 rules  | Client data management, SWR patterns, deduplication             |
+| `5-rerender-re-render-optimization.md`  |  **MEDIUM**      | 12 rules | Excessive re-renders, React performance, memoization            |
+| `6-rendering-rendering-performance.md`  |  **MEDIUM**      | 9 rules  | Rendering bottlenecks, virtualization, image optimization       |
+| `7-js-javascript-performance.md`        |  **LOW-MEDIUM**  | 12 rules | Micro-optimizations, caching, loop performance                  |
+| `8-advanced-advanced-patterns.md`       |  **VARIABLE**    | 3 rules  | Advanced React patterns, useLatest, init-once                   |
 
 **Total: 57 rules across 8 categories**
 
 ---
 
-## 🚀 Quick Decision Tree
+##  Quick Decision Tree
 
 **What's your performance issue?**
 
 ```
-🐌 Slow page loads / Long Time to Interactive
+ Slow page loads / Long Time to Interactive
   → Read Section 1: Eliminating Waterfalls
   → Read Section 2: Bundle Size Optimization
 
-📦 Large bundle size (> 200KB)
+ Large bundle size (> 200KB)
   → Read Section 2: Bundle Size Optimization
   → Check: Dynamic imports, barrel imports, tree-shaking
 
-🖥️ Slow Server-Side Rendering
+️ Slow Server-Side Rendering
   → Read Section 3: Server-Side Performance
   → Check: Parallel data fetching, streaming
 
-🔄 Too many re-renders / UI lag
+ Too many re-renders / UI lag
   → Read Section 5: Re-render Optimization
   → Check: React.memo, useMemo, useCallback
 
-🎨 Rendering performance issues
+ Rendering performance issues
   → Read Section 6: Rendering Performance
   → Check: Virtualization, layout thrashing
 
-🌐 Client-side data fetching problems
+ Client-side data fetching problems
   → Read Section 4: Client-Side Data Fetching
   → Check: SWR deduplication, localStorage
 
-✨ Need advanced patterns
+ Need advanced patterns
   → Read Section 8: Advanced Patterns
 ```
 
 ---
 
-## 📊 Impact Priority Guide
+##  Impact Priority Guide
 
 **Use this order when doing comprehensive optimization:**
 
@@ -98,7 +98,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 ---
 
-## 🔗 Related Skills
+##  Related Skills
 
 | Need                    | Skill                             |
 | ----------------------- | --------------------------------- |
@@ -111,7 +111,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 ---
 
-## ✅ Performance Review Checklist
+##  Performance Review Checklist
 
 Before shipping to production:
 
@@ -145,31 +145,31 @@ Before shipping to production:
 
 ---
 
-## ❌ Anti-Patterns (Common Mistakes)
+##  Anti-Patterns (Common Mistakes)
 
 **DON'T:**
 
-- ❌ Use sequential `await` for independent operations
-- ❌ Import entire libraries when you need one function
-- ❌ Use barrel exports (`index.ts` re-exports) in app code
-- ❌ Skip dynamic imports for large components/libraries
-- ❌ Fetch data in useEffect without deduplication
-- ❌ Forget to memoize expensive computations
-- ❌ Use client components when server components work
+-  Use sequential `await` for independent operations
+-  Import entire libraries when you need one function
+-  Use barrel exports (`index.ts` re-exports) in app code
+-  Skip dynamic imports for large components/libraries
+-  Fetch data in useEffect without deduplication
+-  Forget to memoize expensive computations
+-  Use client components when server components work
 
 **DO:**
 
-- ✅ Fetch data in parallel with `Promise.all()`
-- ✅ Use dynamic imports: `const Comp = dynamic(() => import('./Heavy'))`
-- ✅ Import directly: `import { specific } from 'library/specific'`
-- ✅ Use Suspense boundaries for better UX
-- ✅ Leverage React Server Components
-- ✅ Measure performance before optimizing
-- ✅ Use Next.js built-in optimizations (next/image, next/font)
+-  Fetch data in parallel with `Promise.all()`
+-  Use dynamic imports: `const Comp = dynamic(() => import('./Heavy'))`
+-  Import directly: `import { specific } from 'library/specific'`
+-  Use Suspense boundaries for better UX
+-  Leverage React Server Components
+-  Measure performance before optimizing
+-  Use Next.js built-in optimizations (next/image, next/font)
 
 ---
 
-## 🎯 How to Use This Skill
+##  How to Use This Skill
 
 ### For New Features:
 
@@ -193,7 +193,7 @@ Before shipping to production:
 
 ---
 
-## 📚 Learning Path
+##  Learning Path
 
 **Beginner (Focus on Critical):**
 → Section 1: Eliminating Waterfalls
@@ -208,7 +208,7 @@ Before shipping to production:
 
 ---
 
-## 🔍 Validation Script
+##  Validation Script
 
 | Script                                 | Purpose                     | Command                                                      |
 | -------------------------------------- | --------------------------- | ------------------------------------------------------------ |
@@ -216,7 +216,7 @@ Before shipping to production:
 
 ---
 
-## 📖 Section Details
+##  Section Details
 
 ### Section 1: Eliminating Waterfalls (CRITICAL)
 
@@ -260,7 +260,7 @@ Before shipping to production:
 
 ---
 
-## 🎓 Best Practices Summary
+##  Best Practices Summary
 
 **Golden Rules:**
 

@@ -11,23 +11,23 @@
 WHAT TYPE OF APP?
         │
         ├── 3-5 top-level sections (equal importance)
-        │   └── ✅ Tab Bar / Bottom Navigation
+        │   └──  Tab Bar / Bottom Navigation
         │       Examples: Social, E-commerce, Utility
         │
         ├── Deep hierarchical content (drill down)
-        │   └── ✅ Stack Navigation
+        │   └──  Stack Navigation
         │       Examples: Settings, Email folders
         │
         ├── Many destinations (>5 top-level)
-        │   └── ✅ Drawer Navigation
+        │   └──  Drawer Navigation
         │       Examples: Gmail, complex enterprise
         │
         ├── Single linear flow
-        │   └── ✅ Stack only (wizard/onboarding)
+        │   └──  Stack only (wizard/onboarding)
         │       Examples: Checkout, Setup flow
         │
         └── Tablet/Foldable
-            └── ✅ Navigation Rail + List-Detail
+            └──  Navigation Rail + List-Detail
                 Examples: Mail, Notes on iPad
 ```
 
@@ -38,14 +38,14 @@ WHAT TYPE OF APP?
 ### When to Use
 
 ```
-✅ USE Tab Bar when:
+ USE Tab Bar when:
 ├── 3-5 top-level destinations
 ├── Destinations are of equal importance
 ├── User frequently switches between them
 ├── Each tab has independent navigation stack
 └── App is used in short sessions
 
-❌ AVOID Tab Bar when:
+ AVOID Tab Bar when:
 ├── More than 5 destinations
 ├── Destinations have clear hierarchy
 ├── Tabs would be used very unequally
@@ -143,14 +143,14 @@ Cross-Platform Rule:
 ### When to Use
 
 ```
-✅ USE Drawer when:
+ USE Drawer when:
 ├── More than 5 top-level destinations
 ├── Less frequently accessed destinations
 ├── Complex app with many features
 ├── Need for branding/user info in nav
 └── Tablet/large screen with persistent drawer
 
-❌ AVOID Drawer when:
+ AVOID Drawer when:
 ├── 5 or fewer destinations (use tabs)
 ├── All destinations equally important
 ├── Mobile-first simple app
@@ -163,7 +163,7 @@ Cross-Platform Rule:
 Modal Drawer:
 ├── Opens over content (scrim behind)
 ├── Swipe to open from edge
-├── Hamburger icon ( ☰ ) triggers
+├── Hamburger icon (  ) triggers
 └── Most common on mobile
 
 Permanent Drawer:
@@ -396,7 +396,7 @@ Implementation:
 
 ## 9. Navigation Anti-Patterns
 
-### ❌ Navigation Sins
+###  Navigation Sins
 
 | Anti-Pattern | Problem | Solution |
 |--------------|---------|----------|
@@ -408,7 +408,7 @@ Implementation:
 | **Tab stack reset** | Work lost on switch | Preserve tab states |
 | **Modal for primary flow** | Can't back track | Use stack navigation |
 
-### ❌ AI Navigation Mistakes
+###  AI Navigation Mistakes
 
 ```
 AI tends to:

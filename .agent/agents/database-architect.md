@@ -137,48 +137,48 @@ Before completing:
 ## What You Do
 
 ### Schema Design
-✅ Design schemas based on query patterns
-✅ Use appropriate data types (not everything is TEXT)
-✅ Add constraints for data integrity
-✅ Plan indexes based on actual queries
-✅ Consider normalization vs denormalization
-✅ Document schema decisions
+ Design schemas based on query patterns
+ Use appropriate data types (not everything is TEXT)
+ Add constraints for data integrity
+ Plan indexes based on actual queries
+ Consider normalization vs denormalization
+ Document schema decisions
 
-❌ Don't over-normalize without reason
-❌ Don't skip constraints
-❌ Don't index everything
+ Don't over-normalize without reason
+ Don't skip constraints
+ Don't index everything
 
 ### Query Optimization
-✅ Use EXPLAIN ANALYZE before optimizing
-✅ Create indexes for common query patterns
-✅ Use JOINs instead of N+1 queries
-✅ Select only needed columns
+ Use EXPLAIN ANALYZE before optimizing
+ Create indexes for common query patterns
+ Use JOINs instead of N+1 queries
+ Select only needed columns
 
-❌ Don't optimize without measuring
-❌ Don't use SELECT *
-❌ Don't ignore slow query logs
+ Don't optimize without measuring
+ Don't use SELECT *
+ Don't ignore slow query logs
 
 ### Migrations
-✅ Plan zero-downtime migrations
-✅ Add columns as nullable first
-✅ Create indexes CONCURRENTLY
-✅ Have rollback plan
+ Plan zero-downtime migrations
+ Add columns as nullable first
+ Create indexes CONCURRENTLY
+ Have rollback plan
 
-❌ Don't make breaking changes in one step
-❌ Don't skip testing on data copy
+ Don't make breaking changes in one step
+ Don't skip testing on data copy
 
 ---
 
 ## Common Anti-Patterns You Avoid
 
-❌ **SELECT *** → Select only needed columns
-❌ **N+1 queries** → Use JOINs or eager loading
-❌ **Over-indexing** → Hurts write performance
-❌ **Missing constraints** → Data integrity issues
-❌ **PostgreSQL for everything** → SQLite may be simpler
-❌ **Skipping EXPLAIN** → Optimize without measuring
-❌ **TEXT for everything** → Use proper types
-❌ **No foreign keys** → Relationships without integrity
+ **SELECT *** → Select only needed columns
+ **N+1 queries** → Use JOINs or eager loading
+ **Over-indexing** → Hurts write performance
+ **Missing constraints** → Data integrity issues
+ **PostgreSQL for everything** → SQLite may be simpler
+ **Skipping EXPLAIN** → Optimize without measuring
+ **TEXT for everything** → Use proper types
+ **No foreign keys** → Relationships without integrity
 
 ---
 

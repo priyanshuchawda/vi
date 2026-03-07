@@ -39,11 +39,11 @@ Key Properties:
 ```
 
 ### When to Use Glassmorphism
-- ✅ Over colorful/image backgrounds
-- ✅ Modals, overlays, cards
-- ✅ Navigation bars with scrolling content behind
-- ❌ Text-heavy content (readability issues)
-- ❌ Simple solid backgrounds (pointless)
+-  Over colorful/image backgrounds
+-  Modals, overlays, cards
+-  Navigation bars with scrolling content behind
+-  Text-heavy content (readability issues)
+-  Simple solid backgrounds (pointless)
 
 ### When NOT to Use
 - Low contrast situations
@@ -88,7 +88,7 @@ Key Concept: Soft, extruded elements using DUAL shadows
 ```
 
 ### Accessibility Warning
-⚠️ **Low contrast** - use sparingly, ensure clear boundaries
+️ **Low contrast** - use sparingly, ensure clear boundaries
 
 ### When to Use
 - Decorative elements
@@ -372,11 +372,11 @@ Before applying any effect:
 
 ### Anti-Patterns
 
-- ❌ Glassmorphism on every element (kitsch)
-- ❌ Dark + neon as default (lazy AI look)
-- ❌ **Static/Flat designs with no depth (FAILED)**
-- ❌ Effects that hurt readability
-- ❌ Animations without purpose
+-  Glassmorphism on every element (kitsch)
+-  Dark + neon as default (lazy AI look)
+-  **Static/Flat designs with no depth (FAILED)**
+-  Effects that hurt readability
+-  Animations without purpose
 
 ---
 

@@ -8,7 +8,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 > Discover and test everything. Leave no route untested.
 
-## 🔧 Runtime Scripts
+##  Runtime Scripts
 
 **Execute these for automated browser testing:**
 
@@ -175,7 +175,7 @@ tests/
 
 ## 9. Anti-Patterns
 
-| ❌ Don't | ✅ Do |
+|  Don't |  Do |
 |----------|-------|
 | Test implementation | Test behavior |
 | Hardcode waits | Use auto-wait |

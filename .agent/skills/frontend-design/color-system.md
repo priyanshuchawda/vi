@@ -106,7 +106,7 @@
 | **Green** | Growth, nature, success | Can feel boring if overused |
 | **Red** | Passion, urgency, energy | High arousal, use sparingly |
 | **Orange** | Warmth, friendly, creative | Can feel cheap if saturated |
-| **Purple** | ⚠️ **BANNED** - AI overuses this! | Use Deep Teal/Maroon/Emerald instead |
+| **Purple** | ️ **BANNED** - AI overuses this! | Use Deep Teal/Maroon/Emerald instead |
 | **Yellow** | Optimism, attention, happy | Hard to read, use as accent |
 | **Black** | Elegance, power, modern | Can feel heavy |
 | **White** | Clean, minimal, open | Can feel sterile |
@@ -289,7 +289,7 @@ Before finalizing any color choice, verify:
 
 ## 9. Anti-Patterns to Avoid
 
-### ❌ DON'T:
+###  DON'T:
 - Copy the same hex codes every project
 - Default to purple/violet (AI tendency)
 - Default to dark mode + neon (AI tendency)
@@ -298,7 +298,7 @@ Before finalizing any color choice, verify:
 - Ignore user's industry context
 - Skip asking user preference
 
-### ✅ DO:
+###  DO:
 - Generate fresh palette per project
 - Ask user about color preferences
 - Consider industry and audience

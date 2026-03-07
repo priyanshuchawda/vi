@@ -90,7 +90,7 @@ integrationDescribe('AI Memory Service Integration', () => {
     let elapsed = 0;
     let entry;
 
-    console.log('⏳ Waiting for analysis to complete...');
+    console.log(' Waiting for analysis to complete...');
 
     while (elapsed < MAX_WAIT_MS) {
       // Get fresh state on each iteration
@@ -98,7 +98,7 @@ integrationDescribe('AI Memory Service Integration', () => {
       entry = currentState.entries.find((e) => e.id === testEntryId);
 
       if (entry?.status === 'completed') {
-        console.log(`✅ Analysis completed in ${(elapsed / 1000).toFixed(1)}s`);
+        console.log(` Analysis completed in ${(elapsed / 1000).toFixed(1)}s`);
         break;
       }
 
@@ -109,7 +109,7 @@ integrationDescribe('AI Memory Service Integration', () => {
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       elapsed += POLL_INTERVAL_MS;
 
-      console.log(`⏳ Status: ${entry?.status} (${(elapsed / 1000).toFixed(0)}s elapsed)`);
+      console.log(` Status: ${entry?.status} (${(elapsed / 1000).toFixed(0)}s elapsed)`);
     }
 
     // Final check with fresh state
@@ -134,7 +134,7 @@ integrationDescribe('AI Memory Service Integration', () => {
     expect(entry?.analysis).toBeDefined();
     expect(entry?.analysis.length).toBeGreaterThan(50); // Should have substantial content
 
-    console.log('📊 Analysis Results:');
+    console.log(' Analysis Results:');
     console.log(`   Summary: ${entry?.summary}`);
     console.log(`   Tags: ${entry?.tags.join(', ')}`);
     console.log(`   Analysis length: ${entry?.analysis.length} chars`);
@@ -160,7 +160,7 @@ integrationDescribe('AI Memory Service Integration', () => {
     expect(savedEntry.status).toBe('completed');
     expect(savedEntry.analysis).toBeDefined();
 
-    console.log('💾 Memory saved to:', MEMORY_FILE);
+    console.log(' Memory saved to:', MEMORY_FILE);
     console.log(`   Total entries: ${savedData.entries.length}`);
   });
 
@@ -172,6 +172,6 @@ integrationDescribe('AI Memory Service Integration', () => {
     expect(context.length).toBeGreaterThan(0);
     expect(context).toContain('videoplayback.mp4');
 
-    console.log('📝 Memory context length:', context.length, 'chars');
+    console.log(' Memory context length:', context.length, 'chars');
   });
 });

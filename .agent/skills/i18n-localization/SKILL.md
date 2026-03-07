@@ -25,11 +25,11 @@ allowed-tools: Read, Glob, Grep
 
 | Project Type | i18n Needed? |
 |--------------|--------------|
-| Public web app | ✅ Yes |
-| SaaS product | ✅ Yes |
-| Internal tool | ⚠️ Maybe |
-| Single-region app | ⚠️ Consider future |
-| Personal project | ❌ Optional |
+| Public web app |  Yes |
+| SaaS product |  Yes |
+| Internal tool | ️ Maybe |
+| Single-region app | ️ Consider future |
+| Personal project |  Optional |
 
 ---
 
@@ -87,7 +87,7 @@ locales/
 
 ## 5. Best Practices
 
-### DO ✅
+### DO 
 
 - Use translation keys, not raw text
 - Namespace translations by feature
@@ -96,7 +96,7 @@ locales/
 - Plan for RTL from the start
 - Use ICU message format for complex strings
 
-### DON'T ❌
+### DON'T 
 
 - Hardcode strings in components
 - Concatenate translated strings

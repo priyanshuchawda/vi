@@ -70,14 +70,14 @@ Features:
 ### When to Use System Fonts
 
 ```
-✅ USE system fonts when:
+ USE system fonts when:
 ├── Brand doesn't mandate custom font
 ├── Reading efficiency is priority
 ├── App feels native/integrated important
 ├── Performance is critical
 ├── Wide language support needed
 
-❌ AVOID system fonts when:
+ AVOID system fonts when:
 ├── Brand identity requires custom
 ├── Design differentiation needed
 ├── Editorial/magazine style
@@ -166,11 +166,11 @@ Example with 1.25 ratio, 16px base:
 ### iOS Dynamic Type (MANDATORY)
 
 ```swift
-// ❌ WRONG: Fixed size (doesn't scale)
+//  WRONG: Fixed size (doesn't scale)
 Text("Hello")
     .font(.system(size: 17))
 
-// ✅ CORRECT: Dynamic Type
+//  CORRECT: Dynamic Type
 Text("Hello")
     .font(.body) // Scales with user setting
 
@@ -298,7 +298,7 @@ Consider:
 
 ## 7. Typography Anti-Patterns
 
-### ❌ Common Mistakes
+###  Common Mistakes
 
 | Mistake | Problem | Fix |
 |---------|---------|-----|
@@ -311,7 +311,7 @@ Consider:
 | **All caps body** | Hard to read | Headlines only |
 | **Light gray on white** | Impossible in bright light | Higher contrast |
 
-### ❌ AI Typography Mistakes
+###  AI Typography Mistakes
 
 ```
 AI tends to:

@@ -6,7 +6,7 @@
 
 ---
 
-## 🧠 MOBILE BACKEND MINDSET
+##  MOBILE BACKEND MINDSET
 
 ```
 Mobile clients are DIFFERENT from web clients:
@@ -22,11 +22,11 @@ Mobile clients are DIFFERENT from web clients:
 
 ---
 
-## 🚫 AI MOBILE BACKEND ANTI-PATTERNS
+##  AI MOBILE BACKEND ANTI-PATTERNS
 
 ### These are common AI mistakes when building mobile backends:
 
-| ❌ AI Default | Why It's Wrong | ✅ Mobile-Correct |
+|  AI Default | Why It's Wrong |  Mobile-Correct |
 |---------------|----------------|-------------------|
 | Same API for web and mobile | Mobile needs compact responses | Separate mobile endpoints OR field selection |
 | Full object responses | Wastes bandwidth, battery | Partial responses, pagination |
@@ -72,7 +72,7 @@ Mobile clients are DIFFERENT from web clients:
 
 ### Anti-Patterns
 
-| ❌ NEVER | ✅ ALWAYS |
+|  NEVER |  ALWAYS |
 |----------|----------|
 | Send sensitive data in push | Push says "New message", app fetches content |
 | Overload with pushes | Batch, dedupe, respect quiet hours |
@@ -454,7 +454,7 @@ ALERTS:
 
 ---
 
-## 📝 MOBILE BACKEND CHECKLIST
+##  MOBILE BACKEND CHECKLIST
 
 ### Before API Design
 - [ ] Identified mobile-specific requirements?

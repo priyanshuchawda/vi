@@ -4,7 +4,7 @@
 
 ---
 
-## 📋 Overview
+##  Overview
 
 Antigravity Kit is a modular system consisting of:
 
@@ -14,7 +14,7 @@ Antigravity Kit is a modular system consisting of:
 
 ---
 
-## 🏗️ Directory Structure
+## ️ Directory Structure
 
 ```plaintext
 .agent/
@@ -28,7 +28,7 @@ Antigravity Kit is a modular system consisting of:
 
 ---
 
-## 🤖 Agents (20)
+##  Agents (20)
 
 Specialist AI personas for different domains.
 
@@ -57,7 +57,7 @@ Specialist AI personas for different domains.
 
 ---
 
-## 🧩 Skills (36)
+##  Skills (36)
 
 Modular knowledge domains that agents can load on-demand. based on task context.
 
@@ -168,7 +168,7 @@ Modular knowledge domains that agents can load on-demand. based on task context.
 
 ---
 
-## 🔄 Workflows (11)
+##  Workflows (11)
 
 Slash command procedures. Invoke with `/command`.
 
@@ -188,7 +188,7 @@ Slash command procedures. Invoke with `/command`.
 
 ---
 
-## 🎯 Skill Loading Protocol
+##  Skill Loading Protocol
 
 ```plaintext
 User Request → Skill Description Match → Load SKILL.md
@@ -262,7 +262,7 @@ For details, see [scripts/README.md](scripts/README.md)
 
 ---
 
-## 📊 Statistics
+##  Statistics
 
 | Metric              | Value                         |
 | ------------------- | ----------------------------- |
@@ -274,7 +274,7 @@ For details, see [scripts/README.md](scripts/README.md)
 
 ---
 
-## 🔗 Quick Reference
+##  Quick Reference
 
 | Need     | Agent                 | Skills                                |
 | -------- | --------------------- | ------------------------------------- |

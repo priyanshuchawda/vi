@@ -11,9 +11,9 @@ $ARGUMENTS
 
 ---
 
-## 🔴 CRITICAL: Minimum Agent Requirement
+##  CRITICAL: Minimum Agent Requirement
 
-> ⚠️ **ORCHESTRATION = MINIMUM 3 DIFFERENT AGENTS**
+> ️ **ORCHESTRATION = MINIMUM 3 DIFFERENT AGENTS**
 > 
 > If you use fewer than 3 agents, you are NOT orchestrating - you're just delegating.
 > 
@@ -40,14 +40,14 @@ $ARGUMENTS
 
 | Current Mode | Task Type | Action |
 |--------------|-----------|--------|
-| **plan** | Any | ✅ Proceed with planning-first approach |
-| **edit** | Simple execution | ✅ Proceed directly |
-| **edit** | Complex/multi-file | ⚠️ Ask: "This task requires planning. Switch to plan mode?" |
-| **ask** | Any | ⚠️ Ask: "Ready to orchestrate. Switch to edit or plan mode?" |
+| **plan** | Any |  Proceed with planning-first approach |
+| **edit** | Simple execution |  Proceed directly |
+| **edit** | Complex/multi-file | ️ Ask: "This task requires planning. Switch to plan mode?" |
+| **ask** | Any | ️ Ask: "Ready to orchestrate. Switch to edit or plan mode?" |
 
 ---
 
-## 🔴 STRICT 2-PHASE ORCHESTRATION
+##  STRICT 2-PHASE ORCHESTRATION
 
 ### PHASE 1: PLANNING (Sequential - NO parallel agents)
 
@@ -56,21 +56,21 @@ $ARGUMENTS
 | 1 | `project-planner` | Create docs/PLAN.md |
 | 2 | (optional) `explorer-agent` | Codebase discovery if needed |
 
-> 🔴 **NO OTHER AGENTS during planning!** Only project-planner and explorer-agent.
+>  **NO OTHER AGENTS during planning!** Only project-planner and explorer-agent.
 
-### ⏸️ CHECKPOINT: User Approval
+### ️ CHECKPOINT: User Approval
 
 ```
 After PLAN.md is complete, ASK:
 
-"✅ Plan created: docs/PLAN.md
+" Plan created: docs/PLAN.md
 
 Do you approve? (Y/N)
 - Y: Start implementation
 - N: I'll revise the plan"
 ```
 
-> 🔴 **DO NOT proceed to Phase 2 without explicit user approval!**
+>  **DO NOT proceed to Phase 2 without explicit user approval!**
 
 ### PHASE 2: IMPLEMENTATION (Parallel agents after approval)
 
@@ -80,7 +80,7 @@ Do you approve? (Y/N)
 | Core | `backend-specialist`, `frontend-specialist` |
 | Polish | `test-engineer`, `devops-engineer` |
 
-> ✅ After user approval, invoke multiple agents in PARALLEL.
+>  After user approval, invoke multiple agents in PARALLEL.
 
 ## Available Agents (17 total)
 
@@ -146,7 +146,7 @@ Use the backend-specialist agent to [task]
 Use the test-engineer agent to [task]
 ```
 
-**🔴 CRITICAL: Context Passing (MANDATORY)**
+** CRITICAL: Context Passing (MANDATORY)**
 
 When invoking ANY subagent, you MUST include:
 
@@ -168,7 +168,7 @@ Use the project-planner agent to create PLAN.md:
 **TASK:** Create detailed PLAN.md based on ABOVE decisions. Do NOT infer from folder name.
 ```
 
-> ⚠️ **VIOLATION:** Invoking subagent without full context = subagent will make wrong assumptions!
+> ️ **VIOLATION:** Invoking subagent without full context = subagent will make wrong assumptions!
 
 
 ### Step 4: Verification (MANDATORY)
@@ -186,7 +186,7 @@ Combine all agent outputs into unified report.
 ## Output Format
 
 ```markdown
-## 🎼 Orchestration Report
+##  Orchestration Report
 
 ### Task
 [Original task summary]
@@ -197,9 +197,9 @@ Combine all agent outputs into unified report.
 ### Agents Invoked (MINIMUM 3)
 | # | Agent | Focus Area | Status |
 |---|-------|------------|--------|
-| 1 | project-planner | Task breakdown | ✅ |
-| 2 | frontend-specialist | UI implementation | ✅ |
-| 3 | test-engineer | Verification scripts | ✅ |
+| 1 | project-planner | Task breakdown |  |
+| 2 | frontend-specialist | UI implementation |  |
+| 3 | test-engineer | Verification scripts |  |
 
 ### Verification Scripts Executed
 - [x] security_scan.py → Pass/Fail
@@ -222,13 +222,13 @@ Combine all agent outputs into unified report.
 
 ---
 
-## 🔴 EXIT GATE
+##  EXIT GATE
 
 Before completing orchestration, verify:
 
-1. ✅ **Agent Count:** `invoked_agents >= 3`
-2. ✅ **Scripts Executed:** At least `security_scan.py` ran
-3. ✅ **Report Generated:** Orchestration Report with all agents listed
+1.  **Agent Count:** `invoked_agents >= 3`
+2.  **Scripts Executed:** At least `security_scan.py` ran
+3.  **Report Generated:** Orchestration Report with all agents listed
 
 > **If any check fails → DO NOT mark orchestration complete. Invoke more agents or run scripts.**
 

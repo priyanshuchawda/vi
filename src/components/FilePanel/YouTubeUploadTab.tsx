@@ -154,7 +154,7 @@ const YouTubeUploadTab = () => {
         // Show success message with video link
         const videoUrl = `https://www.youtube.com/watch?v=${result.videoId}`;
         const openVideo = confirm(
-          `✅ Upload Successful!\n\nYour video has been uploaded to YouTube.\n\nVideo ID: ${result.videoId}\n\nClick OK to open it in your browser, or Cancel to continue editing.`,
+          ` Upload Successful!\n\nYour video has been uploaded to YouTube.\n\nVideo ID: ${result.videoId}\n\nClick OK to open it in your browser, or Cancel to continue editing.`,
         );
 
         if (openVideo) {
@@ -167,10 +167,10 @@ const YouTubeUploadTab = () => {
         setTags('');
         setExportedVideoPath('');
       } else {
-        alert(`❌ Upload Failed\n\n${result.error}`);
+        alert(` Upload Failed\n\n${result.error}`);
       }
     } catch (error: unknown) {
-      alert(`❌ Upload Error\n\n${getErrorMessage(error)}`);
+      alert(` Upload Error\n\n${getErrorMessage(error)}`);
     }
   };
 
@@ -309,7 +309,7 @@ const YouTubeUploadTab = () => {
           <h3 className="text-sm font-bold text-text-primary mb-3">Upload to YouTube</h3>
           {clips.length === 0 && (
             <p className="text-xs text-yellow-500 mb-2">
-              ⚠️ Add media to your timeline first (MEDIA tab)
+              ️ Add media to your timeline first (MEDIA tab)
             </p>
           )}
           <button
@@ -332,8 +332,8 @@ const YouTubeUploadTab = () => {
             <div className="mt-4 p-4 bg-bg-elevated rounded-lg border-2 border-accent shadow-lg">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  {uploadProgress.status === 'completed' && <span className="text-2xl">✅</span>}
-                  {uploadProgress.status === 'failed' && <span className="text-2xl">❌</span>}
+                  {uploadProgress.status === 'completed' && <span className="text-2xl"></span>}
+                  {uploadProgress.status === 'failed' && <span className="text-2xl"></span>}
                   {uploadProgress.status === 'uploading' && (
                     <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
                   )}

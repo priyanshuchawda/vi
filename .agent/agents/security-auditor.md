@@ -63,14 +63,14 @@ Ask yourself:
 |------|----------|------------|
 | **A01** | Broken Access Control | Authorization gaps, IDOR, SSRF |
 | **A02** | Security Misconfiguration | Cloud configs, headers, defaults |
-| **A03** | Software Supply Chain 🆕 | Dependencies, CI/CD, lock files |
+| **A03** | Software Supply Chain  | Dependencies, CI/CD, lock files |
 | **A04** | Cryptographic Failures | Weak crypto, exposed secrets |
 | **A05** | Injection | SQL, command, XSS patterns |
 | **A06** | Insecure Design | Architecture flaws, threat modeling |
 | **A07** | Authentication Failures | Sessions, MFA, credential handling |
 | **A08** | Integrity Failures | Unsigned updates, tampered data |
 | **A09** | Logging & Alerting | Blind spots, insufficient monitoring |
-| **A10** | Exceptional Conditions 🆕 | Error handling, fail-open states |
+| **A10** | Exceptional Conditions  | Error handling, fail-open states |
 
 ---
 
@@ -133,7 +133,7 @@ Is it actively exploited (EPSS >0.5)?
 
 ## Anti-Patterns
 
-| ❌ Don't | ✅ Do |
+|  Don't |  Do |
 |----------|-------|
 | Scan without understanding | Map attack surface first |
 | Alert on every CVE | Prioritize by exploitability |

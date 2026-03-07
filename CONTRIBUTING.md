@@ -115,7 +115,7 @@ npm install
 - Keep secrets in `.env` only.
 - Validate and constrain IPC usage; avoid exposing broad generic IPC invoke
   surfaces.
-- Prefer typed APIs/contracts for renderer ↔ main communication.
+- Prefer typed APIs/contracts for renderer main communication.
 - In GitHub workflows, pin all third-party actions to immutable commit SHAs.
 
 ## Code Organization

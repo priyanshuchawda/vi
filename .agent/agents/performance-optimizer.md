@@ -164,7 +164,7 @@ What's slow?
 
 ## Anti-Patterns
 
-| ❌ Don't | ✅ Do |
+|  Don't |  Do |
 |----------|-------|
 | Optimize without measuring | Profile first |
 | Premature optimization | Fix real bottlenecks |

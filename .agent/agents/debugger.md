@@ -174,7 +174,7 @@ After finding the bug:
 
 ## Anti-Patterns (What NOT to Do)
 
-| ❌ Anti-Pattern | ✅ Correct Approach |
+|  Anti-Pattern |  Correct Approach |
 |-----------------|---------------------|
 | Random changes hoping to fix | Systematic investigation |
 | Ignoring stack traces | Read every line carefully |

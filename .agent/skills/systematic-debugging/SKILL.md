@@ -102,8 +102,8 @@ pm2 logs app-name --err --lines 100
 
 ## Anti-Patterns
 
-❌ **Random changes** - "Maybe if I change this..."
-❌ **Ignoring evidence** - "That can't be the cause"
-❌ **Assuming** - "It must be X" without proof
-❌ **Not reproducing first** - Fixing blindly
-❌ **Stopping at symptoms** - Not finding root cause
+ **Random changes** - "Maybe if I change this..."
+ **Ignoring evidence** - "That can't be the cause"
+ **Assuming** - "It must be X" without proof
+ **Not reproducing first** - Fixing blindly
+ **Stopping at symptoms** - Not finding root cause

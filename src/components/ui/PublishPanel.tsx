@@ -430,9 +430,9 @@ const PublishPanel = () => {
                   }}
                   className="w-full px-4 py-2.5 bg-bg-secondary text-text-primary text-sm rounded-xl border border-white/5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all duration-200 cursor-pointer"
                 >
-                  <option value="private">🔒 Private</option>
-                  <option value="unlisted">🔗 Unlisted</option>
-                  <option value="public">🌍 Public</option>
+                  <option value="private"> Private</option>
+                  <option value="unlisted"> Unlisted</option>
+                  <option value="public"> Public</option>
                 </select>
               </div>
 

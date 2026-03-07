@@ -37,19 +37,19 @@ graph TD
 
 | User Intent         | Keywords                                   | Selected Agent(s)                           | Auto-invoke? |
 | ------------------- | ------------------------------------------ | ------------------------------------------- | ------------ |
-| **Authentication**  | "login", "auth", "signup", "password"      | `security-auditor` + `backend-specialist`   | ✅ YES       |
-| **UI Component**    | "button", "card", "layout", "style"        | `frontend-specialist`                       | ✅ YES       |
-| **Mobile UI**       | "screen", "navigation", "touch", "gesture" | `mobile-developer`                          | ✅ YES       |
-| **API Endpoint**    | "endpoint", "route", "API", "POST", "GET"  | `backend-specialist`                        | ✅ YES       |
-| **Database**        | "schema", "migration", "query", "table"    | `database-architect` + `backend-specialist` | ✅ YES       |
-| **Bug Fix**         | "error", "bug", "not working", "broken"    | `debugger`                                  | ✅ YES       |
-| **Test**            | "test", "coverage", "unit", "e2e"          | `test-engineer`                             | ✅ YES       |
-| **Deployment**      | "deploy", "production", "CI/CD", "docker"  | `devops-engineer`                           | ✅ YES       |
-| **Security Review** | "security", "vulnerability", "exploit"     | `security-auditor` + `penetration-tester`   | ✅ YES       |
-| **Performance**     | "slow", "optimize", "performance", "speed" | `performance-optimizer`                     | ✅ YES       |
-| **Product Def**     | "requirements", "user story", "backlog", "MVP" | `product-owner`                             | ✅ YES       |
-| **New Feature**     | "build", "create", "implement", "new app"  | `orchestrator` → multi-agent                | ⚠️ ASK FIRST |
-| **Complex Task**    | Multiple domains detected                  | `orchestrator` → multi-agent                | ⚠️ ASK FIRST |
+| **Authentication**  | "login", "auth", "signup", "password"      | `security-auditor` + `backend-specialist`   |  YES       |
+| **UI Component**    | "button", "card", "layout", "style"        | `frontend-specialist`                       |  YES       |
+| **Mobile UI**       | "screen", "navigation", "touch", "gesture" | `mobile-developer`                          |  YES       |
+| **API Endpoint**    | "endpoint", "route", "API", "POST", "GET"  | `backend-specialist`                        |  YES       |
+| **Database**        | "schema", "migration", "query", "table"    | `database-architect` + `backend-specialist` |  YES       |
+| **Bug Fix**         | "error", "bug", "not working", "broken"    | `debugger`                                  |  YES       |
+| **Test**            | "test", "coverage", "unit", "e2e"          | `test-engineer`                             |  YES       |
+| **Deployment**      | "deploy", "production", "CI/CD", "docker"  | `devops-engineer`                           |  YES       |
+| **Security Review** | "security", "vulnerability", "exploit"     | `security-auditor` + `penetration-tester`   |  YES       |
+| **Performance**     | "slow", "optimize", "performance", "speed" | `performance-optimizer`                     |  YES       |
+| **Product Def**     | "requirements", "user story", "backlog", "MVP" | `product-owner`                             |  YES       |
+| **New Feature**     | "build", "create", "implement", "new app"  | `orchestrator` → multi-agent                | ️ ASK FIRST |
+| **Complex Task**    | Multiple domains detected                  | `orchestrator` → multi-agent                | ️ ASK FIRST |
 
 ### 3. Automatic Routing Protocol
 
@@ -85,16 +85,16 @@ function analyzeRequest(userMessage) {
 **When auto-selecting an agent, inform the user concisely:**
 
 ```markdown
-🤖 **Applying knowledge of `@security-auditor` + `@backend-specialist`...**
+ **Applying knowledge of `@security-auditor` + `@backend-specialist`...**
 
 [Proceed with specialized response]
 ```
 
 **Benefits:**
 
-- ✅ User sees which expertise is being applied
-- ✅ Transparent decision-making
-- ✅ Still automatic (no /commands needed)
+-  User sees which expertise is being applied
+-  Transparent decision-making
+-  Still automatic (no /commands needed)
 
 ## Domain Detection Rules
 
@@ -160,16 +160,16 @@ Example: "Create a secure login system with dark mode UI"
 
 #### DO NOT announce "I'm analyzing your request..."
 
-- ✅ Analyze silently
-- ✅ Inform which agent is being applied
-- ❌ Avoid verbose meta-commentary
+-  Analyze silently
+-  Inform which agent is being applied
+-  Avoid verbose meta-commentary
 
 ### Rule 2: Inform Agent Selection
 
 **DO inform which expertise is being applied:**
 
 ```markdown
-🤖 **Applying knowledge of `@frontend-specialist`...**
+ **Applying knowledge of `@frontend-specialist`...**
 
 I will create the component with the following characteristics:
 [Continue with specialized response]
@@ -296,7 +296,7 @@ Verify: Systematic debugging approach
 If this is the first interaction in a project:
 
 ```markdown
-💡 **Tip**: I am configured with automatic specialist agent selection.
+ **Tip**: I am configured with automatic specialist agent selection.
 I will always choose the most suitable specialist for your task. You can
 still mention agents explicitly with `@agent-name` if you prefer.
 ```
@@ -321,12 +321,12 @@ Show selection reasoning:
 
 **intelligent-routing skill enables:**
 
-✅ Zero-command operation (no need for `/orchestrate`)  
-✅ Automatic specialist selection based on request analysis  
-✅ Transparent communication of which expertise is being applied  
-✅ Seamless integration with existing workflows  
-✅ Override capability for explicit agent mentions  
-✅ Fallback to orchestrator for complex tasks
+ Zero-command operation (no need for `/orchestrate`)  
+ Automatic specialist selection based on request analysis  
+ Transparent communication of which expertise is being applied  
+ Seamless integration with existing workflows  
+ Override capability for explicit agent mentions  
+ Fallback to orchestrator for complex tasks
 
 **Result**: User gets specialist-level responses without needing to know the system architecture.
 

@@ -8,7 +8,7 @@ $ARGUMENTS
 
 ---
 
-## 🔴 CRITICAL RULES
+##  CRITICAL RULES
 
 1. **NO CODE WRITING** - This command creates plan file only
 2. **Use project-planner agent** - NOT Antigravity Agent's native Plan mode

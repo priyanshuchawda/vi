@@ -336,7 +336,7 @@ Mobile recommendation: Meet AA, aim for AAA
 
 ## 8. Color Anti-Patterns
 
-### ❌ Common Mistakes
+###  Common Mistakes
 
 | Mistake | Problem | Fix |
 |---------|---------|-----|
@@ -347,7 +347,7 @@ Mobile recommendation: Meet AA, aim for AAA
 | **Semantic colors for brand** | Confusing meaning | Use neutral for brand |
 | **Ignoring system dark mode** | Jarring experience | Support both modes |
 
-### ❌ AI Color Mistakes
+###  AI Color Mistakes
 
 ```
 AI tends to:

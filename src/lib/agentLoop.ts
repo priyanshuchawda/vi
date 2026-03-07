@@ -135,7 +135,7 @@ If a tool call fails:
 
 <response-format>
 When done, ALWAYS end with:
-"✅ Completed: [what you did]. Timeline: [duration]s, [N] clips."
+" Completed: [what you did]. Timeline: [duration]s, [N] clips."
 Include specific numbers (e.g. "trimmed 3 clips from 45s to 28s total").
 </response-format>`;
 }
@@ -576,17 +576,17 @@ function generateFallbackSummary(state: AgentLoopState): string {
   const parts: string[] = [];
 
   if (state.status === 'completed') {
-    parts.push(`✅ Task completed in ${completedSteps.length} step(s).`);
+    parts.push(` Task completed in ${completedSteps.length} step(s).`);
   } else if (state.status === 'cost_limit') {
-    parts.push(`⚠️ Stopped: cost budget reached ($${state.totalCostUsd.toFixed(4)}).`);
+    parts.push(`️ Stopped: cost budget reached ($${state.totalCostUsd.toFixed(4)}).`);
     parts.push(`Completed ${completedSteps.length} of ${state.steps.length} steps.`);
   } else if (state.status === 'step_limit') {
-    parts.push(`⚠️ Stopped: step limit reached (${state.config.maxSteps}).`);
+    parts.push(`️ Stopped: step limit reached (${state.config.maxSteps}).`);
     parts.push(`Completed ${completedSteps.length} steps.`);
   } else if (state.status === 'cancelled') {
-    parts.push(`🚫 Task cancelled after ${completedSteps.length} step(s).`);
+    parts.push(` Task cancelled after ${completedSteps.length} step(s).`);
   } else if (state.status === 'failed') {
-    parts.push(`❌ Task failed: ${state.error || 'unknown error'}`);
+    parts.push(` Task failed: ${state.error || 'unknown error'}`);
   }
 
   if (toolsUsed.length > 0) {

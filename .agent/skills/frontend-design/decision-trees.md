@@ -6,7 +6,7 @@
 
 ---
 
-## ⚠️ How to Use This File
+## ️ How to Use This File
 
 This file helps you DECIDE, not copy.
 

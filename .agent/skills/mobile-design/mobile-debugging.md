@@ -6,7 +6,7 @@
 
 ---
 
-## 🧠 MOBILE DEBUGGING MINDSET
+##  MOBILE DEBUGGING MINDSET
 
 ```
 Web Debugging:      Mobile Debugging:
@@ -26,9 +26,9 @@ Web Debugging:      Mobile Debugging:
 
 ---
 
-## 🚫 AI DEBUGGING ANTI-PATTERNS
+##  AI DEBUGGING ANTI-PATTERNS
 
-| ❌ Default | ✅ Mobile-Correct |
+|  Default |  Mobile-Correct |
 |------------|-------------------|
 | "Add console.logs" | Use Flipper / Reactotron |
 | "Check network tab" | Use Charles Proxy / Proxyman |
@@ -40,7 +40,7 @@ Web Debugging:      Mobile Debugging:
 
 ## 1. The Toolset
 
-### ⚡ React Native & Expo
+###  React Native & Expo
 
 | Tool | Purpose | Best For |
 |------|---------|----------|
@@ -48,7 +48,7 @@ Web Debugging:      Mobile Debugging:
 | **Flipper** | Layout/Network/db | Native + JS bridge |
 | **Expo Tools** | Element inspector | Quick UI checks |
 
-### 🛠️ Native Layer (The Deep Dive)
+### ️ Native Layer (The Deep Dive)
 
 | Tool | Platform | Command | Why Use? |
 |------|----------|---------|----------|
@@ -61,7 +61,7 @@ Web Debugging:      Mobile Debugging:
 
 ## 2. Common Debugging Workflows
 
-### 🕵️ "The App Just Crashed" (Red Screen vs Crash to Home)
+### ️ "The App Just Crashed" (Red Screen vs Crash to Home)
 
 **Scenario A: Red Screen (JS Error)**
 - **Cause:** Undefined is not an object, import error.
@@ -73,9 +73,9 @@ Web Debugging:      Mobile Debugging:
     - **Android:** `adb logcat *:E` (Filter for Errors)
     - **iOS:** Open Xcode → Window → Devices → View Device Logs
 
-> **💡 Pro Tip:** If app crashes immediately on launch, it's almost 100% a native configuration issue (Info.plist, AndroidManifest.xml).
+> ** Pro Tip:** If app crashes immediately on launch, it's almost 100% a native configuration issue (Info.plist, AndroidManifest.xml).
 
-### 🌐 "API Request Failed" (Network)
+###  "API Request Failed" (Network)
 
 **Web:** Open Chrome DevTools → Network.
 **Mobile:** *You usually can't see this easily.*
@@ -87,7 +87,7 @@ Web Debugging:      Mobile Debugging:
 - **Hard but powerful.** See ALL traffic even from native SDKs.
 - Requires installing SSL cert on device.
 
-### 🐢 "The UI is Laggy" (Performance)
+###  "The UI is Laggy" (Performance)
 
 **Don't guess.** measure.
 - **React Native:** Performance Monitor (Shake menu).
@@ -112,7 +112,7 @@ Web Debugging:      Mobile Debugging:
 
 ---
 
-## 📝 DEBUGGING CHECKLIST
+##  DEBUGGING CHECKLIST
 
 - [ ] **Is it a JS or Native crash?** (Red screen or home screen?)
 - [ ] **Did you clean build?** (Native caches are aggressive)

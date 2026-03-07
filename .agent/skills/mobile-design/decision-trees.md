@@ -58,13 +58,13 @@ WHAT ARE YOU BUILDING?
 
 | Factor | React Native | Flutter | Native (Swift/Kotlin) |
 |--------|-------------|---------|----------------------|
-| **OTA Updates** | ✅ Expo | ❌ No | ❌ No |
+| **OTA Updates** |  Expo |  No |  No |
 | **Learning Curve** | Low (React devs) | Medium | Higher |
 | **Performance** | Good | Excellent | Best |
 | **UI Consistency** | Platform-native | Identical | Platform-native |
 | **Bundle Size** | Medium | Larger | Smallest |
 | **Native Access** | Via bridges | Via channels | Direct |
-| **Hot Reload** | ✅ | ✅ | ✅ (Xcode 15+) |
+| **Hot Reload** |  |  |  (Xcode 15+) |
 
 ### When to Choose Native
 
@@ -162,7 +162,7 @@ WHAT'S YOUR STATE COMPLEXITY?
 ### State Management Anti-Patterns
 
 ```
-❌ DON'T:
+ DON'T:
 ├── Use global state for everything
 ├── Mix state management approaches
 ├── Store server state in local state
@@ -170,7 +170,7 @@ WHAT'S YOUR STATE COMPLEXITY?
 ├── Overuse Context (re-render heavy)
 └── Put navigation state in app state
 
-✅ DO:
+ DO:
 ├── Server state → Query library
 ├── UI state → Minimal, local first
 ├── Lift state only when needed
@@ -189,7 +189,7 @@ HOW MANY TOP-LEVEL DESTINATIONS?
         │   └── Consider: Top tabs or simple stack
         │
         ├── 3-5 destinations (equal importance)
-        │   └── ✅ Tab Bar / Bottom Navigation
+        │   └──  Tab Bar / Bottom Navigation
         │       ├── Most common pattern
         │       └── Easy discovery
         │
@@ -225,35 +225,35 @@ WHAT TYPE OF DATA?
         │
         ├── Sensitive (tokens, passwords, keys)
         │   │
-        │   └── ✅ Secure Storage
+        │   └──  Secure Storage
         │       ├── iOS: Keychain
         │       ├── Android: EncryptedSharedPreferences
         │       └── RN: expo-secure-store / react-native-keychain
         │
         ├── User preferences (settings, theme)
         │   │
-        │   └── ✅ Key-Value Storage
+        │   └──  Key-Value Storage
         │       ├── iOS: UserDefaults
         │       ├── Android: SharedPreferences
         │       └── RN: AsyncStorage / MMKV
         │
         ├── Structured data (entities, relationships)
         │   │
-        │   └── ✅ Database
+        │   └──  Database
         │       ├── SQLite (expo-sqlite, sqflite)
         │       ├── Realm (NoSQL, reactive)
         │       └── WatermelonDB (large datasets)
         │
         ├── Large files (images, documents)
         │   │
-        │   └── ✅ File System
+        │   └──  File System
         │       ├── iOS: Documents / Caches directory
         │       ├── Android: Internal/External storage
         │       └── RN: react-native-fs / expo-file-system
         │
         └── Cached API data
             │
-            └── ✅ Query Library Cache
+            └──  Query Library Cache
                 ├── TanStack Query (RN)
                 ├── Riverpod async (Flutter)
                 └── Automatic invalidation
@@ -263,7 +263,7 @@ WHAT TYPE OF DATA?
 
 | Storage | Speed | Security | Capacity | Use Case |
 |---------|-------|----------|----------|----------|
-| Secure Storage | Medium | 🔒 High | Small | Tokens, secrets |
+| Secure Storage | Medium |  High | Small | Tokens, secrets |
 | Key-Value | Fast | Low | Medium | Settings |
 | SQLite | Fast | Low | Large | Structured data |
 | File System | Medium | Low | Very Large | Media, documents |
@@ -354,13 +354,13 @@ WHAT AUTH TYPE NEEDED?
 ### Auth Token Storage
 
 ```
-❌ NEVER store tokens in:
+ NEVER store tokens in:
 ├── AsyncStorage (plain text)
 ├── Redux/state (not persisted correctly)
 ├── Local storage equivalent
 └── Logs or debug output
 
-✅ ALWAYS store tokens in:
+ ALWAYS store tokens in:
 ├── iOS: Keychain
 ├── Android: EncryptedSharedPreferences
 ├── Expo: SecureStore
@@ -468,7 +468,7 @@ If project details are vague, ASK:
 
 ## 9. Anti-Pattern Decisions
 
-### ❌ Decision Anti-Patterns
+###  Decision Anti-Patterns
 
 | Anti-Pattern | Why It's Bad | Better Approach |
 |--------------|--------------|-----------------|

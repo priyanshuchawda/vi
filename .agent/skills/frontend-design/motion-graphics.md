@@ -67,12 +67,12 @@ Professional timeline-based animation:
 
 ### When to Use GSAP
 
-- ✅ Complex sequenced animations
-- ✅ Scroll-triggered reveals
-- ✅ Precise timing control needed
-- ✅ SVG morphing effects
-- ❌ Simple hover/focus effects (use CSS)
-- ❌ Performance-critical mobile (heavier)
+-  Complex sequenced animations
+-  Scroll-triggered reveals
+-  Precise timing control needed
+-  SVG morphing effects
+-  Simple hover/focus effects (use CSS)
+-  Performance-critical mobile (heavier)
 
 ### Principles
 
@@ -106,12 +106,12 @@ How stroke-dashoffset drawing works:
 
 ### When to Use SVG Animations
 
-- ✅ Logo reveals, brand moments
-- ✅ Icon state transitions (hamburger ↔ X)
-- ✅ Infographics, data visualization
-- ✅ Interactive illustrations
-- ❌ Photo-realistic content (use video)
-- ❌ Very complex scenes (performance)
+-  Logo reveals, brand moments
+-  Icon state transitions (hamburger  X)
+-  Infographics, data visualization
+-  Interactive illustrations
+-  Photo-realistic content (use video)
+-  Very complex scenes (performance)
 
 ### Principles
 
@@ -180,15 +180,15 @@ CSS 3D Space:
 - Movement: slow, organic (speed 0.5-2)
 - Opacity: 0.3-0.6 (don't compete with content)
 - Connections: subtle lines for "network" feel
-- ⚠️ Disable or reduce on mobile
+- ️ Disable or reduce on mobile
 
 ### When to Use
 
-- ✅ Hero backgrounds (atmospheric)
-- ✅ Success celebrations (confetti burst)
-- ✅ Tech visualization (connected nodes)
-- ❌ Content-heavy pages (distraction)
-- ❌ Low-powered devices (battery drain)
+-  Hero backgrounds (atmospheric)
+-  Success celebrations (confetti burst)
+-  Tech visualization (connected nodes)
+-  Content-heavy pages (distraction)
+-  Low-powered devices (battery drain)
 
 ---
 
@@ -278,7 +278,7 @@ What animation do you need?
 
 ## 9. Anti-Patterns
 
-| ❌ Don't | ✅ Do |
+|  Don't |  Do |
 |----------|-------|
 | Animate everything at once | Stagger and sequence |
 | Use heavy libraries for simple effects | Start with CSS |

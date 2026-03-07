@@ -195,7 +195,7 @@ describe('agentLoop integration', () => {
       )
       // Step 2: AI responds with summary (no more tools)
       .mockResolvedValueOnce(
-        bedrockEndResponse('✅ Completed: Timeline has 3 clips, total duration 15s.'),
+        bedrockEndResponse(' Completed: Timeline has 3 clips, total duration 15s.'),
       );
 
     const result = await runAgentLoop({
@@ -244,7 +244,7 @@ describe('agentLoop integration', () => {
       // Step 4: Final summary
       .mockResolvedValueOnce(
         bedrockEndResponse(
-          '✅ Completed: Trimmed 2 clips to best moments. Timeline: 11s, 2 clips.',
+          ' Completed: Trimmed 2 clips to best moments. Timeline: 11s, 2 clips.',
         ),
       );
 
@@ -355,7 +355,7 @@ describe('agentLoop integration', () => {
       )
       // Step 2: AI gets the error and gives up gracefully
       .mockResolvedValueOnce(
-        bedrockEndResponse('❌ Could not trim clip_1 — clip not found on timeline.'),
+        bedrockEndResponse(' Could not trim clip_1 — clip not found on timeline.'),
       );
 
     const result = await runAgentLoop({

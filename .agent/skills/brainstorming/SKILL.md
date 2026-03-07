@@ -10,31 +10,31 @@ allowed-tools: Read, Glob, Grep
 
 ---
 
-## 🛑 SOCRATIC GATE (ENFORCEMENT)
+##  SOCRATIC GATE (ENFORCEMENT)
 
 ### When to Trigger
 
 | Pattern | Action |
 |---------|--------|
-| "Build/Create/Make [thing]" without details | 🛑 ASK 3 questions |
-| Complex feature or architecture | 🛑 Clarify before implementing |
-| Update/change request | 🛑 Confirm scope |
-| Vague requirements | 🛑 Ask purpose, users, constraints |
+| "Build/Create/Make [thing]" without details |  ASK 3 questions |
+| Complex feature or architecture |  Clarify before implementing |
+| Update/change request |  Confirm scope |
+| Vague requirements |  Ask purpose, users, constraints |
 
-### 🚫 MANDATORY: 3 Questions Before Implementation
+###  MANDATORY: 3 Questions Before Implementation
 
 1. **STOP** - Do NOT start coding
 2. **ASK** - Minimum 3 questions:
-   - 🎯 Purpose: What problem are you solving?
-   - 👥 Users: Who will use this?
-   - 📦 Scope: Must-have vs nice-to-have?
+   -  Purpose: What problem are you solving?
+   -  Users: Who will use this?
+   -  Scope: Must-have vs nice-to-have?
 3. **WAIT** - Get response before proceeding
 
 ---
 
-## 🧠 Dynamic Question Generation
+##  Dynamic Question Generation
 
-**⛔ NEVER use static templates.** Read `dynamic-questioning.md` for principles.
+** NEVER use static templates.** Read `dynamic-questioning.md` for principles.
 
 ### Core Principles
 
@@ -85,17 +85,17 @@ allowed-tools: Read, Glob, Grep
 
 | Agent | Status | Current Task | Progress |
 |-------|--------|--------------|----------|
-| [Agent Name] | ✅🔄⏳❌⚠️ | [Task description] | [% or count] |
+| [Agent Name] | ️ | [Task description] | [% or count] |
 
 ### Status Icons
 
 | Icon | Meaning | Usage |
 |------|---------|-------|
-| ✅ | Completed | Task finished successfully |
-| 🔄 | Running | Currently executing |
-| ⏳ | Waiting | Blocked, waiting for dependency |
-| ❌ | Error | Failed, needs attention |
-| ⚠️ | Warning | Potential issue, not blocking |
+|  | Completed | Task finished successfully |
+|  | Running | Currently executing |
+|  | Waiting | Blocked, waiting for dependency |
+|  | Error | Failed, needs attention |
+| ️ | Warning | Potential issue, not blocking |
 
 ---
 
@@ -143,7 +143,7 @@ allowed-tools: Read, Glob, Grep
 | Principle | Implementation |
 |-----------|----------------|
 | **Concise** | No unnecessary details, get to point |
-| **Visual** | Use emojis (✅🔄⏳❌) for quick scanning |
+| **Visual** | Use emojis () for quick scanning |
 | **Specific** | "~2 minutes" not "wait a bit" |
 | **Alternatives** | Offer multiple paths when stuck |
 | **Proactive** | Suggest next step after completion |

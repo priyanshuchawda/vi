@@ -46,39 +46,39 @@ npx vitest test/stores/useProjectStore.test.ts
 
 ### Store Tests (`useProjectStore.test.ts`)
 
-- ✅ Add/remove clips
-- ✅ Split clips at time
-- ✅ Merge selected clips
-- ✅ Update clip properties (trim)
-- ✅ Copy/paste clips
-- ✅ Reorder timeline clips
-- ✅ Selection management
+-  Add/remove clips
+-  Split clips at time
+-  Merge selected clips
+-  Update clip properties (trim)
+-  Copy/paste clips
+-  Reorder timeline clips
+-  Selection management
 
 ### Clip Operations Tests (`clipOperations.test.ts`)
 
-- ✅ Validate split positions
-- ✅ Split clip at specific time
-- ✅ Detect gaps between clips
-- ✅ Validate clip adjacency
-- ✅ Handle edge cases
+-  Validate split positions
+-  Split clip at specific time
+-  Detect gaps between clips
+-  Validate clip adjacency
+-  Handle edge cases
 
 ### Export Helpers Tests (`exportHelpers.test.ts`)
 
-- ✅ Generate export segments
-- ✅ Handle merged clips
-- ✅ Detect overlaps
-- ✅ Validate merge requirements
-- ✅ Timeline continuity checks
+-  Generate export segments
+-  Handle merged clips
+-  Detect overlaps
+-  Validate merge requirements
+-  Timeline continuity checks
 
 ### Integration Tests (`video-editor.test.ts`)
 
-- ✅ Complete editing workflows
-- ✅ Import → Split → Merge → Export
-- ✅ Multiple imports and reordering
-- ✅ Trimming preservation
-- ✅ Copy-paste workflows
-- ✅ Error handling
-- ✅ Timeline calculations
+-  Complete editing workflows
+-  Import → Split → Merge → Export
+-  Multiple imports and reordering
+-  Trimming preservation
+-  Copy-paste workflows
+-  Error handling
+-  Timeline calculations
 
 ## Key Test Scenarios
 
@@ -99,11 +99,11 @@ updateClip(clipId, { start: 2, end: 8 });
 
 ```typescript
 // Valid split (middle of clip)
-splitClip(clipId, 5); // ✅ Creates 2 clips
+splitClip(clipId, 5); //  Creates 2 clips
 
 // Invalid splits
-splitClip(clipId, 0); // ❌ At start
-splitClip(clipId, 10); // ❌ At end
+splitClip(clipId, 0); //  At start
+splitClip(clipId, 10); //  At end
 ```
 
 ### 3. Merging Workflow
@@ -114,7 +114,7 @@ toggleClipSelection(clip1Id, false);
 toggleClipSelection(clip2Id, true);
 
 // Merge
-mergeSelectedClips(); // ✅ Creates merged clip
+mergeSelectedClips(); //  Creates merged clip
 ```
 
 ## Mocked Dependencies

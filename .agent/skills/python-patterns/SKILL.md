@@ -11,7 +11,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep
 
 ---
 
-## ⚠️ How to Use This Skill
+## ️ How to Use This Skill
 
 This skill teaches **decision-making principles**, not fixed code to copy.
 
@@ -421,7 +421,7 @@ Before implementing:
 
 ## 11. Anti-Patterns to Avoid
 
-### ❌ DON'T:
+###  DON'T:
 - Default to Django for simple APIs (FastAPI may be better)
 - Use sync libraries in async code
 - Skip type hints for public APIs
@@ -429,7 +429,7 @@ Before implementing:
 - Ignore N+1 queries
 - Mix async and sync carelessly
 
-### ✅ DO:
+###  DO:
 - Choose framework based on context
 - Ask about async requirements
 - Use Pydantic for validation

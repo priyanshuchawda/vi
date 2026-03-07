@@ -23,11 +23,11 @@ Where n = number of choices
 
 **Example:**
 ```
-❌ Bad: 15 menu items in one nav
-✅ Good: 5 main categories + "More" 
+ Bad: 15 menu items in one nav
+ Good: 5 main categories + "More" 
 
-❌ Bad: 20 form fields at once
-✅ Good: 3-step wizard with 5-7 fields each
+ Bad: 20 form fields at once
+ Good: 3-step wizard with 5-7 fields each
 ```
 
 ---
@@ -74,11 +74,11 @@ Where D = distance, W = width
 
 **Chunking Example:**
 ```
-❌ 5551234567
-✅ 555-123-4567
+ 5551234567
+ 555-123-4567
 
-❌ Long paragraph of text without breaks
-✅ Short paragraphs
+ Long paragraph of text without breaks
+ Short paragraphs
    With bullet points
    And subheadings
 ```
@@ -145,11 +145,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A website where clicking the logo takes you to an "About Us" page.
-✅ Good: Clicking the logo always returns the user to the Homepage.
+ Bad: A website where clicking the logo takes you to an "About Us" page.
+ Good: Clicking the logo always returns the user to the Homepage.
 
-❌ Bad: Using a "Star" icon to represent "Delete."
-✅ Good: Using a "Trash Can" icon to represent "Delete."
+ Bad: Using a "Star" icon to represent "Delete."
+ Good: Using a "Trash Can" icon to represent "Delete."
 ```
 
 ---
@@ -168,11 +168,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: Making users type "USD $" before every price field in a form.
-✅ Good: The app automatically prefixing the "$" based on the user's location.
+ Bad: Making users type "USD $" before every price field in a form.
+ Good: The app automatically prefixing the "$" based on the user's location.
 
-❌ Bad: Forcing users to manually select their "Card Type" (Visa/Mastercard).
-✅ Good: Detecting the card type automatically from the first four digits entered.
+ Bad: Forcing users to manually select their "Card Type" (Visa/Mastercard).
+ Good: Detecting the card type automatically from the first four digits entered.
 ```
 
 ---
@@ -191,11 +191,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A 10-page registration form that allows users to browse away and lose data.
-✅ Good: A "One-Tap Sign In" using Google or Apple ID.
+ Bad: A 10-page registration form that allows users to browse away and lose data.
+ Good: A "One-Tap Sign In" using Google or Apple ID.
 
-❌ Bad: Giving a user an indefinite amount of time to fill out a bio.
-✅ Good: Providing a "Suggested Bios" feature to help them finish in seconds.
+ Bad: Giving a user an indefinite amount of time to fill out a bio.
+ Good: Providing a "Suggested Bios" feature to help them finish in seconds.
 ```
 
 ---
@@ -214,11 +214,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A button that does nothing for 2 seconds after being clicked.
-✅ Good: A button that immediately changes color and shows a "Loading" spinner.
+ Bad: A button that does nothing for 2 seconds after being clicked.
+ Good: A button that immediately changes color and shows a "Loading" spinner.
 
-❌ Bad: A blank white screen that appears while data is fetching.
-✅ Good: A skeleton screen showing the gray outlines of where content will appear.
+ Bad: A blank white screen that appears while data is fetching.
+ Good: A skeleton screen showing the gray outlines of where content will appear.
 ```
 
 ---
@@ -237,11 +237,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: Rejecting a phone number because the user put a space in it.
-✅ Good: Accepting the input and stripping the spaces automatically.
+ Bad: Rejecting a phone number because the user put a space in it.
+ Good: Accepting the input and stripping the spaces automatically.
 
-❌ Bad: Forcing users to type "January" instead of "01" or "Jan."
-✅ Good: A date field that understands all three formats.
+ Bad: Forcing users to type "January" instead of "01" or "Jan."
+ Good: A date field that understands all three formats.
 ```
 
 ---
@@ -260,11 +260,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A "Login" button that opens a new page, then email, then password.
-✅ Good: A single login modal that asks for both on one screen.
+ Bad: A "Login" button that opens a new page, then email, then password.
+ Good: A single login modal that asks for both on one screen.
 
-❌ Bad: Using 5 different font sizes and 4 colors on a single card.
-✅ Good: Using 2 font sizes and 1 accent color.
+ Bad: Using 5 different font sizes and 4 colors on a single card.
+ Good: Using 2 font sizes and 1 accent color.
 ```
 
 ---
@@ -285,11 +285,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: Large, equal gaps between every line of text in a form.
-✅ Good: Tight spacing between a label and its input, with larger gaps between pairs.
+ Bad: Large, equal gaps between every line of text in a form.
+ Good: Tight spacing between a label and its input, with larger gaps between pairs.
 
-❌ Bad: A "Submit" button floating in the middle of a page, far from the form.
-✅ Good: The "Submit" button placed directly under the last input field.
+ Bad: A "Submit" button floating in the middle of a page, far from the form.
+ Good: The "Submit" button placed directly under the last input field.
 ```
 
 ---
@@ -308,11 +308,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: Some links are blue, some are green, and some are just bold black.
-✅ Good: Every clickable text element in the app is the same shade of Blue.
+ Bad: Some links are blue, some are green, and some are just bold black.
+ Good: Every clickable text element in the app is the same shade of Blue.
 
-❌ Bad: Using a "Blue Button" for "Submit" and the same "Blue Button" for "Cancel."
-✅ Good: "Submit" is Solid Blue; "Cancel" is a Blue Outline (Ghost Button).
+ Bad: Using a "Blue Button" for "Submit" and the same "Blue Button" for "Cancel."
+ Good: "Submit" is Solid Blue; "Cancel" is a Blue Outline (Ghost Button).
 ```
 
 ---
@@ -331,11 +331,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A list of news articles where the text and image of different stories overlap.
-✅ Good: Each article is contained within its own white card on a light gray background.
+ Bad: A list of news articles where the text and image of different stories overlap.
+ Good: Each article is contained within its own white card on a light gray background.
 
-❌ Bad: A footer that has the same background color as the main body.
-✅ Good: A dark-themed footer that clearly separates legal links from page content.
+ Bad: A footer that has the same background color as the main body.
+ Good: A dark-themed footer that clearly separates legal links from page content.
 ```
 
 ---
@@ -354,11 +354,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A 3-step setup where the numbers "1", "2", and "3" are scattered.
-✅ Good: A horizontal line connecting "1", "2", and "3" to show a sequence.
+ Bad: A 3-step setup where the numbers "1", "2", and "3" are scattered.
+ Good: A horizontal line connecting "1", "2", and "3" to show a sequence.
 
-❌ Bad: Floating dropdown menus that don't touch the button that opened them.
-✅ Good: A dropdown menu that visually "attaches" to the parent button.
+ Bad: Floating dropdown menus that don't touch the button that opened them.
+ Good: A dropdown menu that visually "attaches" to the parent button.
 ```
 
 ---
@@ -377,11 +377,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A hyper-realistic 3D illustration of a file folder for the "Files" icon.
-✅ Good: A simple 2D outline of a folder.
+ Bad: A hyper-realistic 3D illustration of a file folder for the "Files" icon.
+ Good: A simple 2D outline of a folder.
 
-❌ Bad: A multi-colored, complex logo used as a loading spinner.
-✅ Good: A simple, single-color circular ring.
+ Bad: A multi-colored, complex logo used as a loading spinner.
+ Good: A simple, single-color circular ring.
 ```
 
 ---
@@ -400,11 +400,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A popup window that has no shadow or border, blending into the page.
-✅ Good: A modal with a drop shadow and a dimmed background overlay.
+ Bad: A popup window that has no shadow or border, blending into the page.
+ Good: A modal with a drop shadow and a dimmed background overlay.
 
-❌ Bad: White text placed directly over a busy, multi-colored photograph.
-✅ Good: White text placed over a dark semi-transparent "scrim."
+ Bad: White text placed directly over a busy, multi-colored photograph.
+ Good: White text placed over a dark semi-transparent "scrim."
 ```
 
 ---
@@ -423,11 +423,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A homepage with 5 buttons of the same size and color.
-✅ Good: One large "Get Started" button in a bright color.
+ Bad: A homepage with 5 buttons of the same size and color.
+ Good: One large "Get Started" button in a bright color.
 
-❌ Bad: A dashboard where "Total Revenue" is the same size as "System Version."
-✅ Good: "Total Revenue" displayed in huge, bold numbers at the top center.
+ Bad: A dashboard where "Total Revenue" is the same size as "System Version."
+ Good: "Total Revenue" displayed in huge, bold numbers at the top center.
 ```
 
 ---
@@ -448,11 +448,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A silent onboarding process that gives no indication of what's left.
-✅ Good: A checklist that shows "3 of 5 steps finished."
+ Bad: A silent onboarding process that gives no indication of what's left.
+ Good: A checklist that shows "3 of 5 steps finished."
 
-❌ Bad: An e-learning app that shows a checkmark even if a video was half-watched.
-✅ Good: A progress ring that stays half-full until the video is finished.
+ Bad: An e-learning app that shows a checkmark even if a video was half-watched.
+ Good: A progress ring that stays half-full until the video is finished.
 ```
 
 ### Goal Gradient Effect
@@ -469,11 +469,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A progress bar that starts at 0% and feels like a long climb.
-✅ Good: A bar that starts at 20% because the user "started" by opening the app.
+ Bad: A progress bar that starts at 0% and feels like a long climb.
+ Good: A bar that starts at 20% because the user "started" by opening the app.
 
-❌ Bad: A checkout flow where the "Final Review" feels like a surprise 5th step.
-✅ Good: Clearly labeling the steps: "Shipping > Payment > Almost Done!"
+ Bad: A checkout flow where the "Final Review" feels like a surprise 5th step.
+ Good: Clearly labeling the steps: "Shipping > Payment > Almost Done!"
 ```
 
 ### Peak-End Rule
@@ -490,11 +490,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: After a 20-minute tax filing process, the app just says "Submitted."
-✅ Good: A "Congratulations!" screen with a summary of the refund amount.
+ Bad: After a 20-minute tax filing process, the app just says "Submitted."
+ Good: A "Congratulations!" screen with a summary of the refund amount.
 
-❌ Bad: A game that ends with a simple "Game Over" text in plain font.
-✅ Good: A summary screen showing high scores with celebratory music.
+ Bad: A game that ends with a simple "Game Over" text in plain font.
+ Good: A summary screen showing high scores with celebratory music.
 ```
 
 ### Aesthetic-Usability Effect
@@ -511,11 +511,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A banking app with misaligned text and clashing 1990s colors.
-✅ Good: A sleek, modern banking app with smooth animations.
+ Bad: A banking app with misaligned text and clashing 1990s colors.
+ Good: A sleek, modern banking app with smooth animations.
 
-❌ Bad: Using low-resolution, pixelated stock photos.
-✅ Good: Using high-definition, custom brand illustrations.
+ Bad: Using low-resolution, pixelated stock photos.
+ Good: Using high-definition, custom brand illustrations.
 ```
 
 ### Anchoring Bias
@@ -532,11 +532,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: Only showing the price "$49."
-✅ Good: Showing "~~$99~~ $49 (50% Off)."
+ Bad: Only showing the price "$49."
+ Good: Showing "~~$99~~ $49 (50% Off)."
 
-❌ Bad: Sorting a list of laptops from cheapest to most expensive.
-✅ Good: Showing a high-end "Pro" model first to make others seem cheap.
+ Bad: Sorting a list of laptops from cheapest to most expensive.
+ Good: Showing a high-end "Pro" model first to make others seem cheap.
 ```
 
 ### Social Proof
@@ -553,11 +553,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A signup page with just a form.
-✅ Good: A signup page that says "Join 2 million designers."
+ Bad: A signup page with just a form.
+ Good: A signup page that says "Join 2 million designers."
 
-❌ Bad: Anonymous reviews with no names or photos.
-✅ Good: Reviews that include a face, a name, and a "Verified Buyer" tag.
+ Bad: Anonymous reviews with no names or photos.
+ Good: Reviews that include a face, a name, and a "Verified Buyer" tag.
 ```
 
 ### Scarcity Principle
@@ -574,11 +574,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A sale that never ends and has no countdown.
-✅ Good: A "Deal of the Day" with a ticking timer.
+ Bad: A sale that never ends and has no countdown.
+ Good: A "Deal of the Day" with a ticking timer.
 
-❌ Bad: Showing a product is available with no stock count.
-✅ Good: "Only 3 left at this price!"
+ Bad: Showing a product is available with no stock count.
+ Good: "Only 3 left at this price!"
 ```
 
 ### Authority Bias
@@ -595,11 +595,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A health blog written by "Admin."
-✅ Good: A health article "Reviewed by Dr. Jane Smith, Cardiologist."
+ Bad: A health blog written by "Admin."
+ Good: A health article "Reviewed by Dr. Jane Smith, Cardiologist."
 
-❌ Bad: A security app with no mentions of certifications.
-✅ Good: Displaying "ISO 27001 Certified" and "Norton Secured" logos.
+ Bad: A security app with no mentions of certifications.
+ Good: Displaying "ISO 27001 Certified" and "Norton Secured" logos.
 ```
 
 ### Loss Aversion
@@ -616,11 +616,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: "Click here to get a $10 coupon."
-✅ Good: "You have a $10 credit waiting. Use it before it expires tonight!"
+ Bad: "Click here to get a $10 coupon."
+ Good: "You have a $10 credit waiting. Use it before it expires tonight!"
 
-❌ Bad: "Cancel your subscription."
-✅ Good: "If you cancel, you will lose access to your 50 saved projects."
+ Bad: "Cancel your subscription."
+ Good: "If you cancel, you will lose access to your 50 saved projects."
 ```
 
 ### False-Consensus Effect
@@ -637,11 +637,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A designer deciding a feature is "intuitive" without testing it.
-✅ Good: Running an A/B test to see which version users prefer.
+ Bad: A designer deciding a feature is "intuitive" without testing it.
+ Good: Running an A/B test to see which version users prefer.
 
-❌ Bad: Building an app entirely in English because "everyone knows English."
-✅ Good: Adding localization based on actual user location data.
+ Bad: Building an app entirely in English because "everyone knows English."
+ Good: Adding localization based on actual user location data.
 ```
 
 ### Curse of Knowledge
@@ -658,11 +658,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: An error message saying "Exception: Null Pointer at 0x0045."
-✅ Good: An error message saying "Something went wrong. Please try refreshing."
+ Bad: An error message saying "Exception: Null Pointer at 0x0045."
+ Good: An error message saying "Something went wrong. Please try refreshing."
 
-❌ Bad: Navigating a cloud app using terms like "S3 Bucket Instances."
-✅ Good: Using simple terms like "File Storage."
+ Bad: Navigating a cloud app using terms like "S3 Bucket Instances."
+ Good: Using simple terms like "File Storage."
 ```
 
 ### Stepping Stone Effect (Foot-in-the-Door)
@@ -679,11 +679,11 @@ Long landing page:
 
 **Example:**
 ```
-❌ Bad: A "Start Free Trial" button that immediately requires credit card info.
-✅ Good: Asking for an email and password first, then offering the trial.
+ Bad: A "Start Free Trial" button that immediately requires credit card info.
+ Good: Asking for an email and password first, then offering the trial.
 
-❌ Bad: A survey that shows all 50 questions on one page.
-✅ Good: A survey that starts with one easy "Yes/No" question.
+ Bad: A survey that shows all 50 questions on one page.
+ Good: A survey that starts with one easy "Yes/No" question.
 ```
 
 ---
@@ -809,7 +809,7 @@ button.onclick = () => {
 
 /* Secure form indicator */
 .secure-form::before {
-  content: '🔒 Secure form';
+  content: ' Secure form';
   display: block;
   font-size: 12px;
   color: #166534;
@@ -903,10 +903,10 @@ button.onclick = () => {
 
 **4. Use Familiar Patterns**
 ```
-✅ Standard navigation placement
-✅ Expected icon meanings (🔍 = search)
-✅ Conventional form layouts
-✅ Common gesture patterns (swipe, pinch)
+ Standard navigation placement
+ Expected icon meanings ( = search)
+ Conventional form layouts
+ Common gesture patterns (swipe, pinch)
 ```
 
 **5. Offload Information**
@@ -964,7 +964,7 @@ button.onclick = () => {
 ```html
 <!-- Real-time activity -->
 <div class="activity">
-  <span class="avatar">👤</span>
+  <span class="avatar"></span>
   <span>Sarah from NYC just purchased</span>
 </div>
 

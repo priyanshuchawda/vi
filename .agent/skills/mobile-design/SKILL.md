@@ -11,7 +11,7 @@ allowed-tools: Read, Glob, Grep, Bash
 
 ---
 
-## 🔧 Runtime Scripts
+##  Runtime Scripts
 
 **Execute these for validation (don't read, just run):**
 
@@ -21,26 +21,26 @@ allowed-tools: Read, Glob, Grep, Bash
 
 ---
 
-## 🔴 MANDATORY: Read Reference Files Before Working!
+##  MANDATORY: Read Reference Files Before Working!
 
-**⛔ DO NOT start development until you read the relevant files:**
+** DO NOT start development until you read the relevant files:**
 
 ### Universal (Always Read)
 
 | File | Content | Status |
 |------|---------|--------|
-| **[mobile-design-thinking.md](mobile-design-thinking.md)** | **⚠️ ANTI-MEMORIZATION: Forces thinking, prevents AI defaults** | **⬜ CRITICAL FIRST** |
-| **[touch-psychology.md](touch-psychology.md)** | **Fitts' Law, gestures, haptics, thumb zone** | **⬜ CRITICAL** |
-| **[mobile-performance.md](mobile-performance.md)** | **RN/Flutter performance, 60fps, memory** | **⬜ CRITICAL** |
-| **[mobile-backend.md](mobile-backend.md)** | **Push notifications, offline sync, mobile API** | **⬜ CRITICAL** |
-| **[mobile-testing.md](mobile-testing.md)** | **Testing pyramid, E2E, platform-specific** | **⬜ CRITICAL** |
-| **[mobile-debugging.md](mobile-debugging.md)** | **Native vs JS debugging, Flipper, Logcat** | **⬜ CRITICAL** |
-| [mobile-navigation.md](mobile-navigation.md) | Tab/Stack/Drawer, deep linking | ⬜ Read |
-| [mobile-typography.md](mobile-typography.md) | System fonts, Dynamic Type, a11y | ⬜ Read |
-| [mobile-color-system.md](mobile-color-system.md) | OLED, dark mode, battery-aware | ⬜ Read |
-| [decision-trees.md](decision-trees.md) | Framework/state/storage selection | ⬜ Read |
+| **[mobile-design-thinking.md](mobile-design-thinking.md)** | **️ ANTI-MEMORIZATION: Forces thinking, prevents AI defaults** | ** CRITICAL FIRST** |
+| **[touch-psychology.md](touch-psychology.md)** | **Fitts' Law, gestures, haptics, thumb zone** | ** CRITICAL** |
+| **[mobile-performance.md](mobile-performance.md)** | **RN/Flutter performance, 60fps, memory** | ** CRITICAL** |
+| **[mobile-backend.md](mobile-backend.md)** | **Push notifications, offline sync, mobile API** | ** CRITICAL** |
+| **[mobile-testing.md](mobile-testing.md)** | **Testing pyramid, E2E, platform-specific** | ** CRITICAL** |
+| **[mobile-debugging.md](mobile-debugging.md)** | **Native vs JS debugging, Flipper, Logcat** | ** CRITICAL** |
+| [mobile-navigation.md](mobile-navigation.md) | Tab/Stack/Drawer, deep linking |  Read |
+| [mobile-typography.md](mobile-typography.md) | System fonts, Dynamic Type, a11y |  Read |
+| [mobile-color-system.md](mobile-color-system.md) | OLED, dark mode, battery-aware |  Read |
+| [decision-trees.md](decision-trees.md) | Framework/state/storage selection |  Read |
 
-> 🧠 **mobile-design-thinking.md is PRIORITY!** This file ensures AI thinks instead of using memorized patterns.
+>  **mobile-design-thinking.md is PRIORITY!** This file ensures AI thinks instead of using memorized patterns.
 
 ### Platform-Specific (Read Based on Target)
 
@@ -50,13 +50,13 @@ allowed-tools: Read, Glob, Grep, Bash
 | **Android** | [platform-android.md](platform-android.md) | Material Design 3, Roboto, Compose patterns | Building for Android |
 | **Cross-Platform** | Both above | Platform divergence points | React Native / Flutter |
 
-> 🔴 **If building for iOS → Read platform-ios.md FIRST!**
-> 🔴 **If building for Android → Read platform-android.md FIRST!**
-> 🔴 **If cross-platform → Read BOTH and apply conditional platform logic!**
+>  **If building for iOS → Read platform-ios.md FIRST!**
+>  **If building for Android → Read platform-android.md FIRST!**
+>  **If cross-platform → Read BOTH and apply conditional platform logic!**
 
 ---
 
-## ⚠️ CRITICAL: ASK BEFORE ASSUMING (MANDATORY)
+## ️ CRITICAL: ASK BEFORE ASSUMING (MANDATORY)
 
 > **STOP! If the user's request is open-ended, DO NOT default to your favorites.**
 
@@ -71,13 +71,13 @@ allowed-tools: Read, Glob, Grep, Bash
 | **Offline** | "Does this need to work offline?" | Affects data strategy |
 | **Target devices** | "Phone only, or tablet support?" | Layout complexity |
 
-### ⛔ AI MOBILE ANTI-PATTERNS (YASAK LİSTESİ)
+###  AI MOBILE ANTI-PATTERNS (YASAK LİSTESİ)
 
-> 🚫 **These are AI default tendencies that MUST be avoided!**
+>  **These are AI default tendencies that MUST be avoided!**
 
 #### Performance Sins
 
-| ❌ NEVER DO | Why It's Wrong | ✅ ALWAYS DO |
+|  NEVER DO | Why It's Wrong |  ALWAYS DO |
 |-------------|----------------|--------------|
 | **ScrollView for long lists** | Renders ALL items, memory explodes | Use `FlatList` / `FlashList` / `ListView.builder` |
 | **Inline renderItem function** | New function every render, all items re-render | `useCallback` + `React.memo` |
@@ -90,7 +90,7 @@ allowed-tools: Read, Glob, Grep, Bash
 
 #### Touch/UX Sins
 
-| ❌ NEVER DO | Why It's Wrong | ✅ ALWAYS DO |
+|  NEVER DO | Why It's Wrong |  ALWAYS DO |
 |-------------|----------------|--------------|
 | **Touch target < 44px** | Impossible to tap accurately, frustrating | Minimum 44pt (iOS) / 48dp (Android) |
 | **Spacing < 8px between targets** | Accidental taps on neighbors | Minimum 8-12px gap |
@@ -102,7 +102,7 @@ allowed-tools: Read, Glob, Grep, Bash
 
 #### Security Sins
 
-| ❌ NEVER DO | Why It's Wrong | ✅ ALWAYS DO |
+|  NEVER DO | Why It's Wrong |  ALWAYS DO |
 |-------------|----------------|--------------|
 | **Token in AsyncStorage** | Easily accessible, stolen on rooted device | `SecureStore` / `Keychain` / `EncryptedSharedPreferences` |
 | **Hardcode API keys** | Reverse engineered from APK/IPA | Environment variables, secure storage |
@@ -111,7 +111,7 @@ allowed-tools: Read, Glob, Grep, Bash
 
 #### Architecture Sins
 
-| ❌ NEVER DO | Why It's Wrong | ✅ ALWAYS DO |
+|  NEVER DO | Why It's Wrong |  ALWAYS DO |
 |-------------|----------------|--------------|
 | **Business logic in UI** | Untestable, unmaintainable | Service layer separation |
 | **Global state for everything** | Unnecessary re-renders, complexity | Local state default, lift when needed |
@@ -120,24 +120,24 @@ allowed-tools: Read, Glob, Grep, Bash
 
 ---
 
-## 📱 Platform Decision Matrix
+##  Platform Decision Matrix
 
 ### When to Unify vs Diverge
 
 ```
                     UNIFY (same on both)          DIVERGE (platform-specific)
                     ───────────────────           ──────────────────────────
-Business Logic      ✅ Always                     -
-Data Layer          ✅ Always                     -
-Core Features       ✅ Always                     -
+Business Logic       Always                     -
+Data Layer           Always                     -
+Core Features        Always                     -
                     
-Navigation          -                             ✅ iOS: edge swipe, Android: back button
-Gestures            -                             ✅ Platform-native feel
-Icons               -                             ✅ SF Symbols vs Material Icons
-Date Pickers        -                             ✅ Native pickers feel right
-Modals/Sheets       -                             ✅ iOS: bottom sheet vs Android: dialog
-Typography          -                             ✅ SF Pro vs Roboto (or custom)
-Error Dialogs       -                             ✅ Platform conventions for alerts
+Navigation          -                              iOS: edge swipe, Android: back button
+Gestures            -                              Platform-native feel
+Icons               -                              SF Symbols vs Material Icons
+Date Pickers        -                              Native pickers feel right
+Modals/Sheets       -                              iOS: bottom sheet vs Android: dialog
+Typography          -                              SF Pro vs Roboto (or custom)
+Error Dialogs       -                              Platform conventions for alerts
 ```
 
 ### Quick Reference: Platform Defaults
@@ -154,7 +154,7 @@ Error Dialogs       -                             ✅ Platform conventions for a
 
 ---
 
-## 🧠 Mobile UX Psychology (Quick Reference)
+##  Mobile UX Psychology (Quick Reference)
 
 ### Fitts' Law for Touch
 
@@ -197,12 +197,12 @@ For deep dive: [touch-psychology.md](touch-psychology.md)
 
 ---
 
-## ⚡ Performance Principles (Quick Reference)
+##  Performance Principles (Quick Reference)
 
 ### React Native Critical Rules
 
 ```typescript
-// ✅ CORRECT: Memoized renderItem + React.memo wrapper
+//  CORRECT: Memoized renderItem + React.memo wrapper
 const ListItem = React.memo(({ item }: { item: Item }) => (
   <View style={styles.item}>
     <Text>{item.title}</Text>
@@ -214,7 +214,7 @@ const renderItem = useCallback(
   []
 );
 
-// ✅ CORRECT: FlatList with all optimizations
+//  CORRECT: FlatList with all optimizations
 <FlatList
   data={items}
   renderItem={renderItem}
@@ -233,7 +233,7 @@ const renderItem = useCallback(
 ### Flutter Critical Rules
 
 ```dart
-// ✅ CORRECT: const constructors prevent rebuilds
+//  CORRECT: const constructors prevent rebuilds
 class MyWidget extends StatelessWidget {
   const MyWidget({super.key}); // CONST!
 
@@ -248,7 +248,7 @@ class MyWidget extends StatelessWidget {
   }
 }
 
-// ✅ CORRECT: Targeted state with ValueListenableBuilder
+//  CORRECT: Targeted state with ValueListenableBuilder
 ValueListenableBuilder<int>(
   valueListenable: counter,
   builder: (context, value, child) => Text('$value'),
@@ -270,12 +270,12 @@ For complete guide: [mobile-performance.md](mobile-performance.md)
 
 ---
 
-## 📝 CHECKPOINT (MANDATORY Before Any Mobile Work)
+##  CHECKPOINT (MANDATORY Before Any Mobile Work)
 
 > **Before writing ANY mobile code, you MUST complete this checkpoint:**
 
 ```
-🧠 CHECKPOINT:
+ CHECKPOINT:
 
 Platform:   [ iOS / Android / Both ]
 Framework:  [ React Native / Flutter / SwiftUI / Kotlin ]
@@ -293,7 +293,7 @@ Anti-Patterns I Will Avoid:
 
 **Example:**
 ```
-🧠 CHECKPOINT:
+ CHECKPOINT:
 
 Platform:   iOS + Android (Cross-platform)
 Framework:  React Native + Expo
@@ -310,37 +310,37 @@ Anti-Patterns I Will Avoid:
 3. AsyncStorage for tokens → SecureStore
 ```
 
-> 🔴 **Can't fill the checkpoint? → GO BACK AND READ THE SKILL FILES.**
+>  **Can't fill the checkpoint? → GO BACK AND READ THE SKILL FILES.**
 
 ---
 
-## 🔧 Framework Decision Tree
+##  Framework Decision Tree
 
 ```
 WHAT ARE YOU BUILDING?
         │
         ├── Need OTA updates + rapid iteration + web team
-        │   └── ✅ React Native + Expo
+        │   └──  React Native + Expo
         │
         ├── Need pixel-perfect custom UI + performance critical
-        │   └── ✅ Flutter
+        │   └──  Flutter
         │
         ├── Deep native features + single platform focus
         │   ├── iOS only → SwiftUI
         │   └── Android only → Kotlin + Jetpack Compose
         │
         ├── Existing RN codebase + new features
-        │   └── ✅ React Native (bare workflow)
+        │   └──  React Native (bare workflow)
         │
         └── Enterprise + existing Flutter codebase
-            └── ✅ Flutter
+            └──  Flutter
 ```
 
 For complete decision trees: [decision-trees.md](decision-trees.md)
 
 ---
 
-## 📋 Pre-Development Checklist
+##  Pre-Development Checklist
 
 ### Before Starting ANY Mobile Project
 
@@ -373,7 +373,7 @@ For complete decision trees: [decision-trees.md](decision-trees.md)
 
 ---
 
-## 📚 Reference Files
+##  Reference Files
 
 For deeper guidance on specific areas:
 

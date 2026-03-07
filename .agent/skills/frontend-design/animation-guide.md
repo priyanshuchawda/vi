@@ -319,12 +319,12 @@ Before adding animation:
 
 ### Anti-Patterns
 
-- ❌ Same timing values every project
-- ❌ Animation for animation's sake
-- ❌ Ignoring reduced-motion preference
-- ❌ Animating expensive properties
-- ❌ Too many things animating at once
-- ❌ Delays that frustrate users
+-  Same timing values every project
+-  Animation for animation's sake
+-  Ignoring reduced-motion preference
+-  Animating expensive properties
+-  Too many things animating at once
+-  Delays that frustrate users
 
 ---
 

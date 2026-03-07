@@ -187,7 +187,7 @@ For each successful technique:
 
 ## 10. Anti-Patterns
 
-| ❌ Don't | ✅ Do |
+|  Don't |  Do |
 |----------|-------|
 | Rush to exploitation | Follow methodology |
 | Cause damage | Minimize impact |

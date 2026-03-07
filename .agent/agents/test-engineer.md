@@ -51,9 +51,9 @@ Expert in test automation, TDD, and comprehensive testing strategies.
 ## TDD Workflow
 
 ```
-🔴 RED    → Write failing test
-🟢 GREEN  → Minimal code to pass
-🔵 REFACTOR → Improve code quality
+ RED    → Write failing test
+ GREEN  → Minimal code to pass
+ REFACTOR → Improve code quality
 ```
 
 ---
@@ -133,7 +133,7 @@ Expert in test automation, TDD, and comprehensive testing strategies.
 
 ## Anti-Patterns
 
-| ❌ Don't | ✅ Do |
+|  Don't |  Do |
 |----------|-------|
 | Test implementation | Test behavior |
 | Multiple asserts | One per test |

@@ -240,7 +240,7 @@ EXPANDED (> 840dp width):
 │         Content Area                │
 │                                     │
 ├─────────────────────────────────────┤
-│  🏠     🔍     ➕     ❤️     👤    │ ← 80dp height
+│                 ️         │ ← 80dp height
 │ Home   Search  FAB   Saved  Profile│
 └─────────────────────────────────────┘
 
@@ -263,7 +263,7 @@ Types:
 ├── Large: Display title, collapses to small
 
 ┌─────────────────────────────────────┐
-│  ☰   App Title              🔔 ⋮  │ ← 64dp (small)
+│     App Title               ⋮  │ ← 64dp (small)
 ├─────────────────────────────────────┤
 │                                     │
 │         Content Area                │
@@ -278,13 +278,13 @@ Actions: Max 3 icons, overflow menu ( ⋮ ) for more
 ┌───────┬─────────────────────────────┐
 │  ≡    │                             │
 │       │                             │
-│  🏠   │                             │
+│     │                             │
 │ Home  │       Content Area          │
 │       │                             │
-│  🔍   │                             │
+│     │                             │
 │Search │                             │
 │       │                             │
-│  👤   │                             │
+│     │                             │
 │Profile│                             │
 └───────┴─────────────────────────────┘
 
@@ -357,7 +357,7 @@ Elevation: Floats above content
 │         Content                     │
 │                                     │
 │                              ┌────┐ │
-│                              │ ➕ │ │ ← FAB
+│                              │  │ │ ← FAB
 │                              └────┘ │
 ├─────────────────────────────────────┤
 │       Bottom Navigation             │
@@ -416,7 +416,7 @@ Types:
 ├── Suggestion: Dynamic recommendations
 
 ┌───────────────┐
-│  🏷️ Filter   │  ← 32dp height, 8dp corner radius
+│  ️ Filter   │  ← 32dp height, 8dp corner radius
 └───────────────┘
 
 States: Unselected, Selected, Disabled

@@ -32,6 +32,7 @@ export interface Clip {
   path: string;
   name: string;
   duration: number;
+  assetDuration?: number;
   sourceDuration: number;
   start: number;
   end: number;
@@ -412,13 +413,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         startTime = Math.max(...trackClips.map((c) => c.startTime + c.duration));
       }
 
+      const assetDuration = clip.assetDuration ?? clip.duration;
+      const sourceDuration =
+        clip.mediaType === 'image' || clip.mediaType === 'text'
+          ? Math.max(clip.sourceDuration ?? clip.duration, clip.duration, 300)
+          : (clip.sourceDuration ?? clip.duration);
+
       const newState = {
         clips: [
           ...state.clips,
           {
             ...clip,
             id: uuidv4(),
-            sourceDuration: clip.duration,
+            assetDuration,
+            sourceDuration,
             start: 0,
             end: clip.duration,
             startTime,
@@ -685,27 +693,35 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const clipsToCopy = state.clips.filter((clip) => state.selectedClipIds.includes(clip.id));
       return {
         copiedClips: clipsToCopy,
-        notification: { type: 'success', message: `Copied ${clipsToCopy.length} clip(s)` },
+        notification: {
+          type: 'success' as const,
+          message: `Copied ${clipsToCopy.length} clip(s)`,
+        },
       };
     }),
   pasteClips: () =>
     set((state) => {
       if (state.copiedClips.length === 0) {
-        return { notification: { type: 'error', message: 'No clips to paste' } };
+        return { notification: { type: 'error' as const, message: 'No clips to paste' } };
       }
 
-      // Clone copied clips with new IDs
+      const baseStart = Math.min(...state.copiedClips.map((clip) => clip.startTime));
       const pastedClips = state.copiedClips.map((clip) => ({
         ...clip,
         id: uuidv4(),
         name: clip.name + ' (Copy)',
+        startTime: Math.max(0, state.currentTime + (clip.startTime - baseStart)),
       }));
 
-      return {
+      const newState = {
         clips: [...state.clips, ...pastedClips],
         selectedClipIds: pastedClips.map((c) => c.id),
-        notification: { type: 'success', message: `Pasted ${pastedClips.length} clip(s)` },
+        notification: {
+          type: 'success' as const,
+          message: `Pasted ${pastedClips.length} clip(s)`,
+        },
       };
+      return { ...newState, ...saveToHistory({ ...state, ...newState }) };
     }),
   saveProject: async () => {
     const state = get();
@@ -920,11 +936,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const clip = state.clips.find((c) => c.id === id);
       if (!clip) return state;
       const oldSpeed = clip.speed ?? 1;
-      // Adjust clip duration proportionally to the speed change
       const newDuration = clip.duration * (oldSpeed / clampedSpeed);
-      const newClips = state.clips.map((c) =>
-        c.id === id ? { ...c, speed: clampedSpeed, duration: newDuration } : c,
-      );
+      const clipTrack = clip.trackIndex ?? 0;
+      const clipEndTime = clip.startTime + clip.duration;
+      const durationDelta = newDuration - clip.duration;
+      const newClips = state.clips.map((c) => {
+        if (c.id === id) {
+          return { ...c, speed: clampedSpeed, duration: newDuration };
+        }
+        if ((c.trackIndex ?? 0) === clipTrack && c.startTime >= clipEndTime) {
+          return { ...c, startTime: Math.max(0, c.startTime + durationDelta) };
+        }
+        return c;
+      });
       const newState = { clips: newClips, hasUnsavedChanges: true };
       return { ...newState, ...saveToHistory({ ...state, ...newState }) };
     });

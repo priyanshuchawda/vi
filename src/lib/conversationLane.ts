@@ -131,7 +131,8 @@ export function buildCaptionApplyRequest(lastAssistantMessage: string): string {
   return `Apply the script from your previous response as on-screen captions on my current timeline.
 
 Requirements:
-- Use subtitle/caption editing tools to add the timestamped lines.
+- Prefer preview_caption_fit and apply_script_as_captions so this runs in one reliable pass.
+- Only fall back to atomic subtitle tools if the macro path cannot represent the script.
 - Keep the final caption sequence within the timeline duration.
 - Preserve my existing clips; do not trim or reorder unless absolutely required.
 - Use concise, attractive caption text matching the script tone.

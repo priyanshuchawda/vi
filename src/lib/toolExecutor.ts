@@ -3,6 +3,7 @@ import { useAiMemoryStore } from '../stores/useAiMemoryStore';
 import type { FunctionCall, ToolResult } from './videoEditingTools';
 import { isReadOnlyTool, isToolAllowedInMode, type RuntimeToolMode } from './toolCapabilityMatrix';
 import { retrieveRelevantMemory } from './memoryRetrieval';
+import { detectGaps } from './clipOperations';
 import type { ExportFormat, ExportResolution } from '../stores/useProjectStore';
 
 type ToolErrorCategory =
@@ -299,6 +300,49 @@ export class ToolExecutor {
     return phrases;
   }
 
+  private static pickNarrativeFocus(
+    objective: string,
+    clipNames: string[],
+    keywords: string[],
+    memoryPhrases: string[],
+  ): {
+    isHackathonWin: boolean;
+    buildPhrase: string;
+    proofPhrase: string;
+    payoffPhrase: string;
+    ctaPhrase: string;
+  } {
+    const signal =
+      `${objective} ${clipNames.join(' ')} ${keywords.join(' ')} ${memoryPhrases.join(' ')}`.toLowerCase();
+    const isHackathonWin = /\bhackathon|winner|won|victory|judges|demo\b/.test(signal);
+    const buildPhrase =
+      memoryPhrases.find((phrase) =>
+        /\b(build|demo|present|pitch|prototype|edit)\b/i.test(phrase),
+      ) ||
+      clipNames.find((name) => /\b(demo|team|build|pitch)\b/i.test(name)) ||
+      'we built fast and refined the demo';
+    const proofPhrase =
+      memoryPhrases.find((phrase) =>
+        /\b(judge|reaction|announcement|winner|won|proof)\b/i.test(phrase),
+      ) ||
+      clipNames.find((name) => /\b(winner|reveal|announce|judge)\b/i.test(name)) ||
+      'the demo proved it live';
+    const payoffPhrase =
+      memoryPhrases.find((phrase) => /\b(won|winner|victory|title|secured)\b/i.test(phrase)) ||
+      'that is how we won';
+    const ctaPhrase = /\bfull video|full build|full breakdown|more context\b/.test(signal)
+      ? 'Watch the full video'
+      : 'Full build next';
+
+    return {
+      isHackathonWin,
+      buildPhrase: String(buildPhrase).trim(),
+      proofPhrase: String(proofPhrase).trim(),
+      payoffPhrase: String(payoffPhrase).trim(),
+      ctaPhrase,
+    };
+  }
+
   private static toPunchyCaption(input: string, fallback: string): string {
     const cleaned = String(input || '')
       .replace(/[^a-zA-Z0-9 ]+/g, ' ')
@@ -368,6 +412,18 @@ export class ToolExecutor {
     };
   }
 
+  private static buildShortFormBeatRoles(beatCount: number): string[] {
+    if (beatCount <= 4) return ['hook', 'build', 'proof', 'cta'].slice(0, beatCount);
+    const middleCount = Math.max(0, beatCount - 4);
+    return [
+      'hook',
+      'build',
+      ...Array.from({ length: middleCount }, () => 'proof'),
+      'payoff',
+      'cta',
+    ].slice(0, beatCount);
+  }
+
   private static formatSeconds(seconds: number): string {
     const safe = Math.max(0, Math.floor(seconds));
     const mm = Math.floor(safe / 60)
@@ -410,8 +466,23 @@ export class ToolExecutor {
     );
     const beatDuration = targetDuration / beatCount;
     const lexicon = this.pickToneLexicon(tone);
+    const storySignal = `${objective} ${tone} ${clipNames.join(' ')} ${keywords.join(' ')} ${memoryPhrases.join(' ')}`;
+    const narrativeFocus = this.pickNarrativeFocus(objective, clipNames, keywords, memoryPhrases);
+    const isShortFormStory =
+      targetDuration <= 45 ||
+      /\b(short|shorts|reel|tiktok|hook|cta|hackathon|winner|won|victory|demo|judges)\b/i.test(
+        storySignal,
+      );
+    const beatRoles = isShortFormStory ? this.buildShortFormBeatRoles(beatCount) : [];
+    const objectiveLine = objective.replace(/\s+/g, ' ').trim();
+    const defaultHook =
+      /\bhackathon\b/i.test(storySignal) || /\bwon|winner|victory\b/i.test(storySignal)
+        ? 'This is how we won the hackathon.'
+        : `This is ${objectiveLine}.`;
 
-    const title = `Hackathon Win Intro (${targetDuration}s)`;
+    const title = narrativeFocus.isHackathonWin
+      ? `How We Won The Hackathon (${targetDuration}s)`
+      : `Short Video Script (${targetDuration}s)`;
     const visualHints = clipNames.slice(0, beatCount);
     const fallbackHints = [
       'the challenge',
@@ -470,16 +541,82 @@ export class ToolExecutor {
       const opener = lexicon.opening[i % lexicon.opening.length];
       const middle = lexicon.middle[i % lexicon.middle.length];
       const ending = lexicon.ending[i % lexicon.ending.length];
+      const beatRole = beatRoles[i];
 
-      const voiceover =
-        i === 0
+      const voiceover = isShortFormStory
+        ? beatRole === 'hook'
           ? uniqueLine(
-              [`${opener}: ${objective}.`, `From concept to spotlight, this is ${objective}.`],
-              `From idea to victory: ${objective}.`,
+              [
+                defaultHook,
+                narrativeFocus.isHackathonWin ? 'We won because the demo hit immediately.' : '',
+                `Under pressure, ${objectiveLine} became our only focus.`,
+                `One tight deadline. One shot. ${objectiveLine}.`,
+              ].filter(Boolean) as string[],
+              defaultHook,
+            )
+          : beatRole === 'build'
+            ? uniqueLine(
+                [
+                  narrativeFocus.isHackathonWin
+                    ? `We built fast, cut hard, and sharpened the demo around ${visual}.`
+                    : `We kept building around ${visual} until the story felt undeniable.`,
+                  `Build phase: ${narrativeFocus.buildPhrase}.`,
+                  `${middle} around ${visual}.`,
+                  `Every fast iteration around ${visual} made the project stronger.`,
+                ],
+                `We kept momentum through ${visual}.`,
+              )
+            : beatRole === 'proof'
+              ? uniqueLine(
+                  [
+                    narrativeFocus.isHackathonWin
+                      ? `Then ${visual} became the proof: ${narrativeFocus.proofPhrase}.`
+                      : memoryPhrase || `Then ${visual} proved the idea was working.`,
+                    `The proof was simple: ${keyword} plus clean execution.`,
+                    memoryPhrase || `Then ${visual} proved the idea was working.`,
+                  ],
+                  `Then ${visual} proved the idea was working.`,
+                )
+              : beatRole === 'payoff'
+                ? uniqueLine(
+                    [
+                      narrativeFocus.isHackathonWin
+                        ? `${narrativeFocus.payoffPhrase}.`
+                        : `That momentum turned into the win.`,
+                      `${ending}.`,
+                      `Execution plus ${keyword} sealed the result.`,
+                    ],
+                    `That is how we turned pressure into a winning finish.`,
+                  )
+                : beatRole === 'cta'
+                  ? uniqueLine(
+                      [
+                        narrativeFocus.isHackathonWin
+                          ? `${narrativeFocus.ctaPhrase} for the full build breakdown.`
+                          : 'Follow for more builder stories and behind-the-scenes wins.',
+                        'Follow for more real demos, fast builds, and wins.',
+                      ],
+                      'Follow for more builder stories.',
+                    )
+                  : uniqueLine(
+                      [
+                        memoryPhrase || `Then ${visual} proved the idea was working.`,
+                        `In ${visual}, ${memoryPhrase || `we focused on ${keyword} and executed cleanly`}.`,
+                        `The proof was simple: ${keyword} plus clean execution.`,
+                      ],
+                      `We kept momentum through ${visual}.`,
+                    )
+        : i === 0
+          ? uniqueLine(
+              [
+                `${opener}: ${objectiveLine}.`,
+                `From concept to spotlight, this is ${objectiveLine}.`,
+              ],
+              `From idea to victory: ${objectiveLine}.`,
             )
           : i === beatCount - 1
             ? uniqueLine(
-                [`${ending}.`, `Final frame: ${objective}, delivered with confidence.`],
+                [`${ending}.`, `Final frame: ${objectiveLine}, delivered with confidence.`],
                 `That is how we turned pressure into a winning finish.`,
               )
             : uniqueLine(
@@ -491,8 +628,27 @@ export class ToolExecutor {
                 `We kept momentum through ${visual}.`,
               );
 
-      const baseCaption =
-        i === 0
+      const baseCaption = isShortFormStory
+        ? beatRole === 'hook'
+          ? narrativeFocus.isHackathonWin
+            ? 'We Won With AI'
+            : 'How We Won'
+          : beatRole === 'build'
+            ? narrativeFocus.isHackathonWin
+              ? 'Build Under Pressure'
+              : 'Build Fast'
+            : beatRole === 'proof'
+              ? narrativeFocus.isHackathonWin
+                ? 'Demo Was Proof'
+                : this.toPunchyCaption(`${keyword} ${visual}`, 'Proof')
+              : beatRole === 'payoff'
+                ? narrativeFocus.isHackathonWin
+                  ? 'Winning Moment'
+                  : 'Winning Moment'
+                : beatRole === 'cta'
+                  ? this.toPunchyCaption(narrativeFocus.ctaPhrase, 'Follow For More')
+                  : this.toPunchyCaption(`${keyword} ${visual}`, 'Proof')
+        : i === 0
           ? 'Hackathon Victory'
           : i === beatCount - 1
             ? 'Built To Win'
@@ -522,7 +678,7 @@ export class ToolExecutor {
    * This prevents hard failures when AI asks to extend beyond source media.
    */
   private static normalizeClipBounds(
-    clip: { start: number; end: number; sourceDuration: number },
+    clip: { start: number; end: number; sourceDuration: number; mediaType?: string },
     newStart?: number,
     newEnd?: number,
   ): {
@@ -536,7 +692,10 @@ export class ToolExecutor {
     const notes: string[] = [];
     let start = newStart !== undefined ? Number(newStart) : Number(clip.start);
     let end = newEnd !== undefined ? Number(newEnd) : Number(clip.end);
-    const max = Number(clip.sourceDuration);
+    const isExtendableStill = clip.mediaType === 'image' || clip.mediaType === 'text';
+    const max = isExtendableStill
+      ? Math.max(Number(clip.sourceDuration), 300)
+      : Number(clip.sourceDuration);
 
     if (!Number.isFinite(start) || !Number.isFinite(end)) {
       return {
@@ -1065,6 +1224,42 @@ export class ToolExecutor {
     }
   }
 
+  private static validateSubtitleCallAgainstCount(
+    call: FunctionCall,
+    subtitleCount: number,
+  ): ValidationResult {
+    switch (call.name) {
+      case 'update_subtitle': {
+        const { index, start_time, end_time } = call.args;
+        if (index < 1 || index > subtitleCount) {
+          return {
+            valid: false,
+            error: `Subtitle ${index} not found. Valid range: 1-${subtitleCount}`,
+          };
+        }
+        if (start_time !== undefined && start_time < 0) {
+          return { valid: false, error: 'Start time cannot be negative' };
+        }
+        if (start_time !== undefined && end_time !== undefined && end_time <= start_time) {
+          return { valid: false, error: 'End time must be after start time' };
+        }
+        return { valid: true };
+      }
+      case 'delete_subtitle': {
+        const { index } = call.args;
+        if (index < 1 || index > subtitleCount) {
+          return {
+            valid: false,
+            error: `Subtitle ${index} not found. Valid range: 1-${subtitleCount}`,
+          };
+        }
+        return { valid: true };
+      }
+      default:
+        return this.validateFunctionCall(call);
+    }
+  }
+
   /**
    * Execute a single function call
    */
@@ -1089,15 +1284,41 @@ export class ToolExecutor {
             selected: store.selectedClipIds.includes(c.id),
             mediaType: c.mediaType,
           }));
+          const primaryVideoTrack = store.clips
+            .filter((clip) => (clip.trackIndex ?? 0) < 10)
+            .map((clip) => clip.trackIndex ?? 0)
+            .sort((a, b) => a - b)[0];
+          const primaryTrackClips = Number.isFinite(primaryVideoTrack)
+            ? store.clips
+                .filter((clip) => (clip.trackIndex ?? 0) === primaryVideoTrack)
+                .map((clip) => ({
+                  id: clip.id,
+                  path: clip.path,
+                  name: clip.name,
+                  start: clip.startTime,
+                  end: clip.startTime + clip.duration,
+                  duration: clip.duration,
+                  sourceDuration: clip.sourceDuration,
+                  trackId: String(clip.trackIndex ?? 0),
+                  trackType: 'video' as const,
+                  thumbnail: clip.thumbnail,
+                  waveform: clip.waveform,
+                }))
+            : [];
+          const gaps = detectGaps(primaryTrackClips);
+          const totalGapDuration = gaps.reduce((sum, gap) => sum + (gap.end - gap.start), 0);
 
           return {
             name: call.name,
             result: {
               success: true,
-              message: `Retrieved ${clips.length} clip(s) from timeline`,
+              message: `Retrieved ${clips.length} clip(s) from timeline${gaps.length > 0 ? ` with ${gaps.length} gap(s)` : ''}`,
               data: {
                 clips,
                 totalDuration: store.getTotalDuration(),
+                gapCount: gaps.length,
+                totalGapDuration: Number(totalGapDuration.toFixed(2)),
+                gaps,
                 selectedCount: store.selectedClipIds.length,
                 currentTime: store.currentTime,
                 isPlaying: store.isPlaying,
@@ -1377,6 +1598,11 @@ export class ToolExecutor {
             start: normalized.start,
             end: normalized.end,
             duration: normalized.end - normalized.start,
+            ...(clip.mediaType === 'image' || clip.mediaType === 'text'
+              ? {
+                  sourceDuration: Math.max(clip.sourceDuration, normalized.end),
+                }
+              : {}),
           };
 
           store.updateClip(clip_id, updates);
@@ -2315,6 +2541,7 @@ export class ToolExecutor {
     const normalizedCalls: FunctionCall[] = [];
     const corrections: string[] = [];
     const issues: PreflightIssue[] = [];
+    let subtitleCount = useProjectStore.getState().subtitles.length;
 
     for (const [index, original] of calls.entries()) {
       const call: FunctionCall = {
@@ -2322,7 +2549,10 @@ export class ToolExecutor {
         args: { ...(original.args || {}) },
         id: original.id,
       };
-      const validation = this.validateFunctionCall(call);
+      const validation =
+        call.name === 'update_subtitle' || call.name === 'delete_subtitle'
+          ? this.validateSubtitleCallAgainstCount(call, subtitleCount)
+          : this.validateFunctionCall(call);
 
       if (!validation.valid) {
         issues.push({
@@ -2336,6 +2566,22 @@ export class ToolExecutor {
 
       if (validation.adjustments && validation.adjustments.length > 0) {
         corrections.push(`${call.name}: ${validation.adjustments.join('; ')}`);
+      }
+
+      if (validation.valid) {
+        if (call.name === 'add_subtitle') {
+          subtitleCount += 1;
+        } else if (call.name === 'delete_subtitle') {
+          subtitleCount = Math.max(0, subtitleCount - 1);
+        } else if (call.name === 'clear_all_subtitles') {
+          subtitleCount = 0;
+        } else if (call.name === 'apply_script_as_captions') {
+          const blocks = this.coerceScriptBlocks(
+            call.args?.script_blocks ?? call.args?.script_text ?? call.args?.script,
+          );
+          const replaceExisting = call.args?.replace_existing !== false;
+          subtitleCount = (replaceExisting ? 0 : subtitleCount) + blocks.length;
+        }
       }
 
       normalizedCalls.push(call);

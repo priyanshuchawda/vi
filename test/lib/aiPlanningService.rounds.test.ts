@@ -176,4 +176,53 @@ describe('aiPlanningService round and retry policies', () => {
 
     expect(operations).toHaveLength(0);
   });
+
+  it('builds executable expansion operations when target duration is above current total', () => {
+    const operations = buildDurationTargetRecoveryOperations({
+      userMessage: 'make this exactly 30 seconds',
+      normalizedIntent: {
+        intent_type: 'multi_video_edit',
+        mode: 'modify',
+        goals: [],
+        requestedOutputs: ['edit_plan'],
+        constraints: {
+          target_duration: 30,
+          target_duration_unit: 'seconds',
+        },
+        ambiguities: [],
+        operationHint: 'trim',
+        confidence: 0.9,
+        requiresPlanning: true,
+      },
+      snapshot: {
+        timeline: {
+          totalDuration: 15,
+          clips: [
+            {
+              id: 'c1',
+              mediaType: 'video',
+              duration: 10,
+              sourceStart: 0,
+              sourceEnd: 10,
+              sourceDuration: 10,
+              speed: 1,
+            },
+            {
+              id: 'c2',
+              mediaType: 'video',
+              duration: 5,
+              sourceStart: 0,
+              sourceEnd: 5,
+              sourceDuration: 5,
+              speed: 1,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(operations).toHaveLength(1);
+    expect(operations[0].functionCall.name).toBe('set_clip_speed');
+    expect(operations[0].isReadOnly).toBe(false);
+  });
 });

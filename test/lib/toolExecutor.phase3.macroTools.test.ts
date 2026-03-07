@@ -110,6 +110,8 @@ describe('ToolExecutor phase 3 macro tools', () => {
     const voiceovers = blocks.map((block: any) => block.voiceover);
     const uniqueVoiceovers = new Set(voiceovers);
     expect(uniqueVoiceovers.size).toBe(voiceovers.length);
+    expect(blocks[0]?.voiceover.toLowerCase()).toContain('hackathon');
+    expect(blocks[blocks.length - 1]?.on_screen_text).toBe('Full Build Next');
   });
 
   it('applies script blocks as captions in a single macro call', async () => {

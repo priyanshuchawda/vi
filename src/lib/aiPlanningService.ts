@@ -211,10 +211,12 @@ interface DurationRecoveryTimeline {
   totalDuration: number;
   clips: Array<{
     id: string;
+    mediaType?: string;
     duration: number;
     sourceStart: number;
     sourceEnd: number;
     sourceDuration: number;
+    speed?: number;
   }>;
 }
 
@@ -230,7 +232,64 @@ export function buildDurationTargetRecoveryOperations(input: {
   if (clips.length === 0) return [];
 
   const currentTotal = Number(input.snapshot.timeline.totalDuration || 0);
-  if (!Number.isFinite(currentTotal) || currentTotal <= targetDuration + 0.01) return [];
+  if (!Number.isFinite(currentTotal)) return [];
+
+  if (currentTotal < targetDuration - 0.01) {
+    const deficit = Number((targetDuration - currentTotal).toFixed(2));
+    const extendableStill = [...clips]
+      .reverse()
+      .find((clip) => clip.mediaType === 'image' || clip.mediaType === 'text');
+
+    if (extendableStill) {
+      const newEnd = Number((extendableStill.sourceEnd + deficit).toFixed(2));
+      return [
+        {
+          round: 1,
+          functionCall: {
+            name: 'update_clip_bounds',
+            args: {
+              clip_id: extendableStill.id,
+              new_start: extendableStill.sourceStart,
+              new_end: newEnd,
+            },
+          },
+          description: `Extend still clip by ${deficit.toFixed(2)}s to reach target duration`,
+          isReadOnly: false,
+          tokenBudget: buildOperationTokenBudget(false),
+        },
+      ];
+    }
+
+    const lastClip = clips[clips.length - 1];
+    if (lastClip) {
+      const currentSpeed = Math.max(0.25, Number(lastClip.speed || 1));
+      const desiredDuration = Math.max(0.1, Number(lastClip.duration) + deficit);
+      const newSpeed = Number(
+        ((currentSpeed * Number(lastClip.duration)) / desiredDuration).toFixed(3),
+      );
+      if (newSpeed >= 0.25 && newSpeed < currentSpeed) {
+        return [
+          {
+            round: 1,
+            functionCall: {
+              name: 'set_clip_speed',
+              args: {
+                clip_id: lastClip.id,
+                speed: newSpeed,
+              },
+            },
+            description: `Slow final clip to ${newSpeed}x to fill target duration with real content`,
+            isReadOnly: false,
+            tokenBudget: buildOperationTokenBudget(false),
+          },
+        ];
+      }
+    }
+
+    return [];
+  }
+
+  if (currentTotal <= targetDuration + 0.01) return [];
 
   const totalClipDuration = clips.reduce(
     (sum, clip) => sum + Math.max(0.1, Number(clip.duration)),
@@ -363,6 +422,16 @@ CRITICAL: You must ONLY use clip aliases from the provided snapshot.
     - preview_caption_fit
     - apply_script_as_captions
     Avoid long fragile chains of atomic subtitle calls unless absolutely necessary.
+10a. For Shorts / Reels / hackathon-story requests:
+    - plan around hook -> build -> proof/demo -> payoff -> CTA
+    - keep the strongest proof clip early
+    - keep caption beats short and grounded in media memory / analyzed scenes
+    - if applying captions, validate with preview_caption_fit before apply_script_as_captions
+10b. For exact duration requests (for example "make this 30 seconds"):
+    - empty gaps do NOT count toward the target duration
+    - move_clip alone is never a valid way to satisfy the target
+    - prefer extending visible content using source bounds, still-image duration, moderate speed changes, or duplication
+    - if get_timeline_info reports gaps after edits, the goal is NOT complete
 11. CONTENT-AWARE TRIM WORKFLOW (highlight / vlog / best moments / important parts requests):
     a. Call get_all_media_analysis FIRST to retrieve scenes for every clip.
        Each scene has {startTime, endTime, description} in SOURCE seconds.
@@ -1351,6 +1420,16 @@ function selectPlanningTools(message: string, mode: 'standard' | 'economy' = 'st
   }
 
   if (/\b(copy|duplicate|paste)\b/.test(text)) {
+    base.add('copy_clips');
+    base.add('paste_clips');
+  }
+
+  if (
+    /\b(\d+(\.\d+)?\s*(s|sec|secs|second|seconds|min|mins|minute|minutes)|shorts|reel|tiktok|duration)\b/.test(
+      text,
+    )
+  ) {
+    base.add('set_clip_speed');
     base.add('copy_clips');
     base.add('paste_clips');
   }

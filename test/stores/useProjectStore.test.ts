@@ -231,7 +231,8 @@ describe('useProjectStore', () => {
 
   describe('copyClips and pasteClips', () => {
     it('should copy and paste selected clips', () => {
-      const { addClip, toggleClipSelection, copyClips, pasteClips } = useProjectStore.getState();
+      const { addClip, toggleClipSelection, copyClips, pasteClips, setCurrentTime } =
+        useProjectStore.getState();
 
       addClip({
         path: '/test/video.mp4',
@@ -246,11 +247,40 @@ describe('useProjectStore', () => {
       copyClips();
       expect(useProjectStore.getState().copiedClips).toHaveLength(1);
 
+      setCurrentTime(12);
       pasteClips();
 
       const state = useProjectStore.getState();
       expect(state.clips).toHaveLength(2);
       expect(state.clips[1].name).toContain('Copy');
+      expect(state.clips[1].startTime).toBe(12);
+    });
+  });
+
+  describe('setClipSpeed', () => {
+    it('ripple-shifts later clips on the same track when duration grows', () => {
+      const { addClip, setClipSpeed } = useProjectStore.getState();
+
+      addClip({
+        path: '/test/video1.mp4',
+        name: 'video 1',
+        duration: 5,
+        sourceDuration: 5,
+      });
+
+      addClip({
+        path: '/test/video2.mp4',
+        name: 'video 2',
+        duration: 5,
+        sourceDuration: 5,
+      });
+
+      const clips = useProjectStore.getState().clips;
+      setClipSpeed(clips[0].id, 0.5);
+
+      const state = useProjectStore.getState();
+      expect(state.clips[0].duration).toBe(10);
+      expect(state.clips[1].startTime).toBe(10);
     });
   });
 

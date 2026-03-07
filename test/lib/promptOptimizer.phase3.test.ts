@@ -60,5 +60,30 @@ describe('prompt optimizer phase 3', () => {
 
     expect(output).toBe(message);
   });
-});
 
+  it('does not ask for caption approval when the request is clearly execution-oriented', () => {
+    const output = optimizePromptForLane({
+      message:
+        'create a 30 second youtube short script and arrange the editing properly for best views',
+      laneDecision: {
+        ...laneDecision('script_guidance'),
+        normalizedIntent: {
+          intent_type: 'multi_video_edit',
+          mode: 'modify',
+          goals: ['script_generation', 'platform_optimized_output'],
+          requestedOutputs: ['edit_plan', 'short_script_outline'],
+          constraints: { target_duration: 30, target_duration_unit: 'seconds' },
+          ambiguities: [],
+          operationHint: 'script_outline',
+          confidence: 0.88,
+          requiresPlanning: true,
+        },
+      },
+      timelineDuration: 16.3,
+      clipCount: 3,
+    });
+
+    expect(output).toContain('Return only the finished script draft');
+    expect(output).not.toContain('Apply these as captions on timeline?');
+  });
+});

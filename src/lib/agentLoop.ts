@@ -20,7 +20,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { converseBedrock, isBedrockConfigured } from './bedrockGateway';
 import { ToolExecutor } from './toolExecutor';
-import { allVideoEditingTools } from './videoEditingTools';
 import type { FunctionCall } from './videoEditingTools';
 import { isReadOnlyTool } from './toolCapabilityMatrix';
 import { waitForSlot, withRetryOn429 } from './rateLimiter';
@@ -30,6 +29,7 @@ import { buildAliasedSnapshotForPlanning, formatSnapshotForPrompt } from './aiPr
 import { formatCapabilityMatrixForPrompt } from './toolCapabilityMatrix';
 import { resolveAlias, type AliasMap } from './clipAliasMapper';
 import { createCostGuard, recordStepCost, evaluateCostGuard } from './agentCostGuard';
+import { selectToolsForRequest } from './toolSelection';
 import {
   createStep,
   setStepThought,
@@ -102,6 +102,19 @@ For highlight reels, best moments, or vlog edits:
 7. After trimming all clips, call get_timeline_info to verify total duration
 </content-aware-editing>
 
+<short-form-storytelling>
+For YouTube Shorts, Reels, hackathon win stories, or social-first edits:
+1. Shape the cut around a clear story arc: hook -> build -> proof/demo -> payoff -> CTA
+2. Put the strongest visual proof early; do not waste the first 2 seconds on setup
+3. Keep on-screen text punchy (roughly 2-6 words per beat) and grounded in available footage/memory
+4. If script + captions are requested, prefer:
+   generate_intro_script_from_timeline -> preview_caption_fit -> apply_script_as_captions
+5. Avoid inventing unseen scenes or outcomes not supported by media memory/tool results
+6. For exact target-duration requests, empty timeline gaps do NOT count as usable duration
+7. Never satisfy a duration target by only moving clips later on the timeline
+8. Prefer, in order: restore source bounds, extend still images, slow clips moderately, duplicate clips, then reposition
+</short-form-storytelling>
+
 <error-recovery>
 If a tool call fails:
 1. Read the error message carefully — it usually tells you exactly what's wrong
@@ -115,6 +128,7 @@ If a tool call fails:
 
 <rules>
 1. Execute ONE tool per step. Never batch.
+1a. Bedrock constraint: emit at most ONE toolUse block in each assistant response.
 2. NEVER ask the user for permission — you are autonomous.
 3. Prefer fewer, larger operations over many small ones.
 4. Budget: ${config.maxSteps} steps max, $${config.maxCostUsd.toFixed(2)} cost cap.
@@ -138,14 +152,6 @@ When done, ALWAYS end with:
 " Completed: [what you did]. Timeline: [duration]s, [N] clips."
 Include specific numbers (e.g. "trimmed 3 clips from 45s to 28s total").
 </response-format>`;
-}
-
-/**
- * Build an aliased tool set for the agent loop.
- * Same tools as planning, but filtered for the agentic context.
- */
-function buildAgentToolSet(): any[] {
-  return allVideoEditingTools.map((tool: any) => tool);
 }
 
 /**
@@ -227,6 +233,34 @@ function extractToolUsesFromResponse(response: any): any[] {
   return content.filter((c: any) => c?.toolUse).map((c: any) => c.toolUse);
 }
 
+function buildAssistantToolReplyContent(content: any[], selectedToolUseId: string): any[] {
+  const filtered = (content || []).filter((part: any) => {
+    if (part?.text) return true;
+    return part?.toolUse?.toolUseId === selectedToolUseId;
+  });
+
+  if (filtered.length > 0) {
+    return filtered;
+  }
+
+  const selectedToolUse = (content || []).find(
+    (part: any) => part?.toolUse?.toolUseId === selectedToolUseId,
+  );
+  return selectedToolUse ? [selectedToolUse] : [];
+}
+
+function selectRecentHistoryWindow(
+  history: Array<{ role: string; content: unknown[] }>,
+  maxMessages: number,
+): Array<{ role: string; content: unknown[] }> {
+  const recent = history.slice(-Math.max(0, maxMessages));
+  const firstUserIndex = recent.findIndex((message) => message.role === 'user');
+  if (firstUserIndex === -1) {
+    return [];
+  }
+  return recent.slice(firstUserIndex);
+}
+
 /**
  * The main agentic execution loop.
  *
@@ -259,10 +293,13 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
     goalDescription: input.userMessage,
   };
 
-  // Build context
-  const toolNames = allVideoEditingTools
-    .map((t: any) => t?.toolSpec?.name)
-    .filter((n: string | undefined): n is string => Boolean(n));
+  const selectedToolSet = selectToolsForRequest({
+    message: input.userMessage,
+    mode: 'agentic',
+    normalizedIntent: input.normalizedIntent,
+  });
+  const toolSet = selectedToolSet.tools;
+  const toolNames = selectedToolSet.toolNames;
 
   const { snapshot: aliasedSnapshot, aliasMap } = buildAliasedSnapshotForPlanning(toolNames);
 
@@ -270,7 +307,6 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
   const capabilityContext = formatCapabilityMatrixForPrompt(toolNames, 2400);
 
   const systemPrompt = buildAgenticSystemPrompt(config);
-  const toolSet = buildAgentToolSet();
 
   // Build initial context message
   const dynamicContext = `<ai-project-snapshot>
@@ -288,7 +324,7 @@ When the goal is fully achieved, respond with a summary (no tool calls).
 
   // Message history for the conversation loop
   const messages: any[] = [
-    ...input.history.slice(-6),
+    ...selectRecentHistoryWindow(input.history, 6),
     {
       role: 'user',
       content: [{ text: `${dynamicContext}\n\nTask: ${input.userMessage}` }],
@@ -467,7 +503,10 @@ When the goal is fully achieved, respond with a summary (no tool calls).
         // Add assistant response to conversation history
         messages.push({
           role: 'assistant',
-          content: response.output!.message!.content!,
+          content: buildAssistantToolReplyContent(
+            response.output?.message?.content || [],
+            toolUse.toolUseId,
+          ),
         });
 
         // Build enriched tool result for the AI — include verification + budget hints

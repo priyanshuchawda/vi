@@ -222,6 +222,59 @@ describe('planCompiler', () => {
     expect(explicit.operations).toHaveLength(1);
   });
 
+  it('keeps real timeline edit tools for Shorts requests that also ask for script and duration', () => {
+    const operations: PlannedOperation[] = [
+      {
+        round: 1,
+        functionCall: {
+          name: 'update_clip_bounds',
+          args: {
+            clip_id: 'clip_1',
+            new_start: 0,
+            new_end: 8,
+          },
+        },
+        description: 'trim for hook',
+        isReadOnly: false,
+      },
+      {
+        round: 1,
+        functionCall: {
+          name: 'generate_intro_script_from_timeline',
+          args: {
+            target_duration: 30,
+            objective: 'how i won the hackathon',
+          },
+        },
+        description: 'generate script',
+        isReadOnly: false,
+      },
+    ];
+
+    const result = compilePlan(operations, aliasMap, realSnapshot, {
+      userMessage: 'make a 30 second youtube short with script and full editing',
+      normalizedIntent: {
+        intent_type: 'multi_video_edit',
+        mode: 'modify',
+        goals: ['script_generation', 'platform_optimized_output'],
+        requestedOutputs: ['edit_plan', 'short_script_outline'],
+        constraints: {
+          target_duration: 30,
+          target_duration_unit: 'seconds',
+          platform: 'youtube_shorts',
+        },
+        ambiguities: [],
+        operationHint: 'script_outline',
+        confidence: 0.9,
+        requiresPlanning: true,
+      },
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.operations).toHaveLength(2);
+    expect(result.operations[0].functionCall.name).toBe('update_clip_bounds');
+  });
+
   it('auto-repairs out-of-range split bounds by clamping time_in_clip', () => {
     const operations: PlannedOperation[] = [
       {
@@ -246,7 +299,7 @@ describe('planCompiler', () => {
     expect(result.warnings.some((w) => w.includes('time_in_clip'))).toBe(true);
   });
 
-  it('blocks non-caption timeline mutations for script/caption intents', () => {
+  it('blocks non-caption timeline mutations for direct caption-apply intents', () => {
     const operations: PlannedOperation[] = [
       {
         round: 1,
@@ -275,23 +328,23 @@ describe('planCompiler', () => {
     ];
 
     const result = compilePlan(operations, aliasMap, realSnapshot, {
-      userMessage: 'create script and captions for this timeline',
+      userMessage: 'apply these captions on timeline',
       normalizedIntent: {
-        intent_type: 'chat_or_guidance',
+        intent_type: 'multi_video_edit',
         mode: 'modify',
         goals: ['script_generation'],
-        requestedOutputs: ['short_script_outline', 'subtitle_plan'],
+        requestedOutputs: ['subtitle_plan'],
         constraints: {},
         ambiguities: [],
-        operationHint: 'script_outline',
+        operationHint: 'subtitle',
         confidence: 0.72,
-        requiresPlanning: false,
+        requiresPlanning: true,
       },
     });
 
     expect(result.errors).toHaveLength(0);
     expect(result.operations).toHaveLength(1);
     expect(result.operations[0].functionCall.name).toBe('apply_script_as_captions');
-    expect(result.warnings.some((w) => w.includes('script/caption intent'))).toBe(true);
+    expect(result.warnings.some((w) => w.includes('caption-apply intent'))).toBe(true);
   });
 });

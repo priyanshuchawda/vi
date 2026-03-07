@@ -6,7 +6,7 @@ import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import TypingIndicator from './TypingIndicator';
 import { TokenCounter } from './TokenCounter';
-import type { ChatMessage as ChatRecord, ChatTurn, MediaAttachment } from '../../types/chat';
+import type { ChatMessage as ChatRecord, MediaAttachment } from '../../types/chat';
 import { getBudgetPolicy, updateBudgetPolicy, type BudgetPolicy } from '../../lib/costPolicy';
 import {
   convertToAIHistory,
@@ -87,7 +87,6 @@ const ChatPanel = () => {
   const activeAbortControllerRef = useRef<AbortController | null>(null);
   const [hasActiveAbortableRequest, setHasActiveAbortableRequest] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
-  const [showMemoryDetails, setShowMemoryDetails] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [showBudgetControls, setShowBudgetControls] = useState(false);
@@ -136,10 +135,6 @@ const ChatPanel = () => {
   } | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [lastPlanExecutionError, setLastPlanExecutionError] = useState<string | null>(null);
-
-  // Get memory stats
-  const completedMemoryEntries = entries.filter((e) => e.status === 'completed');
-  const hasMemory = completedMemoryEntries.length > 0;
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -1903,13 +1898,11 @@ const ChatPanel = () => {
     isGeneratingPlan,
     isExecutingTools,
     isTyping,
-    handleAutoRecoverDraftPlan,
     pendingToolCalls,
     pendingClarification,
     lastPlanExecutionError,
   ]);
 
-  const recentTurns: ChatTurn[] = turns.slice(-1).reverse();
   const selectedAudit = auditTurnId ? getTurnAudit(auditTurnId) : undefined;
 
   const getToolDescription = (call: { name: string; args: Record<string, unknown> }): string => {
@@ -2219,77 +2212,6 @@ const ChatPanel = () => {
         </div>
       )}
 
-      {/* AI Memory Context Banner */}
-      {hasMemory && (
-        <div className="bg-purple-500/10 border-b border-purple-500/20">
-          <button
-            onClick={() => setShowMemoryDetails(!showMemoryDetails)}
-            className="w-full px-4 py-2 flex items-center justify-between hover:bg-purple-500/5 transition-colors"
-          >
-            <div className="flex items-center gap-2 text-xs text-purple-400">
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-              </svg>
-              <span>
-                Memory active. {completedMemoryEntries.length} analyzed media file
-                {completedMemoryEntries.length !== 1 ? 's' : ''} in context.
-              </span>
-            </div>
-            <svg
-              className={`w-4 h-4 text-purple-400 transition-transform ${showMemoryDetails ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </button>
-
-          {/* Memory Details Dropdown */}
-          {showMemoryDetails && (
-            <div className="px-4 pb-3 space-y-1.5 max-h-48 overflow-y-auto">
-              {completedMemoryEntries.map((entry, idx) => (
-                <div
-                  key={entry.id}
-                  className="text-[11px] bg-purple-500/5 border border-purple-500/10 rounded p-2"
-                >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-purple-300 font-semibold">{idx + 1}.</span>
-                    <span className="text-purple-200 truncate flex-1">{entry.fileName}</span>
-                    <span className="text-purple-400/60 text-[9px] uppercase">
-                      {entry.mediaType}
-                    </span>
-                  </div>
-                  <p className="text-purple-300/80 text-[10px] line-clamp-2">{entry.summary}</p>
-                  {entry.tags && entry.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {entry.tags.slice(0, 5).map((tag) => (
-                        <span
-                          key={tag}
-                          className="text-[8px] px-1 py-0.5 bg-purple-500/20 text-purple-300 rounded"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      {entry.tags.length > 5 && (
-                        <span className="text-[8px] text-purple-400/60">
-                          +{entry.tags.length - 5}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Multimodal capability banner */}
       <div className="px-4 py-1.5 bg-gradient-to-r from-emerald-500/5 via-purple-500/5 to-amber-500/5 border-b border-border-primary/50">
         <div className="flex items-center gap-2 text-[10px] text-text-muted/60">
@@ -2425,53 +2347,6 @@ const ChatPanel = () => {
             <span>
               {clips.length} clip{clips.length !== 1 ? 's' : ''} in project
             </span>
-          </div>
-        </div>
-      )}
-
-      {recentTurns.length > 0 && (
-        <div className="border-b border-border-primary bg-bg-surface/30 px-4 py-2">
-          <div className="text-xs text-text-secondary mb-1">Turn Timeline</div>
-          <div className="space-y-1">
-            {recentTurns.map((turn) => (
-              <div
-                key={turn.id}
-                className={`text-[11px] rounded px-2 py-1 border ${
-                  turn.id === activeTurnId
-                    ? 'border-accent/40 bg-accent/10'
-                    : 'border-border-primary bg-bg-primary/60'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-text-primary">
-                    {turn.mode.toUpperCase()} · {formatTurnStatus(turn.status)}
-                  </span>
-                  <span className="text-text-muted">{formatTurnElapsed(turn)}</span>
-                </div>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <span className="text-text-muted truncate">{getTurnLatestSummary(turn)}</span>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-text-muted">
-                      {turn.parts.length} part{turn.parts.length !== 1 ? 's' : ''}
-                    </span>
-                    {getTurnAudit(turn.id) && (
-                      <button
-                        onClick={() => setAuditTurnId(turn.id)}
-                        className="text-[10px] px-1.5 py-0.5 rounded border border-border-primary hover:bg-bg-surface text-text-secondary"
-                      >
-                        View audit
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {turn.status === 'retry' && turn.retryInfo && (
-                  <div className="mt-1 text-[10px] text-amber-300">
-                    Retry #{turn.retryInfo.attempt} in {formatRetryCountdown(turn.retryInfo.nextAt)}{' '}
-                    · {turn.retryInfo.message}
-                  </div>
-                )}
-              </div>
-            ))}
           </div>
         </div>
       )}
@@ -3060,47 +2935,4 @@ function formatOperationName(name: string): string {
 function formatRate(value?: number): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '0.0%';
   return `${(value * 100).toFixed(1)}%`;
-}
-
-function formatTurnStatus(status: ChatTurn['status']): string {
-  return status.replace(/_/g, ' ');
-}
-
-function formatTurnElapsed(turn: ChatTurn): string {
-  const end = turn.endedAt ?? Date.now();
-  const ms = Math.max(0, end - turn.startedAt);
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remSeconds = seconds % 60;
-  return `${minutes}m ${remSeconds}s`;
-}
-
-function getTurnLatestSummary(turn: ChatTurn): string {
-  const last = turn.parts[turn.parts.length - 1];
-  if (!last) return 'No events yet';
-  switch (last.type) {
-    case 'text':
-      return `${last.role}: ${last.text}`;
-    case 'tool_call':
-      return `Tool ${last.name} ${last.state}`;
-    case 'tool_result':
-      return `${last.name}: ${last.success ? 'success' : 'failed'}`;
-    case 'step_start':
-      return `Started: ${last.label}`;
-    case 'step_finish':
-      return `${last.success ? 'Finished' : 'Failed'}: ${last.label}`;
-    case 'status':
-      return `Status: ${formatTurnStatus(last.to)}`;
-    case 'error':
-      return `Error: ${last.message}`;
-    default:
-      return 'Updated';
-  }
-}
-
-function formatRetryCountdown(nextAt: number): string {
-  const remainingMs = Math.max(0, nextAt - Date.now());
-  const seconds = Math.ceil(remainingMs / 1000);
-  return `${seconds}s`;
 }

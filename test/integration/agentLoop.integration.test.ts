@@ -39,10 +39,10 @@ vi.mock('../../src/lib/modelRoutingPolicy', () => ({
 
 // Mock project snapshot
 vi.mock('../../src/lib/aiProjectSnapshot', () => ({
-  buildAliasedSnapshotForPlanning: () => ({
+  buildAliasedSnapshotForPlanning: vi.fn(() => ({
     snapshot: { clips: [], tracks: [], totalDuration: 10 },
     aliasMap: { clip_1: 'uuid-1', clip_2: 'uuid-2' },
-  }),
+  })),
   formatSnapshotForPrompt: () => 'snapshot_context',
 }));
 
@@ -65,6 +65,12 @@ vi.mock('../../src/lib/videoEditingTools', () => ({
     { toolSpec: { name: 'update_clip_bounds' } },
     { toolSpec: { name: 'get_all_media_analysis' } },
     { toolSpec: { name: 'split_clip' } },
+    { toolSpec: { name: 'generate_intro_script_from_timeline' } },
+    { toolSpec: { name: 'preview_caption_fit' } },
+    { toolSpec: { name: 'apply_script_as_captions' } },
+    { toolSpec: { name: 'set_clip_speed' } },
+    { toolSpec: { name: 'copy_clips' } },
+    { toolSpec: { name: 'paste_clips' } },
   ],
 }));
 
@@ -87,10 +93,12 @@ vi.mock('uuid', () => ({
 
 import { converseBedrock } from '../../src/lib/bedrockGateway';
 import { ToolExecutor } from '../../src/lib/toolExecutor';
+import { buildAliasedSnapshotForPlanning } from '../../src/lib/aiProjectSnapshot';
 import type { AgentLoopCallbacks, AgentLoopState, AgentStep } from '../../src/types/agentTypes';
 
 const mockedConverse = vi.mocked(converseBedrock);
 const mockedExecute = vi.mocked(ToolExecutor.executeToolCallWithLifecycle);
+const mockedBuildSnapshot = vi.mocked(buildAliasedSnapshotForPlanning);
 
 function createMockCallbacks(): AgentLoopCallbacks & {
   steps: AgentStep[];
@@ -260,6 +268,140 @@ describe('agentLoop integration', () => {
     // 3 tool calls + 2 verification calls (2 mutations trigger verify)
     expect(mockedExecute).toHaveBeenCalled();
     expect(mockedExecute.mock.calls.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('keeps only the executed toolUse block in agent history when Bedrock returns multiple tool uses', async () => {
+    const { runAgentLoop } = await import('../../src/lib/agentLoop');
+    const callbacks = createMockCallbacks();
+
+    mockedConverse
+      .mockResolvedValueOnce({
+        output: {
+          message: {
+            role: 'assistant',
+            content: [
+              { text: 'Analyzing and starting edits.' },
+              {
+                toolUse: {
+                  name: 'get_all_media_analysis',
+                  input: {},
+                  toolUseId: 'tu-keep',
+                },
+              },
+              {
+                toolUse: {
+                  name: 'update_clip_bounds',
+                  input: { clip_id: 'clip_1', new_start: 1, new_end: 4 },
+                  toolUseId: 'tu-drop',
+                },
+              },
+            ],
+          },
+        },
+        usage: { inputTokens: 220, outputTokens: 120, totalTokens: 340 },
+        stopReason: 'tool_use',
+      })
+      .mockResolvedValueOnce(
+        bedrockEndResponse(' Completed: Picked the best starting point. Timeline: 12s, 2 clips.'),
+      );
+
+    const result = await runAgentLoop({
+      userMessage: 'make a youtube short from this hackathon footage',
+      history: [],
+      callbacks,
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockedExecute).toHaveBeenCalledTimes(1);
+    expect(mockedExecute).toHaveBeenCalledWith(
+      { name: 'get_all_media_analysis', args: {} },
+      0,
+      1,
+    );
+
+    const secondCall = mockedConverse.mock.calls[1]?.[0] as { messages: Array<{ role: string; content: any[] }> };
+    const assistantMessage = secondCall.messages.find((message) => message.role === 'assistant');
+    const userToolResultMessage = secondCall.messages[secondCall.messages.length - 1];
+
+    const assistantToolUses = (assistantMessage?.content || []).filter((part) => part.toolUse);
+    expect(assistantToolUses).toHaveLength(1);
+    expect(assistantToolUses[0].toolUse.toolUseId).toBe('tu-keep');
+
+    const toolResults = (userToolResultMessage?.content || []).filter((part) => part.toolResult);
+    expect(toolResults).toHaveLength(1);
+    expect(toolResults[0].toolResult.toolUseId).toBe('tu-keep');
+  });
+
+  it('drops leading assistant-only history when building the recent agent window', async () => {
+    const { runAgentLoop } = await import('../../src/lib/agentLoop');
+    const callbacks = createMockCallbacks();
+
+    mockedConverse
+      .mockResolvedValueOnce(
+        bedrockToolResponse('get_timeline_info', {}, 'tu-history-fix', 'Checking current state.'),
+      )
+      .mockResolvedValueOnce(
+        bedrockEndResponse(' Completed: Resized the short plan to 30s. Timeline: 30s, 3 clips.'),
+      );
+
+    await runAgentLoop({
+      userMessage: 'make whole video of 30 second as yt shorts',
+      history: [
+        { role: 'assistant', content: [{ text: 'Completed previous edit.' }] },
+        { role: 'user', content: [{ text: 'previous user request' }] },
+        { role: 'assistant', content: [{ text: 'previous assistant reply' }] },
+      ],
+      callbacks,
+    });
+
+    const firstCall = mockedConverse.mock.calls[0]?.[0] as { messages: Array<{ role: string }> };
+    expect(firstCall.messages[0]?.role).toBe('user');
+  });
+
+  it('builds agent context from the selected tool subset instead of the full registry', async () => {
+    const { runAgentLoop } = await import('../../src/lib/agentLoop');
+    const callbacks = createMockCallbacks();
+
+    mockedConverse
+      .mockResolvedValueOnce(
+        bedrockToolResponse('get_all_media_analysis', {}, 'tu-tools', 'Finding the best hook.'),
+      )
+      .mockResolvedValueOnce(
+        bedrockEndResponse(' Completed: Built the short package. Timeline: 30s, 3 clips.'),
+      );
+
+    await runAgentLoop({
+      userMessage: 'make a 30 second youtube short with proper script and editing',
+      history: [],
+      callbacks,
+      normalizedIntent: {
+        mode: 'modify',
+        goals: ['platform_optimized_output', 'script_generation'],
+        constraints: { target_duration: 30, platform: 'youtube_shorts' },
+        operationHint: 'script_outline',
+        confidence: 0.92,
+      },
+    });
+
+    expect(mockedBuildSnapshot).toHaveBeenCalledTimes(1);
+    const toolNames = mockedBuildSnapshot.mock.calls[0]?.[0] as string[];
+    expect(toolNames.length).toBeLessThanOrEqual(12);
+    expect(toolNames).toEqual(
+      expect.arrayContaining([
+        'get_timeline_info',
+        'get_all_media_analysis',
+        'generate_intro_script_from_timeline',
+        'preview_caption_fit',
+        'apply_script_as_captions',
+      ]),
+    );
+    expect(toolNames).not.toContain('add_subtitle');
+
+    const firstCall = mockedConverse.mock.calls[0]?.[0] as { toolConfig?: { tools?: any[] } };
+    const bedrockToolNames =
+      firstCall.toolConfig?.tools?.map((tool: any) => tool?.toolSpec?.name).filter(Boolean) || [];
+    expect(bedrockToolNames.length).toBeLessThanOrEqual(12);
+    expect(bedrockToolNames).toEqual(expect.arrayContaining(toolNames));
   });
 
   it('enforces cost budget limit', async () => {

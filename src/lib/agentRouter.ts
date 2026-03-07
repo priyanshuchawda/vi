@@ -20,11 +20,14 @@ const AGENTIC_KEYWORDS = new Set([
   'reel',
   'montage',
   'compilation',
+  'youtube short',
+  'youtube shorts',
+  'yt short',
+  'yt shorts',
+  'short form',
   'best moments',
   'best parts',
   'important parts',
-  'youtube short',
-  'youtube shorts',
   'short video',
   'analyze and',
   'check and',
@@ -40,6 +43,14 @@ const AGENTIC_KEYWORDS = new Set([
   'optimize',
   'content aware',
   'smart trim',
+  'make it best',
+  'proper script',
+  'for more views',
+  'most views',
+  'story arc',
+  'hook',
+  'proof',
+  'cta',
 ]);
 
 // Keywords that suggest simple single-pass execution
@@ -72,6 +83,9 @@ export function decideExecutionMode(input: {
   hasTimeline: boolean;
 }): ExecutionModeDecision {
   const messageLower = input.message.toLowerCase();
+  const normalizedGoals = input.normalizedIntent?.goals || [];
+  const requestedOutputs = input.normalizedIntent?.requestedOutputs || [];
+  const targetPlatform = input.normalizedIntent?.constraints?.platform;
 
   // If no timeline, always use single-pass (or chat)
   if (!input.hasTimeline || input.clipCount === 0) {
@@ -128,6 +142,20 @@ export function decideExecutionMode(input: {
       };
     }
 
+    const shortFormStoryRequest =
+      (targetPlatform === 'youtube_shorts' || targetPlatform === 'instagram_reels') &&
+      (normalizedGoals.includes('script_generation') ||
+        normalizedGoals.includes('platform_optimized_output') ||
+        requestedOutputs.includes('short_script_outline'));
+    if (shortFormStoryRequest) {
+      return {
+        mode: 'agentic',
+        reason: 'short_form_story_request',
+        estimatedSteps: Math.min(15, Math.max(6, input.clipCount + 4)),
+        estimatedCostUsd: estimateCost(input.clipCount, 'highlight'),
+      };
+    }
+
     // Highlight/vlog operation hint
     if (norm.operationHint === 'highlight' || norm.operationHint === 'vlog') {
       return {
@@ -165,6 +193,19 @@ export function decideExecutionMode(input: {
       reason: 'compound_request',
       estimatedSteps: 5,
       estimatedCostUsd: 0.006,
+    };
+  }
+
+  const executionHeavyShortForm =
+    /\b(make|create|turn|edit|arrange|optimi[sz]e|polish)\b/i.test(messageLower) &&
+    /\b(shorts|reel|tiktok|youtube short|yt short)\b/i.test(messageLower) &&
+    /\b(script|caption|hook|story|views|viral|upload|30\s*(?:s|sec|second))\b/i.test(messageLower);
+  if (executionHeavyShortForm) {
+    return {
+      mode: 'agentic',
+      reason: 'execution_heavy_short_form',
+      estimatedSteps: Math.min(15, Math.max(6, input.clipCount + 4)),
+      estimatedCostUsd: estimateCost(input.clipCount, 'highlight'),
     };
   }
 

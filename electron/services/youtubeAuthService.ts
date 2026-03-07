@@ -7,8 +7,13 @@ import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import * as fs from 'fs';
 import * as path from 'path';
-import { BrowserWindow } from 'electron';
-import { app } from 'electron';
+import { BrowserWindow, app, safeStorage } from 'electron';
+import {
+  createOAuthState,
+  extractValidatedAuthCode,
+  parseStoredOAuthTokens,
+  serializeStoredOAuthTokens,
+} from './youtubeOAuthSecurity.js';
 
 const SCOPES = ['https://www.googleapis.com/auth/youtube.upload'];
 const TOKEN_PATH = path.join(app.getPath('userData'), 'youtube-token.json');
@@ -65,6 +70,25 @@ function loadCredentials(): YouTubeOAuthCredentials {
   }
 }
 
+function loadStoredToken(): Record<string, unknown> | null {
+  if (!fs.existsSync(TOKEN_PATH)) {
+    return null;
+  }
+
+  const raw = fs.readFileSync(TOKEN_PATH, 'utf-8');
+  return parseStoredOAuthTokens(raw, safeStorage);
+}
+
+function persistToken(tokens: Record<string, unknown>): void {
+  const serialized = serializeStoredOAuthTokens(tokens, safeStorage);
+  fs.writeFileSync(TOKEN_PATH, serialized, { encoding: 'utf-8', mode: 0o600 });
+}
+
+function getTokenExpiry(tokens: Record<string, unknown>): number | null {
+  const expiry = tokens.expiry_date;
+  return typeof expiry === 'number' ? expiry : null;
+}
+
 /**
  * Create OAuth2 Client
  */
@@ -87,14 +111,14 @@ export function createOAuth2Client(): OAuth2Client {
  */
 export function isAuthenticated(): boolean {
   try {
-    if (fs.existsSync(TOKEN_PATH)) {
-      const token = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf-8'));
+    const token = loadStoredToken();
+    if (token) {
       const client = createOAuth2Client();
       client.setCredentials(token);
 
       // Check if token is expired
-      const expiry = token.expiry_date;
-      if (expiry && expiry > Date.now()) {
+      const expiry = getTokenExpiry(token);
+      if (expiry !== null && expiry > Date.now()) {
         oauth2Client = client;
         return true;
       }
@@ -115,8 +139,8 @@ export function getAuthenticatedClient(): OAuth2Client | null {
   }
 
   try {
-    if (fs.existsSync(TOKEN_PATH)) {
-      const token = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf-8'));
+    const token = loadStoredToken();
+    if (token) {
       const client = createOAuth2Client();
       client.setCredentials(token);
       oauth2Client = client;
@@ -135,10 +159,14 @@ export function getAuthenticatedClient(): OAuth2Client | null {
 export async function authenticateUser(mainWindow: BrowserWindow): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const client = createOAuth2Client();
+    const credentials = loadCredentials();
+    const redirectUri = credentials.installed.redirect_uris[0];
+    const expectedState = createOAuthState();
 
     const authUrl = client.generateAuthUrl({
       access_type: 'offline',
       scope: SCOPES,
+      state: expectedState,
     });
 
     // Create auth window
@@ -159,25 +187,27 @@ export async function authenticateUser(mainWindow: BrowserWindow): Promise<boole
 
     // Listen for redirect with auth code
     authWindow.webContents.on('will-redirect', async (event, url) => {
-      const urlObj = new URL(url);
-      const code = urlObj.searchParams.get('code');
+      event.preventDefault();
 
-      if (code) {
-        authWindow.close();
+      if (!url.startsWith(redirectUri)) {
+        return;
+      }
 
-        try {
-          const { tokens } = await client.getToken(code);
-          client.setCredentials(tokens);
-          oauth2Client = client;
+      authWindow.close();
 
-          // Save token to file
-          fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
-          console.log('YouTube authentication successful');
-          resolve(true);
-        } catch (error) {
-          console.error('Error getting tokens:', error);
-          reject(error);
-        }
+      try {
+        const code = extractValidatedAuthCode(url, redirectUri, expectedState);
+        const { tokens } = await client.getToken(code);
+        client.setCredentials(tokens);
+        oauth2Client = client;
+
+        // Save token securely to disk
+        persistToken(tokens as Record<string, unknown>);
+        console.log('YouTube authentication successful');
+        resolve(true);
+      } catch (error) {
+        console.error('Error getting tokens:', error);
+        reject(error);
       }
     });
 
@@ -222,7 +252,7 @@ export async function refreshTokenIfNeeded(): Promise<void> {
     try {
       const { credentials } = await client.refreshAccessToken();
       client.setCredentials(credentials);
-      fs.writeFileSync(TOKEN_PATH, JSON.stringify(credentials));
+      persistToken(credentials as Record<string, unknown>);
       console.log('Access token refreshed');
     } catch (error) {
       console.error('Error refreshing token:', error);

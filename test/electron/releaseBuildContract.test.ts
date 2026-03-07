@@ -22,4 +22,68 @@ describe('release build contract', () => {
     expect(macIconPath).toBe('public/logo.png');
     expect(fs.existsSync(path.join(repoRoot, macIconPath))).toBe(true);
   });
+
+  it('packages production desktop artifacts for Windows and Ubuntu-compatible Linux', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf-8'),
+    ) as {
+      scripts?: Record<string, string>;
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      build?: {
+        artifactName?: string;
+        asar?: boolean;
+        asarUnpack?: string[];
+        files?: string[];
+        extraResources?: Array<{ from?: string; to?: string }>;
+        win?: { target?: Array<{ target?: string; arch?: string[] }> };
+        linux?: { target?: Array<{ target?: string; arch?: string[] }>; executableName?: string };
+        nsis?: {
+          oneClick?: boolean;
+          allowToChangeInstallationDirectory?: boolean;
+          createDesktopShortcut?: boolean;
+        };
+      };
+    };
+
+    const distWinScript = packageJson.scripts?.['dist:win'] || '';
+    const distLinuxScript = packageJson.scripts?.['dist:linux'] || '';
+    const distCheckAssetsScript = packageJson.scripts?.['dist:check:assets'] || '';
+    const artifactName = packageJson.build?.artifactName;
+    const asar = packageJson.build?.asar;
+    const asarUnpack = packageJson.build?.asarUnpack || [];
+    const winTargets = packageJson.build?.win?.target || [];
+    const linuxTargets = packageJson.build?.linux?.target || [];
+    const files = packageJson.build?.files || [];
+    const extraResources = packageJson.build?.extraResources || [];
+    const nsis = packageJson.build?.nsis;
+
+    expect(packageJson.dependencies?.['electron-updater']).toBeTruthy();
+    expect(packageJson.devDependencies?.['electron-updater']).toBeUndefined();
+    expect(distCheckAssetsScript).toBe('node scripts/build/check-release-assets.mjs');
+    expect(distWinScript).toContain('npm run dist:check:assets -- win');
+    expect(distWinScript).toContain('--win nsis --x64 --publish never');
+    expect(distLinuxScript).toContain('npm run dist:check:assets -- linux');
+    expect(distLinuxScript).toContain('--linux AppImage deb --x64 --publish never');
+    expect(artifactName).toBe('${productName}-${version}-${os}-${arch}.${ext}');
+    expect(asar).toBe(true);
+    expect(asarUnpack).toEqual(
+      expect.arrayContaining(['**/*.node', 'node_modules/koffi/**/*', 'node_modules/vosk-koffi/**/*']),
+    );
+    expect(winTargets).toEqual([{ target: 'nsis', arch: ['x64'] }]);
+    expect(linuxTargets).toEqual([
+      { target: 'AppImage', arch: ['x64'] },
+      { target: 'deb', arch: ['x64'] },
+    ]);
+    expect(packageJson.build?.linux?.executableName).toBe('quickcut');
+    expect(nsis).toMatchObject({
+      oneClick: false,
+      allowToChangeInstallationDirectory: true,
+      createDesktopShortcut: true,
+    });
+    expect(files).toEqual(expect.arrayContaining(['dist-electron/**/*', 'dist/**/*']));
+    expect(extraResources).toEqual(
+      expect.arrayContaining([expect.objectContaining({ from: 'resources', to: 'resources' })]),
+    );
+  });
 });

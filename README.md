@@ -86,6 +86,10 @@ Create `.env` from `.env.example` and set required values for AI features:
   - `YOUTUBE_OAUTH_REDIRECT_URI`
   - or `YOUTUBE_OAUTH_CREDENTIALS_PATH` for an external Google OAuth JSON file
 
+Packaged app users can also configure AI keys inside
+`Settings -> AI Credentials`, so production installs do not require editing
+`.env`.
+
 ## Run
 
 ```bash
@@ -109,6 +113,11 @@ npm run dist:win
 npm run dist:linux
 npm run dist:all
 ```
+
+Expected production artifacts:
+
+- Windows: NSIS installer `.exe`
+- Ubuntu/Linux: `.AppImage` and `.deb`
 
 ## Test
 

@@ -2,7 +2,27 @@ import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import fs from 'fs';
 import { app } from 'electron';
-import { Model, Recognizer, setLogLevel } from 'vosk-koffi';
+import { pathToFileURL } from 'url';
+
+interface VoskModelInstance {
+  free(): void;
+}
+
+interface VoskRecognizerInstance {
+  setWords(enabled: boolean): VoskRecognizerInstance;
+  acceptWaveform(chunk: Uint8Array): boolean;
+  resultString(): string;
+  free(): void;
+}
+
+interface VoskModule {
+  Model: new (modelPath: string) => VoskModelInstance;
+  Recognizer: new (options: {
+    model: VoskModelInstance;
+    sampleRate: number;
+  }) => VoskRecognizerInstance;
+  setLogLevel(level: number): void;
+}
 
 // Configure FFmpeg paths
 function configureFfmpeg() {
@@ -64,11 +84,37 @@ function configureFfmpeg() {
 // Configure FFmpeg on module load
 configureFfmpeg();
 
-// Suppress Vosk logs
-setLogLevel(-1);
+let cachedVoskModulePromise: Promise<VoskModule> | null = null;
+let cachedModel: VoskModelInstance | null = null;
 
-// Cache the model instance for reuse
-let cachedModel: Model | null = null;
+async function loadVoskModule(): Promise<VoskModule> {
+  if (cachedVoskModulePromise) {
+    return cachedVoskModulePromise;
+  }
+
+  cachedVoskModulePromise = (async () => {
+    const voskModule = app.isPackaged
+      ? await import(
+          pathToFileURL(
+            path.join(
+              process.resourcesPath,
+              'app.asar.unpacked',
+              'node_modules',
+              'vosk-koffi',
+              'lib',
+              'index.mjs',
+            ),
+          ).href
+        )
+      : await import('vosk-koffi');
+
+    const normalizedModule = voskModule as unknown as VoskModule;
+    normalizedModule.setLogLevel(-1);
+    return normalizedModule;
+  })();
+
+  return cachedVoskModulePromise;
+}
 
 /**
  * Get the Vosk model path based on whether app is packaged
@@ -83,7 +129,7 @@ function getModelPath(): string {
 /**
  * Get or create the Vosk model instance
  */
-function getModel(): Model {
+async function getModel(): Promise<VoskModelInstance> {
   if (cachedModel) {
     return cachedModel;
   }
@@ -96,8 +142,9 @@ function getModel(): Model {
     );
   }
 
+  const voskModule = await loadVoskModule();
   console.log('Loading Vosk model from:', modelPath);
-  cachedModel = new Model(modelPath);
+  cachedModel = new voskModule.Model(modelPath);
   console.log('Vosk model loaded successfully');
 
   return cachedModel;
@@ -108,138 +155,140 @@ function getModel(): Model {
  */
 async function transcribeWithVosk(audioPath: string): Promise<TranscriptionResult> {
   return new Promise((resolve, reject) => {
-    try {
-      const model = getModel();
+    void (async () => {
+      try {
+        const [model, voskModule] = await Promise.all([getModel(), loadVoskModule()]);
 
-      // Create recognizer with word timestamps enabled
-      const recognizer = new Recognizer({
-        model,
-        sampleRate: 16000,
-      });
-      recognizer.setWords(true);
+        // Create recognizer with word timestamps enabled
+        const recognizer = new voskModule.Recognizer({
+          model,
+          sampleRate: 16000,
+        });
+        recognizer.setWords(true);
 
-      // Read the WAV file
-      const audioBuffer = fs.readFileSync(audioPath);
+        // Read the WAV file
+        const audioBuffer = fs.readFileSync(audioPath);
 
-      // Skip WAV header (44 bytes for standard WAV)
-      const audioData = audioBuffer.subarray(44);
+        // Skip WAV header (44 bytes for standard WAV)
+        const audioData = audioBuffer.subarray(44);
 
-      const results: Array<{
-        result: Array<{ word: string; start: number; end: number; conf?: number }>;
-        text: string;
-      }> = [];
-      const fullText: string[] = [];
+        const results: Array<{
+          result: Array<{ word: string; start: number; end: number; conf?: number }>;
+          text: string;
+        }> = [];
+        const fullText: string[] = [];
 
-      // Process audio in chunks (8000 samples = 0.5 seconds at 16kHz, 16-bit = 16000 bytes)
-      const chunkSize = 16000; // 0.5 seconds of 16-bit audio at 16kHz
-      let offset = 0;
+        // Process audio in chunks (8000 samples = 0.5 seconds at 16kHz, 16-bit = 16000 bytes)
+        const chunkSize = 16000; // 0.5 seconds of 16-bit audio at 16kHz
+        let offset = 0;
 
-      while (offset < audioData.length) {
-        const chunk = audioData.subarray(offset, Math.min(offset + chunkSize, audioData.length));
-        offset += chunkSize;
+        while (offset < audioData.length) {
+          const chunk = audioData.subarray(offset, Math.min(offset + chunkSize, audioData.length));
+          offset += chunkSize;
 
-        if (recognizer.acceptWaveform(chunk)) {
-          const resultStr = recognizer.resultString();
-          if (resultStr) {
-            try {
-              const result = JSON.parse(resultStr);
-              if (result.text) {
-                results.push(result);
-                fullText.push(result.text);
+          if (recognizer.acceptWaveform(chunk)) {
+            const resultStr = recognizer.resultString();
+            if (resultStr) {
+              try {
+                const result = JSON.parse(resultStr);
+                if (result.text) {
+                  results.push(result);
+                  fullText.push(result.text);
+                }
+              } catch {
+                // Ignore parse errors
               }
-            } catch {
-              // Ignore parse errors
             }
           }
         }
-      }
 
-      // Get final result
-      const finalResultStr = recognizer.resultString();
-      if (finalResultStr) {
-        try {
-          const finalResult = JSON.parse(finalResultStr);
-          if (finalResult.text) {
-            results.push(finalResult);
-            fullText.push(finalResult.text);
-          }
-        } catch {
-          // Ignore parse errors
-        }
-      }
-
-      // Free the recognizer
-      recognizer.free();
-
-      // 1. Collect all words from all results into a single timeline
-      const allWords: Array<{ word: string; start: number; end: number; conf?: number }> = [];
-      results.forEach((r) => {
-        if (r.result) {
-          allWords.push(...r.result);
-        }
-      });
-
-      // 2. Group words into subtitle-friendly segments
-      // Constraints: Max ~40-50 chars or ~2-3 seconds, split on gaps > 0.5s
-      const segments: TranscriptionSegment[] = [];
-      let segmentId = 1;
-
-      if (allWords.length > 0) {
-        let currentSegmentWords: typeof allWords = [];
-        let currentSegmentCharCount = 0;
-        let lastWordEnd = 0;
-
-        for (const wordObj of allWords) {
-          const timeSinceLastWord = wordObj.start - lastWordEnd;
-          const wordLen = wordObj.word.length;
-
-          // Decide whether to start a new segment
-          const isGap = currentSegmentWords.length > 0 && timeSinceLastWord > 0.8; // >0.8s silence
-          const isTooLong = currentSegmentCharCount + wordLen > 42; // >42 chars (standard subtitle width)
-
-          if (isGap || isTooLong) {
-            // Commit current segment
-            if (currentSegmentWords.length > 0) {
-              segments.push({
-                id: segmentId++,
-                start: currentSegmentWords[0].start,
-                end: currentSegmentWords[currentSegmentWords.length - 1].end,
-                text: currentSegmentWords.map((w) => w.word).join(' '),
-                words: [...currentSegmentWords],
-              });
+        // Get final result
+        const finalResultStr = recognizer.resultString();
+        if (finalResultStr) {
+          try {
+            const finalResult = JSON.parse(finalResultStr);
+            if (finalResult.text) {
+              results.push(finalResult);
+              fullText.push(finalResult.text);
             }
-            // Start new segment
-            currentSegmentWords = [wordObj];
-            currentSegmentCharCount = wordLen;
-          } else {
-            // Add to current
-            currentSegmentWords.push(wordObj);
-            currentSegmentCharCount += (currentSegmentWords.length > 1 ? 1 : 0) + wordLen; // +1 for space
+          } catch {
+            // Ignore parse errors
+          }
+        }
+
+        // Free the recognizer
+        recognizer.free();
+
+        // 1. Collect all words from all results into a single timeline
+        const allWords: Array<{ word: string; start: number; end: number; conf?: number }> = [];
+        results.forEach((r) => {
+          if (r.result) {
+            allWords.push(...r.result);
+          }
+        });
+
+        // 2. Group words into subtitle-friendly segments
+        // Constraints: Max ~40-50 chars or ~2-3 seconds, split on gaps > 0.5s
+        const segments: TranscriptionSegment[] = [];
+        let segmentId = 1;
+
+        if (allWords.length > 0) {
+          let currentSegmentWords: typeof allWords = [];
+          let currentSegmentCharCount = 0;
+          let lastWordEnd = 0;
+
+          for (const wordObj of allWords) {
+            const timeSinceLastWord = wordObj.start - lastWordEnd;
+            const wordLen = wordObj.word.length;
+
+            // Decide whether to start a new segment
+            const isGap = currentSegmentWords.length > 0 && timeSinceLastWord > 0.8; // >0.8s silence
+            const isTooLong = currentSegmentCharCount + wordLen > 42; // >42 chars (standard subtitle width)
+
+            if (isGap || isTooLong) {
+              // Commit current segment
+              if (currentSegmentWords.length > 0) {
+                segments.push({
+                  id: segmentId++,
+                  start: currentSegmentWords[0].start,
+                  end: currentSegmentWords[currentSegmentWords.length - 1].end,
+                  text: currentSegmentWords.map((w) => w.word).join(' '),
+                  words: [...currentSegmentWords],
+                });
+              }
+              // Start new segment
+              currentSegmentWords = [wordObj];
+              currentSegmentCharCount = wordLen;
+            } else {
+              // Add to current
+              currentSegmentWords.push(wordObj);
+              currentSegmentCharCount += (currentSegmentWords.length > 1 ? 1 : 0) + wordLen; // +1 for space
+            }
+
+            lastWordEnd = wordObj.end;
           }
 
-          lastWordEnd = wordObj.end;
+          // Push final segment
+          if (currentSegmentWords.length > 0) {
+            segments.push({
+              id: segmentId++,
+              start: currentSegmentWords[0].start,
+              end: currentSegmentWords[currentSegmentWords.length - 1].end,
+              text: currentSegmentWords.map((w) => w.word).join(' '),
+              words: [...currentSegmentWords],
+            });
+          }
         }
 
-        // Push final segment
-        if (currentSegmentWords.length > 0) {
-          segments.push({
-            id: segmentId++,
-            start: currentSegmentWords[0].start,
-            end: currentSegmentWords[currentSegmentWords.length - 1].end,
-            text: currentSegmentWords.map((w) => w.word).join(' '),
-            words: [...currentSegmentWords],
-          });
-        }
+        resolve({
+          text: fullText.join(' ').trim(),
+          segments,
+          words: allWords,
+        });
+      } catch (error) {
+        reject(error);
       }
-
-      resolve({
-        text: fullText.join(' ').trim(),
-        segments,
-        words: allWords,
-      });
-    } catch (error) {
-      reject(error);
-    }
+    })();
   });
 }
 

@@ -30,12 +30,25 @@ QUICKCUT_DISABLE_AUTO_UPDATE=1
 Release commands:
 
 ```bash
+npm run dist:win
 npm run dist:linux
 npm run dist:publish
 ```
 
-The GitHub Actions `Release Desktop` workflow is tag-driven (`v*`) and builds
-Linux desktop artifacts.
+Default artifact contract:
+
+- Windows: NSIS installer `.exe`
+- Linux: `.AppImage` and `.deb`
+
+Practical build guidance:
+
+- Build Windows installers on a Windows runner/host.
+- Build Ubuntu/Linux artifacts on an Ubuntu runner/host.
+- `npm run dist` and the platform-specific `dist:*` scripts use
+  `--publish never`, so they are safe for local packaging checks.
+- Packaging now runs `scripts/build/check-release-assets.mjs` first so missing
+  bundled binaries such as `ffprobe.exe` fail before release generation.
+- Use `npm run dist:publish` only in the tagged release pipeline.
 
 ## Required Secrets and Environment
 

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-export type SidebarTab = 'project' | 'media' | 'text' | 'settings' | 'memory';
+export type SidebarTab = 'project' | 'media' | 'settings' | 'memory';
 
 interface SidebarNavProps {
   activeTab: SidebarTab;
@@ -46,24 +46,9 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    id: 'text',
-    label: 'TEXT',
-    shortcut: 'Ctrl+3',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-        />
-      </svg>
-    ),
-  },
-  {
     id: 'settings',
     label: 'SETTINGS',
-    shortcut: 'Ctrl+4',
+    shortcut: 'Ctrl+3',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
@@ -84,7 +69,7 @@ const navItems: NavItem[] = [
   {
     id: 'memory',
     label: 'MEMORY',
-    shortcut: 'Ctrl+5',
+    shortcut: 'Ctrl+4',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
@@ -114,13 +99,9 @@ const SidebarNav = ({ activeTab, onTabChange }: SidebarNavProps) => {
             break;
           case '3':
             e.preventDefault();
-            onTabChange('text');
-            break;
-          case '4':
-            e.preventDefault();
             onTabChange('settings');
             break;
-          case '5':
+          case '4':
             e.preventDefault();
             onTabChange('memory');
             break;

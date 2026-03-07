@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import CaptionsPanel from './CaptionsPanel';
-import TranscriptionPanel from './TranscriptionPanel';
-import AudioPanel from './AudioPanel';
+
 import EffectsPanel from './EffectsPanel';
 import ExportSettingsPanel from './ExportSettingsPanel';
 import PublishPanel from './PublishPanel';
 
-type PanelTab = 'captions' | 'transcript' | 'audio' | 'effects' | 'export' | 'publish';
+type PanelTab = 'captions' | 'effects' | 'export' | 'publish';
 
 interface RightPanelProps {
   isOpen?: boolean;
@@ -55,34 +54,7 @@ const RightPanel = ({
         </svg>
       ),
     },
-    {
-      id: 'transcript',
-      label: 'Transcript',
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-          />
-        </svg>
-      ),
-    },
-    {
-      id: 'audio',
-      label: 'Audio',
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-          />
-        </svg>
-      ),
-    },
+
     {
       id: 'effects',
       label: 'Effects',
@@ -192,8 +164,7 @@ const RightPanel = ({
       {/* Tab content */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {activeTab === 'captions' && <CaptionsPanel />}
-        {activeTab === 'transcript' && <TranscriptionPanel />}
-        {activeTab === 'audio' && <AudioPanel />}
+
         {activeTab === 'effects' && <EffectsPanel />}
         {activeTab === 'export' && <ExportSettingsPanel />}
         {activeTab === 'publish' && <PublishPanel />}
@@ -202,7 +173,7 @@ const RightPanel = ({
   );
 };
 
-const VALID_TABS: PanelTab[] = ['captions', 'transcript', 'audio', 'effects', 'export', 'publish'];
+const VALID_TABS: PanelTab[] = ['captions', 'effects', 'export', 'publish'];
 function isValidTab(tab: string | undefined): tab is PanelTab {
   return VALID_TABS.includes(tab as PanelTab);
 }

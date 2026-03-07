@@ -23,6 +23,7 @@ const Preview = () => {
     getActiveClips,
     subtitles,
     subtitleStyle,
+    captionsEnabled,
   } = useProjectStore(
     useShallow((state) => ({
       clips: state.clips,
@@ -35,6 +36,7 @@ const Preview = () => {
       getActiveClips: state.getActiveClips,
       subtitles: state.subtitles,
       subtitleStyle: state.subtitleStyle,
+      captionsEnabled: state.captionsEnabled,
     })),
   );
 
@@ -63,8 +65,8 @@ const Preview = () => {
       currentTime < clip.startTime + clip.duration,
   );
 
-  // Get active subtitle
-  const activeSubtitle = getActiveSubtitle(subtitles, currentTime);
+  // Get active subtitle (only if captions are enabled)
+  const activeSubtitle = captionsEnabled ? getActiveSubtitle(subtitles, currentTime) : null;
 
   // Calculate progressive word display for real-time effect
   const getProgressiveSubtitleText = (subtitle: typeof activeSubtitle): string => {

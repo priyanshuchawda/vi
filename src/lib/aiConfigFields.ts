@@ -61,6 +61,28 @@ export const AI_CONFIG_FIELDS: AiConfigFieldDefinition[] = [
     secret: true,
     helperText: 'Used only for YouTube analysis features.',
   },
+  {
+    key: 'youtubeOAuthClientId',
+    envName: 'YOUTUBE_OAUTH_CLIENT_ID',
+    placeholder: '123456789-xxxxx.apps.googleusercontent.com',
+    optional: true,
+    helperText: 'Google Cloud OAuth Client ID for YouTube upload.',
+  },
+  {
+    key: 'youtubeOAuthClientSecret',
+    envName: 'YOUTUBE_OAUTH_CLIENT_SECRET',
+    placeholder: 'GOCSPX-...',
+    optional: true,
+    secret: true,
+    helperText: 'OAuth Client Secret paired with the Client ID.',
+  },
+  {
+    key: 'youtubeOAuthRedirectUri',
+    envName: 'YOUTUBE_OAUTH_REDIRECT_URI',
+    placeholder: 'http://localhost',
+    optional: true,
+    helperText: 'Redirect URI configured in Google Cloud Console.',
+  },
 ];
 
 const REQUIRED_BEDROCK_FIELDS: AiConfigFieldKey[] = [

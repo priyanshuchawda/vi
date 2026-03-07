@@ -148,18 +148,16 @@ export async function authenticateUser(mainWindow: BrowserWindow): Promise<boole
 
     authWindow.loadURL(authUrl);
 
-    // Listen for redirect with auth code
-    authWindow.webContents.on('will-redirect', async (event, url) => {
-      event.preventDefault();
-
-      if (!url.startsWith(redirectUri)) {
-        return;
+    // Handler to capture the OAuth callback redirect to localhost
+    const handleCallback = async (callbackUrl: string) => {
+      if (!callbackUrl.startsWith(redirectUri)) {
+        return; // Not our callback, let it proceed
       }
 
       authWindow.close();
 
       try {
-        const code = extractValidatedAuthCode(url, redirectUri, expectedState);
+        const code = extractValidatedAuthCode(callbackUrl, redirectUri, expectedState);
         const { tokens } = await client.getToken(code);
         client.setCredentials(tokens);
         oauth2Client = client;
@@ -172,6 +170,17 @@ export async function authenticateUser(mainWindow: BrowserWindow): Promise<boole
         console.error('Error getting tokens:', error);
         reject(error);
       }
+    };
+
+    // Listen for the OAuth callback on both navigation events
+    // will-navigate fires when the page navigates (e.g., form submit / link click)
+    authWindow.webContents.on('will-navigate', (_event, url) => {
+      handleCallback(url);
+    });
+
+    // will-redirect fires on HTTP redirects (3xx)
+    authWindow.webContents.on('will-redirect', (_event, url) => {
+      handleCallback(url);
     });
 
     // Handle window close

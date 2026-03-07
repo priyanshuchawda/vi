@@ -28,12 +28,13 @@ const CaptionsPanel = () => {
     setCurrentTime,
     setNotification,
     currentTime,
+    captionsEnabled,
+    setCaptionsEnabled,
   } = useProjectStore();
 
-  const [isOpen, setIsOpen] = useState(false);
-  const [captionsEnabled, setCaptionsEnabled] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
+  const [showTranscript, setShowTranscript] = useState(false);
   const editRef = useRef<HTMLInputElement>(null);
 
   // Convert transcription segments to captions format
@@ -146,6 +147,25 @@ const CaptionsPanel = () => {
     setNotification({ type: 'success', message: 'Captions cleared' });
   };
 
+  const handleCopyTranscript = () => {
+    if (transcription?.text) {
+      navigator.clipboard.writeText(transcription.text);
+      setNotification({ type: 'success', message: 'Transcript copied to clipboard!' });
+    }
+  };
+
+  const handleExportTXT = () => {
+    if (!transcription?.text) return;
+    const blob = new Blob([transcription.text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transcription.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+    setNotification({ type: 'success', message: 'Transcript exported as TXT!' });
+  };
+
   // Focus edit input when editing starts
   useEffect(() => {
     if (editingId !== null && editRef.current) {
@@ -154,37 +174,11 @@ const CaptionsPanel = () => {
     }
   }, [editingId]);
 
-  // Toggle button for the sidebar
-  if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed right-4 top-1/2 -translate-y-1/2 bg-accent hover:bg-accent-hover text-bg-primary px-3 py-4 rounded-l-lg shadow-lg transition-all flex flex-col items-center gap-1 z-50"
-        title="Open Captions Panel"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-          />
-        </svg>
-        <span
-          className="text-[10px] font-bold tracking-wide"
-          style={{ writingMode: 'vertical-rl' }}
-        >
-          CC
-        </span>
-      </button>
-    );
-  }
-
   return (
-    <div className="w-80 bg-bg-elevated border-l border-border-primary flex flex-col h-full">
+    <div className="bg-bg-elevated flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-border-primary">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2 mb-4">
           <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
             <svg
               className="w-5 h-5 text-accent"
@@ -201,20 +195,6 @@ const CaptionsPanel = () => {
             </svg>
             Captions
           </h2>
-          <button
-            onClick={() => setIsOpen(false)}
-            className="p-1 text-text-muted hover:text-text-primary transition"
-            title="Close"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
         </div>
 
         {/* Auto Caption Button */}
@@ -264,13 +244,13 @@ const CaptionsPanel = () => {
               <span className="text-sm font-medium text-text-primary">Show captions in video</span>
               <button
                 onClick={() => setCaptionsEnabled(!captionsEnabled)}
-                className={`relative w-12 h-6 rounded-full transition ${
-                  captionsEnabled ? 'bg-purple-600' : 'bg-gray-600'
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
+                  captionsEnabled ? 'bg-accent' : 'bg-gray-600'
                 }`}
               >
                 <span
-                  className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                    captionsEnabled ? 'translate-x-7' : 'translate-x-1'
+                  className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    captionsEnabled ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />
               </button>
@@ -410,6 +390,97 @@ const CaptionsPanel = () => {
           </div>
         ) : null}
       </div>
+
+      {/* Transcript Section */}
+      {hasCaptions && transcription?.text && (
+        <div className="border-t border-border-primary">
+          <button
+            onClick={() => setShowTranscript(!showTranscript)}
+            className="w-full flex items-center justify-between p-3 text-sm font-medium text-text-primary hover:bg-bg-surface transition"
+          >
+            <div className="flex items-center gap-2">
+              <svg
+                className="w-4 h-4 text-accent"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              Full Transcript
+            </div>
+            <svg
+              className={`w-4 h-4 text-text-muted transition-transform ${showTranscript ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+          {showTranscript && (
+            <div className="px-3 pb-3 space-y-2">
+              {/* Transcript Actions */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopyTranscript}
+                  className="text-xs px-2 py-1 rounded bg-bg-surface hover:bg-bg-primary text-text-primary transition flex items-center gap-1"
+                  title="Copy to clipboard"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                  Copy
+                </button>
+                <button
+                  onClick={handleExportTXT}
+                  className="text-xs px-2 py-1 rounded bg-bg-surface hover:bg-bg-primary text-text-primary transition flex items-center gap-1"
+                  title="Export as text file"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  TXT
+                </button>
+              </div>
+              {/* Transcript Text */}
+              <div className="bg-bg-surface rounded-lg p-3 max-h-40 overflow-y-auto">
+                <p className="text-xs text-text-primary leading-relaxed whitespace-pre-wrap">
+                  {transcription.text}
+                </p>
+              </div>
+              {/* Transcript Stats */}
+              <div className="flex gap-4 text-[10px] text-text-muted">
+                <span>{transcription.text.split(/\s+/).filter(Boolean).length} words</span>
+                <span>{transcription.text.length} chars</span>
+                {transcription.segments.length > 0 && (
+                  <span>{transcription.segments.length} segments</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stats Footer */}
       {hasCaptions && (

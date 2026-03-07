@@ -20,6 +20,9 @@ const blankAiSettings: AiConfigSettings = {
   awsSessionToken: '',
   bedrockInferenceProfileId: '',
   bedrockModelId: 'amazon.nova-lite-v1:0',
+  youtubeOAuthClientId: '',
+  youtubeOAuthClientSecret: '',
+  youtubeOAuthRedirectUri: '',
 };
 
 export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {

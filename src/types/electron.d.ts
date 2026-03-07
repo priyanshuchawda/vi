@@ -63,6 +63,9 @@ export interface AiConfigSettings {
   awsSessionToken: string;
   bedrockInferenceProfileId: string;
   bedrockModelId: string;
+  youtubeOAuthClientId: string;
+  youtubeOAuthClientSecret: string;
+  youtubeOAuthRedirectUri: string;
 }
 
 export interface AiConfigStatus {

@@ -59,6 +59,26 @@ const mockElectronAPI: ElectronAPI = {
     output: { message: { content: [{ text: '{}' }] } },
     usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
   }),
+  aiConfig: {
+    get: vi.fn().mockResolvedValue({
+      youtubeApiKey: '',
+      awsRegion: 'us-east-1',
+      awsAccessKeyId: 'test-key',
+      awsSecretAccessKey: 'test-secret',
+      awsSessionToken: '',
+      bedrockInferenceProfileId: '',
+      bedrockModelId: 'amazon.nova-lite-v1:0',
+    }),
+    save: vi.fn().mockResolvedValue({ success: true }),
+    getStatus: vi.fn().mockResolvedValue({
+      bedrockReady: true,
+      youtubeReady: false,
+      usingSavedSettings: false,
+      usingEnvFallback: true,
+      missingBedrockFields: [],
+      missingYouTubeFields: ['YouTube API Key'],
+    }),
+  },
 };
 
 // Mock window.electronAPI

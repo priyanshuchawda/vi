@@ -121,6 +121,67 @@ describe('agentRouter', () => {
       expect(result.reason).toContain('target_duration');
     });
 
+    it('routes short-form script-plus-edit requests to agentic', () => {
+      const result = decideExecutionMode({
+        message:
+          'make a 30 second youtube short with proper script and editing so it gets more views',
+        baseIntent: 'edit',
+        clipCount: 3,
+        hasTimeline: true,
+        normalizedIntent: {
+          mode: 'modify',
+          goals: ['platform_optimized_output', 'script_generation'],
+          constraints: { target_duration: 30, platform: 'youtube_shorts' },
+          operationHint: 'script_outline',
+          confidence: 0.9,
+          requiresPlanning: true,
+          ambiguities: [],
+          intent_type: 'multi_video_edit',
+          requestedOutputs: ['edit_plan', 'short_script_outline'],
+        },
+      });
+      expect(result.mode).toBe('agentic');
+      expect(result.reason).toContain('agentic');
+    });
+
+    it('routes execution-heavy short-form asks to agentic even without normalized intent', () => {
+      const result = decideExecutionMode({
+        message: 'make this a youtube short with script captions and 30 second runtime for more views',
+        baseIntent: 'edit',
+        clipCount: 2,
+        hasTimeline: true,
+      });
+      expect(result.mode).toBe('agentic');
+    });
+
+    it('routes reconstructed autonomous resume requests to agentic', () => {
+      const result = decideExecutionMode({
+        message: `Continue the previous editing request and complete it end-to-end.
+
+Original request:
+make a 30 second youtube short with proper script and editing so it gets more views
+
+Execution requirements:
+- Treat this as a full autonomous editing task, not a partial single-step change.
+- If the request includes a target duration, fill that duration with real visible content, not empty gaps.`,
+        baseIntent: 'edit',
+        clipCount: 4,
+        hasTimeline: true,
+      });
+      expect(result.mode).toBe('agentic');
+    });
+
+    it('routes retention overlay requests to agentic', () => {
+      const result = decideExecutionMode({
+        message: 'now add a text overlay so users will definitely watch this vlog till last',
+        baseIntent: 'edit',
+        clipCount: 4,
+        hasTimeline: true,
+      });
+      expect(result.mode).toBe('agentic');
+      expect(result.reason).toBe('retention_overlay_request');
+    });
+
     it('routes to agentic for compound requests', () => {
       const result = decideExecutionMode({
         message: 'trim the clips and then add transitions between them',

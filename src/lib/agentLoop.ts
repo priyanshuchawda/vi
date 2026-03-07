@@ -20,7 +20,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { converseBedrock, isBedrockConfigured } from './bedrockGateway';
 import { ToolExecutor } from './toolExecutor';
-import { allVideoEditingTools } from './videoEditingTools';
 import type { FunctionCall } from './videoEditingTools';
 import { isReadOnlyTool } from './toolCapabilityMatrix';
 import { waitForSlot, withRetryOn429 } from './rateLimiter';
@@ -30,6 +29,9 @@ import { buildAliasedSnapshotForPlanning, formatSnapshotForPrompt } from './aiPr
 import { formatCapabilityMatrixForPrompt } from './toolCapabilityMatrix';
 import { resolveAlias, type AliasMap } from './clipAliasMapper';
 import { createCostGuard, recordStepCost, evaluateCostGuard } from './agentCostGuard';
+import { selectToolsForRequest } from './toolSelection';
+import { useProjectStore } from '../stores/useProjectStore';
+import { useAiMemoryStore } from '../stores/useAiMemoryStore';
 import {
   createStep,
   setStepThought,
@@ -49,6 +51,7 @@ import type {
   AgentLoopResult,
   AgentToolResult,
   AgentVerification,
+  AgentStep,
 } from '../types/agentTypes';
 import { DEFAULT_AGENT_LOOP_CONFIG } from '../types/agentTypes';
 
@@ -102,6 +105,19 @@ For highlight reels, best moments, or vlog edits:
 7. After trimming all clips, call get_timeline_info to verify total duration
 </content-aware-editing>
 
+<short-form-storytelling>
+For YouTube Shorts, Reels, hackathon win stories, or social-first edits:
+1. Shape the cut around a clear story arc: hook -> build -> proof/demo -> payoff -> CTA
+2. Put the strongest visual proof early; do not waste the first 2 seconds on setup
+3. Keep on-screen text punchy (roughly 2-6 words per beat) and grounded in available footage/memory
+4. If script + captions are requested, prefer:
+   generate_intro_script_from_timeline -> preview_caption_fit -> apply_script_as_captions
+5. Avoid inventing unseen scenes or outcomes not supported by media memory/tool results
+6. For exact target-duration requests, empty timeline gaps do NOT count as usable duration
+7. Never satisfy a duration target by only moving clips later on the timeline
+8. Prefer, in order: restore source bounds, extend still images, slow clips moderately, duplicate clips, then reposition
+</short-form-storytelling>
+
 <error-recovery>
 If a tool call fails:
 1. Read the error message carefully — it usually tells you exactly what's wrong
@@ -115,6 +131,7 @@ If a tool call fails:
 
 <rules>
 1. Execute ONE tool per step. Never batch.
+1a. Bedrock constraint: emit at most ONE toolUse block in each assistant response.
 2. NEVER ask the user for permission — you are autonomous.
 3. Prefer fewer, larger operations over many small ones.
 4. Budget: ${config.maxSteps} steps max, $${config.maxCostUsd.toFixed(2)} cost cap.
@@ -138,14 +155,6 @@ When done, ALWAYS end with:
 " Completed: [what you did]. Timeline: [duration]s, [N] clips."
 Include specific numbers (e.g. "trimmed 3 clips from 45s to 28s total").
 </response-format>`;
-}
-
-/**
- * Build an aliased tool set for the agent loop.
- * Same tools as planning, but filtered for the agentic context.
- */
-function buildAgentToolSet(): any[] {
-  return allVideoEditingTools.map((tool: any) => tool);
 }
 
 /**
@@ -177,26 +186,151 @@ function resolveToolAliases(
   return { name: toolCall.name, args: resolvedArgs };
 }
 
+function getTargetDurationSeconds(
+  normalizedIntent: AgentLoopInput['normalizedIntent'],
+  userMessage: string,
+): number | undefined {
+  const rawTarget = Number(normalizedIntent?.constraints?.target_duration);
+  const unit = String(normalizedIntent?.constraints?.target_duration_unit || '').toLowerCase();
+  if (Number.isFinite(rawTarget) && rawTarget > 0) {
+    return unit.startsWith('min') ? rawTarget * 60 : rawTarget;
+  }
+
+  const match = String(userMessage || '').match(
+    /\b(\d+(?:\.\d+)?)\s*(s|sec|secs|second|seconds|min|mins|minute|minutes)\b/i,
+  );
+  if (!match) return undefined;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+  return match[2].toLowerCase().startsWith('min') ? value * 60 : value;
+}
+
+function buildSignalTextForClip(clip: { id: string; name: string; path?: string }): string {
+  const memoryEntries = useAiMemoryStore.getState().getCompletedEntries();
+  const memory =
+    memoryEntries.find((entry) => entry.clipId === clip.id) ||
+    memoryEntries.find((entry) => entry.filePath === clip.path);
+  return [clip.name, memory?.summary || '', memory?.analysis || '', ...(memory?.tags || [])]
+    .join(' ')
+    .toLowerCase();
+}
+
+function scoreStorySignal(signal: string): number {
+  const addIf = (pattern: RegExp, points: number) => (pattern.test(signal) ? points : 0);
+  return (
+    addIf(/\b(winner|won|award|announcement|reveal|first place|second place|third place)\b/, 10) +
+    addIf(/\b(demo|judges|pitch|present)\b/, 8) +
+    addIf(/\b(team|workspace|build|prototype|hackathon)\b/, 4)
+  );
+}
+
 /**
- * Execute verification after a mutating tool call.
- * Calls get_timeline_info to verify the state changed as expected.
+ * Execute local verification after a mutating tool call.
+ * This avoids a second tool round-trip while still giving the loop
+ * a concrete snapshot of the new timeline state.
  */
-async function verifyAfterMutation(): Promise<AgentVerification> {
+function verifyAfterMutation(input: AgentLoopInput): AgentVerification {
   try {
-    const verifyCall: FunctionCall = {
-      name: 'get_timeline_info',
-      args: {},
-    };
-    const result = ToolExecutor.executeToolCallWithLifecycle(verifyCall, 0, 1);
-    const resolved = result instanceof Promise ? await result : result;
+    const state = useProjectStore.getState();
+    const clips = state.clips
+      .slice()
+      .sort((a, b) => a.startTime - b.startTime)
+      .map((clip) => ({
+        id: clip.id,
+        name: clip.name,
+        path: clip.path,
+        startTime: clip.startTime,
+        duration: clip.duration,
+        endTime: clip.startTime + clip.duration,
+      }));
+
+    if (clips.length === 0) {
+      return {
+        verified: true,
+        method: 'timeline_check',
+        details:
+          'Mutation completed; local verification snapshot unavailable because timeline is empty.',
+        snapshot: {
+          totalDuration: 0,
+          clipCount: 0,
+          gapCount: 0,
+          totalGapDuration: 0,
+        },
+      };
+    }
+
+    let gapCount = 0;
+    let totalGapDuration = 0;
+    for (let i = 1; i < clips.length; i++) {
+      const gap = clips[i].startTime - clips[i - 1].endTime;
+      if (gap > 0.05) {
+        gapCount += 1;
+        totalGapDuration += gap;
+      }
+    }
+
+    const totalDuration = Number(Math.max(...clips.map((clip) => clip.endTime), 0).toFixed(2));
+    const targetDuration = getTargetDurationSeconds(input.normalizedIntent, input.userMessage);
+    const durationDelta =
+      targetDuration !== undefined
+        ? Number((totalDuration - targetDuration).toFixed(2))
+        : undefined;
+    const rankedSignals = clips.map((clip, index) => ({
+      index,
+      clipName: clip.name,
+      score: scoreStorySignal(buildSignalTextForClip(clip)),
+    }));
+    const strongest = [...rankedSignals].sort((a, b) => b.score - a.score)[0];
+    const strongestSignalEarly = strongest ? strongest.index <= 1 : true;
+
+    const withinDuration = targetDuration === undefined || Math.abs(durationDelta || 0) <= 0.75;
+    const verified = gapCount === 0 && withinDuration;
+
+    const detailParts = [
+      `Timeline ${totalDuration}s`,
+      `${clips.length} clip(s)`,
+      gapCount > 0
+        ? `${gapCount} gap(s) totalling ${Number(totalGapDuration.toFixed(2))}s`
+        : 'no gaps',
+    ];
+    if (targetDuration !== undefined) {
+      detailParts.push(`target ${targetDuration}s`);
+      detailParts.push(
+        Math.abs(durationDelta || 0) <= 0.75
+          ? 'duration within tolerance'
+          : `duration delta ${durationDelta}s`,
+      );
+    }
+    if (strongest) {
+      detailParts.push(
+        strongestSignalEarly
+          ? `strongest story signal is early (${strongest.clipName})`
+          : `strongest story signal is late (${strongest.clipName})`,
+      );
+    }
 
     return {
-      verified: resolved.result.success,
+      verified,
       method: 'timeline_check',
-      details:
-        typeof resolved.result.message === 'string'
-          ? resolved.result.message.slice(0, 200)
-          : 'Verification completed',
+      details: detailParts.join('; '),
+      discrepancy:
+        gapCount > 0
+          ? 'timeline_contains_gaps'
+          : !withinDuration
+            ? 'duration_target_not_met'
+            : !strongestSignalEarly
+              ? 'story_signal_is_late'
+              : undefined,
+      snapshot: {
+        totalDuration,
+        clipCount: clips.length,
+        gapCount,
+        totalGapDuration: Number(totalGapDuration.toFixed(2)),
+        targetDuration,
+        durationDelta,
+        firstClipName: clips[0]?.name,
+        strongestSignalEarly,
+      },
     };
   } catch (err) {
     return {
@@ -225,6 +359,107 @@ function extractTextFromResponse(response: any): string {
 function extractToolUsesFromResponse(response: any): any[] {
   const content = response?.output?.message?.content || [];
   return content.filter((c: any) => c?.toolUse).map((c: any) => c.toolUse);
+}
+
+function buildAssistantToolReplyContent(content: any[], selectedToolUseId: string): any[] {
+  const filtered = (content || []).filter((part: any) => {
+    if (part?.text) return true;
+    return part?.toolUse?.toolUseId === selectedToolUseId;
+  });
+
+  if (filtered.length > 0) {
+    return filtered;
+  }
+
+  const selectedToolUse = (content || []).find(
+    (part: any) => part?.toolUse?.toolUseId === selectedToolUseId,
+  );
+  return selectedToolUse ? [selectedToolUse] : [];
+}
+
+function selectRecentHistoryWindow(
+  history: Array<{ role: string; content: unknown[] }>,
+  maxMessages: number,
+): Array<{ role: string; content: unknown[] }> {
+  const recent = history.slice(-Math.max(0, maxMessages));
+  const firstUserIndex = recent.findIndex((message) => message.role === 'user');
+  if (firstUserIndex === -1) {
+    return [];
+  }
+  return recent.slice(firstUserIndex);
+}
+
+function deriveStepToolNames(input: {
+  allToolNames: string[];
+  steps: AgentStep[];
+  userMessage: string;
+  normalizedIntent?: AgentLoopInput['normalizedIntent'];
+}): Set<string> {
+  const next = new Set(input.allToolNames);
+  const successfulSteps = input.steps.filter((step) => step.result?.success && step.toolCall?.name);
+  const successfulToolNames = new Set(
+    successfulSteps
+      .map((step) => step.toolCall?.name)
+      .filter((name): name is string => Boolean(name)),
+  );
+  const hasSuccessfulRead = successfulSteps.some((step) =>
+    isReadOnlyTool(step.toolCall?.name || ''),
+  );
+  const targetDuration = getTargetDurationSeconds(input.normalizedIntent, input.userMessage);
+  const lastVerification = [...input.steps]
+    .reverse()
+    .find((step) => step.verification)?.verification;
+  const durationSatisfied =
+    targetDuration === undefined
+      ? false
+      : Boolean(
+          lastVerification?.snapshot &&
+          (lastVerification.snapshot.gapCount || 0) === 0 &&
+          Math.abs(lastVerification.snapshot.durationDelta || 0) <= 0.75,
+        );
+  const storySignalEarly = lastVerification?.snapshot?.strongestSignalEarly === true;
+  const wantsScript =
+    input.normalizedIntent?.goals?.includes('script_generation') === true ||
+    /\b(script|voiceover|caption|subtitle|hook|cta)\b/i.test(input.userMessage);
+
+  if (!hasSuccessfulRead) {
+    return new Set(
+      input.allToolNames.filter((name) => isReadOnlyTool(name) || name === 'ask_clarification'),
+    );
+  }
+
+  if (successfulToolNames.has('generate_intro_script_from_timeline')) {
+    next.delete('generate_intro_script_from_timeline');
+  }
+
+  if (successfulToolNames.has('preview_caption_fit')) {
+    next.delete('preview_caption_fit');
+  }
+
+  if (successfulToolNames.has('apply_script_as_captions')) {
+    next.delete('apply_script_as_captions');
+    next.delete('preview_caption_fit');
+    next.delete('generate_intro_script_from_timeline');
+  } else if (wantsScript && successfulToolNames.has('generate_intro_script_from_timeline')) {
+    next.add('apply_script_as_captions');
+    next.add('preview_caption_fit');
+  }
+
+  if (durationSatisfied && storySignalEarly) {
+    next.delete('set_clip_speed');
+    next.delete('copy_clips');
+    next.delete('paste_clips');
+    next.delete('update_clip_bounds');
+    next.delete('move_clip');
+  }
+
+  if (next.size === 0) {
+    input.allToolNames.forEach((name) => {
+      if (isReadOnlyTool(name)) next.add(name);
+    });
+  }
+
+  return next;
 }
 
 /**
@@ -259,10 +494,13 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
     goalDescription: input.userMessage,
   };
 
-  // Build context
-  const toolNames = allVideoEditingTools
-    .map((t: any) => t?.toolSpec?.name)
-    .filter((n: string | undefined): n is string => Boolean(n));
+  const selectedToolSet = selectToolsForRequest({
+    message: input.userMessage,
+    mode: 'agentic',
+    normalizedIntent: input.normalizedIntent,
+  });
+  const toolSet = selectedToolSet.tools;
+  const toolNames = selectedToolSet.toolNames;
 
   const { snapshot: aliasedSnapshot, aliasMap } = buildAliasedSnapshotForPlanning(toolNames);
 
@@ -270,7 +508,6 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
   const capabilityContext = formatCapabilityMatrixForPrompt(toolNames, 2400);
 
   const systemPrompt = buildAgenticSystemPrompt(config);
-  const toolSet = buildAgentToolSet();
 
   // Build initial context message
   const dynamicContext = `<ai-project-snapshot>
@@ -288,7 +525,7 @@ When the goal is fully achieved, respond with a summary (no tool calls).
 
   // Message history for the conversation loop
   const messages: any[] = [
-    ...input.history.slice(-6),
+    ...selectRecentHistoryWindow(input.history, 6),
     {
       role: 'user',
       content: [{ text: `${dynamicContext}\n\nTask: ${input.userMessage}` }],
@@ -350,6 +587,14 @@ When the goal is fully achieved, respond with a summary (no tool calls).
     // Wait for rate-limit slot
     await waitForSlot();
 
+    const stepToolNames = deriveStepToolNames({
+      allToolNames: toolNames,
+      steps: loopState.steps,
+      userMessage: input.userMessage,
+      normalizedIntent: input.normalizedIntent,
+    });
+    const stepToolSet = toolSet.filter((tool: any) => stepToolNames.has(tool?.toolSpec?.name));
+
     // Call Bedrock
     const routingDecision = routeBedrockModel({
       intent: 'plan',
@@ -364,7 +609,7 @@ When the goal is fully achieved, respond with a summary (no tool calls).
           modelId: routingDecision.modelId,
           messages: messages,
           system: [{ text: systemPrompt }],
-          toolConfig: { tools: toolSet },
+          toolConfig: { tools: stepToolSet },
           inferenceConfig: {
             maxTokens: AGENTIC_MAX_TOKENS,
             temperature: 0.2,
@@ -456,7 +701,7 @@ When the goal is fully achieved, respond with a summary (no tool calls).
         // Verify after mutations
         if (config.verifyAfterMutation && !isReadOnlyTool(toolCall.name) && toolResult.success) {
           step = updateStepStatus(step, 'verifying');
-          const verification = await verifyAfterMutation();
+          const verification = verifyAfterMutation(input);
           step = setStepVerification(step, verification);
         }
 
@@ -467,7 +712,10 @@ When the goal is fully achieved, respond with a summary (no tool calls).
         // Add assistant response to conversation history
         messages.push({
           role: 'assistant',
-          content: response.output!.message!.content!,
+          content: buildAssistantToolReplyContent(
+            response.output?.message?.content || [],
+            toolUse.toolUseId,
+          ),
         });
 
         // Build enriched tool result for the AI — include verification + budget hints
@@ -491,6 +739,8 @@ When the goal is fully achieved, respond with a summary (no tool calls).
           resultPayload.verification = {
             verified: step.verification.verified,
             details: step.verification.details?.slice(0, 500),
+            discrepancy: step.verification.discrepancy,
+            snapshot: step.verification.snapshot,
           };
         }
 

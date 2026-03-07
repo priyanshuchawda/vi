@@ -211,11 +211,207 @@ interface DurationRecoveryTimeline {
   totalDuration: number;
   clips: Array<{
     id: string;
+    name?: string;
+    path?: string;
+    mediaType?: string;
     duration: number;
+    startTime?: number;
+    trackIndex?: number;
     sourceStart: number;
     sourceEnd: number;
     sourceDuration: number;
+    speed?: number;
   }>;
+}
+
+type DurationRecoveryClip = DurationRecoveryTimeline['clips'][number] & {
+  score: number;
+  hookScore: number;
+  buildScore: number;
+  proofScore: number;
+  payoffScore: number;
+  currentIndex: number;
+};
+
+function isShortFormStoryRequest(
+  normalizedIntent: NormalizedIntent | undefined,
+  userMessage: string,
+): boolean {
+  const lower = String(userMessage || '').toLowerCase();
+  return (
+    normalizedIntent?.constraints?.platform === 'youtube_shorts' ||
+    normalizedIntent?.constraints?.platform === 'instagram_reels' ||
+    normalizedIntent?.goals?.includes('platform_optimized_output') === true ||
+    normalizedIntent?.goals?.includes('script_generation') === true ||
+    /\b(shorts|reel|tiktok|hook|cta|hackathon|winner|won|demo|judges|viral|views)\b/.test(lower)
+  );
+}
+
+function scoreDurationRecoveryClip(
+  clip: DurationRecoveryTimeline['clips'][number],
+  currentIndex: number,
+): DurationRecoveryClip {
+  const memoryEntries = useAiMemoryStore.getState().getCompletedEntries();
+  const memory =
+    memoryEntries.find((entry) => entry.clipId === clip.id) ||
+    memoryEntries.find((entry) => entry.filePath === clip.path);
+  const signal = [
+    clip.name || '',
+    memory?.summary || '',
+    memory?.analysis || '',
+    memory?.audioInfo?.transcriptSummary || '',
+    ...(memory?.tags || []),
+    ...(memory?.scenes || []).map((scene) => scene.description),
+  ]
+    .join(' ')
+    .toLowerCase();
+
+  const addScore = (pattern: RegExp, points: number) => (pattern.test(signal) ? points : 0);
+  const hookScore =
+    addScore(/\b(winner|won|award|announcement|reveal|judges|demo|hackathon)\b/, 8) +
+    addScore(/\b(team|face|crowd|celebration)\b/, 3) +
+    (currentIndex === 0 ? 2 : 0);
+  const buildScore =
+    addScore(/\b(team|build|workspace|desk|coding|prototype|iterate|prepar|work)\b/, 8) +
+    addScore(/\b(candid|laptop|behind the scenes)\b/, 3);
+  const proofScore =
+    addScore(/\b(demo|judges|pitch|present|announcement|proof|reaction)\b/, 8) +
+    addScore(/\b(result|showed|final)\b/, 2);
+  const payoffScore =
+    addScore(
+      /\b(winner|won|award|announcement|first place|second place|third place|celebration)\b/,
+      10,
+    ) + addScore(/\b(team|reaction|photo)\b/, 2);
+  const baseScore =
+    hookScore * 0.25 +
+    buildScore * 0.2 +
+    proofScore * 0.3 +
+    payoffScore * 0.25 +
+    (clip.mediaType === 'image' ? 1 : 0) +
+    Math.min(3, Math.max(0, Number(clip.duration) / 4));
+
+  return {
+    ...clip,
+    score: Number(baseScore.toFixed(2)),
+    hookScore,
+    buildScore,
+    proofScore,
+    payoffScore,
+    currentIndex,
+  };
+}
+
+function chooseNarrativeClipOrder(
+  clips: DurationRecoveryTimeline['clips'],
+): DurationRecoveryClip[] {
+  const scored = clips.map((clip, index) => scoreDurationRecoveryClip(clip, index));
+  if (scored.length <= 2) {
+    return scored.sort((a, b) => a.currentIndex - b.currentIndex);
+  }
+
+  const used = new Set<string>();
+  const pick = (scoreKey: keyof DurationRecoveryClip): DurationRecoveryClip | null => {
+    const ranked = scored
+      .filter((clip) => !used.has(clip.id))
+      .sort((a, b) => {
+        const diff = Number(b[scoreKey]) - Number(a[scoreKey]);
+        if (diff !== 0) return diff;
+        return a.currentIndex - b.currentIndex;
+      });
+    const next = ranked[0] || null;
+    if (next) used.add(next.id);
+    return next;
+  };
+
+  const hook = pick('hookScore');
+  const build = pick('buildScore');
+  const proof = pick('proofScore');
+  const payoff = pick('payoffScore');
+  const middle = scored
+    .filter((clip) => !used.has(clip.id))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.currentIndex - b.currentIndex;
+    });
+
+  const ordered = [hook, build, proof, ...middle, payoff].filter(
+    (clip): clip is DurationRecoveryClip => Boolean(clip),
+  );
+
+  return ordered.length > 0 ? ordered : scored.sort((a, b) => a.currentIndex - b.currentIndex);
+}
+
+function allocateStoryDurations(
+  clips: DurationRecoveryClip[],
+  targetDuration: number,
+): Array<{ clip: DurationRecoveryClip; desiredDuration: number }> {
+  const totalScore = clips.reduce((sum, clip) => sum + Math.max(1, clip.score), 0);
+  const count = clips.length;
+  const baseFloor = count <= 3 ? 2.5 : count <= 5 ? 1.8 : 1.2;
+  const allocations = clips.map((clip, index) => {
+    const preferred =
+      index === 0
+        ? 1.15
+        : index === count - 1
+          ? 1.1
+          : clip.proofScore >= clip.buildScore
+            ? 1.08
+            : 1;
+    const maxAvailable = Math.max(0.8, Number(clip.sourceEnd) - Number(clip.sourceStart));
+    const weighted = (targetDuration * Math.max(1, clip.score)) / totalScore;
+    const desired = Math.min(maxAvailable, Math.max(baseFloor, weighted * preferred));
+    return {
+      clip,
+      desiredDuration: Number(desired.toFixed(2)),
+      maxAvailable,
+    };
+  });
+
+  let totalAllocated = allocations.reduce((sum, item) => sum + item.desiredDuration, 0);
+
+  if (totalAllocated > targetDuration) {
+    let overflow = totalAllocated - targetDuration;
+    const shrinkOrder = [...allocations].sort((a, b) => {
+      const aBuffer = a.desiredDuration - Math.min(baseFloor, a.maxAvailable);
+      const bBuffer = b.desiredDuration - Math.min(baseFloor, b.maxAvailable);
+      return bBuffer - aBuffer;
+    });
+    for (const item of shrinkOrder) {
+      if (overflow <= 0.01) break;
+      const minAllowed = Math.min(baseFloor, item.maxAvailable);
+      const shrink = Math.min(overflow, Math.max(0, item.desiredDuration - minAllowed));
+      if (shrink <= 0) continue;
+      item.desiredDuration = Number((item.desiredDuration - shrink).toFixed(2));
+      overflow -= shrink;
+    }
+  } else if (totalAllocated < targetDuration) {
+    let remaining = targetDuration - totalAllocated;
+    const growOrder = [...allocations].sort((a, b) => {
+      const aHeadroom = a.maxAvailable - a.desiredDuration;
+      const bHeadroom = b.maxAvailable - b.desiredDuration;
+      if (bHeadroom !== aHeadroom) return bHeadroom - aHeadroom;
+      return b.clip.score - a.clip.score;
+    });
+    for (const item of growOrder) {
+      if (remaining <= 0.01) break;
+      const grow = Math.min(remaining, Math.max(0, item.maxAvailable - item.desiredDuration));
+      if (grow <= 0) continue;
+      item.desiredDuration = Number((item.desiredDuration + grow).toFixed(2));
+      remaining -= grow;
+    }
+  }
+
+  totalAllocated = allocations.reduce((sum, item) => sum + item.desiredDuration, 0);
+  if (allocations.length > 0 && Math.abs(totalAllocated - targetDuration) > 0.01) {
+    const last = allocations[allocations.length - 1];
+    const adjusted = Math.max(
+      0.8,
+      Math.min(last.maxAvailable, last.desiredDuration + (targetDuration - totalAllocated)),
+    );
+    last.desiredDuration = Number(adjusted.toFixed(2));
+  }
+
+  return allocations.map(({ clip, desiredDuration }) => ({ clip, desiredDuration }));
 }
 
 export function buildDurationTargetRecoveryOperations(input: {
@@ -230,13 +426,140 @@ export function buildDurationTargetRecoveryOperations(input: {
   if (clips.length === 0) return [];
 
   const currentTotal = Number(input.snapshot.timeline.totalDuration || 0);
-  if (!Number.isFinite(currentTotal) || currentTotal <= targetDuration + 0.01) return [];
+  if (!Number.isFinite(currentTotal)) return [];
+  const shortFormStory = isShortFormStoryRequest(input.normalizedIntent, input.userMessage);
+
+  if (currentTotal < targetDuration - 0.01) {
+    const deficit = Number((targetDuration - currentTotal).toFixed(2));
+    const rankedForExpansion = shortFormStory ? chooseNarrativeClipOrder(clips) : [];
+    const extendableStill = [...(rankedForExpansion.length > 0 ? rankedForExpansion : clips)]
+      .reverse()
+      .find((clip) => clip.mediaType === 'image' || clip.mediaType === 'text');
+
+    if (extendableStill) {
+      const newEnd = Number((extendableStill.sourceEnd + deficit).toFixed(2));
+      return [
+        {
+          round: 1,
+          functionCall: {
+            name: 'update_clip_bounds',
+            args: {
+              clip_id: extendableStill.id,
+              new_start: extendableStill.sourceStart,
+              new_end: newEnd,
+            },
+          },
+          description: `Extend still clip by ${deficit.toFixed(2)}s to reach target duration`,
+          isReadOnly: false,
+          tokenBudget: buildOperationTokenBudget(false),
+        },
+      ];
+    }
+
+    const slowCandidate =
+      (shortFormStory ? rankedForExpansion[0] : null) || clips[clips.length - 1];
+    if (slowCandidate) {
+      const currentSpeed = Math.max(0.25, Number(slowCandidate.speed || 1));
+      const desiredDuration = Math.max(0.1, Number(slowCandidate.duration) + deficit);
+      const newSpeed = Number(
+        ((currentSpeed * Number(slowCandidate.duration)) / desiredDuration).toFixed(3),
+      );
+      if (newSpeed >= 0.25 && newSpeed < currentSpeed) {
+        return [
+          {
+            round: 1,
+            functionCall: {
+              name: 'set_clip_speed',
+              args: {
+                clip_id: slowCandidate.id,
+                speed: newSpeed,
+              },
+            },
+            description: `Slow ${shortFormStory ? 'best story clip' : 'final clip'} to ${newSpeed}x to fill target duration with real content`,
+            isReadOnly: false,
+            tokenBudget: buildOperationTokenBudget(false),
+          },
+        ];
+      }
+    }
+
+    return [];
+  }
+
+  if (currentTotal <= targetDuration + 0.01) return [];
 
   const totalClipDuration = clips.reduce(
     (sum, clip) => sum + Math.max(0.1, Number(clip.duration)),
     0,
   );
   if (totalClipDuration <= 0.1) return [];
+
+  if (shortFormStory) {
+    const ordered = chooseNarrativeClipOrder(clips);
+    const allocations = allocateStoryDurations(ordered, targetDuration);
+    const moveOps: PlannedOperation[] = [];
+    const trimOps: PlannedOperation[] = [];
+    let cursor = 0;
+
+    allocations.forEach(({ clip, desiredDuration }, index) => {
+      const currentStart = Number(clip.startTime || 0);
+      const currentTrack = Number(clip.trackIndex || 0);
+      const targetStart = Number(cursor.toFixed(2));
+      if (
+        clip.currentIndex !== index ||
+        Math.abs(currentStart - targetStart) > 0.05 ||
+        currentTrack !== 0
+      ) {
+        moveOps.push({
+          round: 1,
+          functionCall: {
+            name: 'move_clip',
+            args: {
+              clip_id: clip.id,
+              start_time: targetStart,
+              track_index: 0,
+            },
+          },
+          description:
+            index === 0
+              ? `Move strongest hook clip to timeline start`
+              : index === allocations.length - 1
+                ? `Place payoff clip at the ending beat`
+                : `Place clip in narrative order beat ${index + 1}`,
+          isReadOnly: false,
+          tokenBudget: buildOperationTokenBudget(false),
+        });
+      }
+
+      const newEnd = Math.min(
+        Number(clip.sourceDuration),
+        Number((Number(clip.sourceStart) + desiredDuration).toFixed(2)),
+      );
+      trimOps.push({
+        round: 1,
+        functionCall: {
+          name: 'update_clip_bounds',
+          args: {
+            clip_id: clip.id,
+            new_start: Number(clip.sourceStart),
+            new_end: newEnd,
+          },
+        },
+        description:
+          index === 0
+            ? `Trim hook clip to ${(newEnd - Number(clip.sourceStart)).toFixed(2)}s`
+            : index === allocations.length - 1
+              ? `Trim payoff clip to ${(newEnd - Number(clip.sourceStart)).toFixed(2)}s`
+              : `Trim beat ${index + 1} clip to ${(newEnd - Number(clip.sourceStart)).toFixed(2)}s`,
+        isReadOnly: false,
+        tokenBudget: buildOperationTokenBudget(false),
+      });
+
+      cursor += newEnd - Number(clip.sourceStart);
+    });
+
+    return [...moveOps, ...trimOps];
+  }
 
   const scale = targetDuration / currentTotal;
   let allocated = 0;
@@ -363,6 +686,16 @@ CRITICAL: You must ONLY use clip aliases from the provided snapshot.
     - preview_caption_fit
     - apply_script_as_captions
     Avoid long fragile chains of atomic subtitle calls unless absolutely necessary.
+10a. For Shorts / Reels / hackathon-story requests:
+    - plan around hook -> build -> proof/demo -> payoff -> CTA
+    - keep the strongest proof clip early
+    - keep caption beats short and grounded in media memory / analyzed scenes
+    - if applying captions, validate with preview_caption_fit before apply_script_as_captions
+10b. For exact duration requests (for example "make this 30 seconds"):
+    - empty gaps do NOT count toward the target duration
+    - move_clip alone is never a valid way to satisfy the target
+    - prefer extending visible content using source bounds, still-image duration, moderate speed changes, or duplication
+    - if get_timeline_info reports gaps after edits, the goal is NOT complete
 11. CONTENT-AWARE TRIM WORKFLOW (highlight / vlog / best moments / important parts requests):
     a. Call get_all_media_analysis FIRST to retrieve scenes for every clip.
        Each scene has {startTime, endTime, description} in SOURCE seconds.
@@ -1355,7 +1688,20 @@ function selectPlanningTools(message: string, mode: 'standard' | 'economy' = 'st
     base.add('paste_clips');
   }
 
-  if (/\b(subtitle|caption)\b/.test(text) && mode === 'standard') {
+  if (
+    /\b(\d+(\.\d+)?\s*(s|sec|secs|second|seconds|min|mins|minute|minutes)|shorts|reel|tiktok|duration)\b/.test(
+      text,
+    )
+  ) {
+    base.add('set_clip_speed');
+    base.add('copy_clips');
+    base.add('paste_clips');
+  }
+
+  if (
+    /\b(subtitle|caption|text overlay|overlay|on-screen text|onscreen text)\b/.test(text) &&
+    mode === 'standard'
+  ) {
     base.add('add_subtitle');
     base.add('update_subtitle');
     base.add('delete_subtitle');

@@ -20,11 +20,14 @@ const AGENTIC_KEYWORDS = new Set([
   'reel',
   'montage',
   'compilation',
+  'youtube short',
+  'youtube shorts',
+  'yt short',
+  'yt shorts',
+  'short form',
   'best moments',
   'best parts',
   'important parts',
-  'youtube short',
-  'youtube shorts',
   'short video',
   'analyze and',
   'check and',
@@ -40,6 +43,20 @@ const AGENTIC_KEYWORDS = new Set([
   'optimize',
   'content aware',
   'smart trim',
+  'make it best',
+  'proper script',
+  'for more views',
+  'most views',
+  'story arc',
+  'hook',
+  'proof',
+  'cta',
+  'text overlay',
+  'on-screen text',
+  'onscreen text',
+  'watch till the end',
+  'watch till end',
+  'watch till last',
 ]);
 
 // Keywords that suggest simple single-pass execution
@@ -72,6 +89,9 @@ export function decideExecutionMode(input: {
   hasTimeline: boolean;
 }): ExecutionModeDecision {
   const messageLower = input.message.toLowerCase();
+  const normalizedGoals = input.normalizedIntent?.goals || [];
+  const requestedOutputs = input.normalizedIntent?.requestedOutputs || [];
+  const targetPlatform = input.normalizedIntent?.constraints?.platform;
 
   // If no timeline, always use single-pass (or chat)
   if (!input.hasTimeline || input.clipCount === 0) {
@@ -90,6 +110,20 @@ export function decideExecutionMode(input: {
       reason: 'non_edit_intent',
       estimatedSteps: 1,
       estimatedCostUsd: 0.001,
+    };
+  }
+
+  const retentionOverlayRequest =
+    (/\b(text overlay|on-screen text|onscreen text|caption|subtitle)\b/i.test(messageLower) &&
+      /\b(retention|hook)\b/i.test(messageLower)) ||
+    (/\b(text overlay|on-screen text|onscreen text|caption|subtitle)\b/i.test(messageLower) &&
+      /\bwatch\b[\s\S]{0,30}\btil+l?\b[\s\S]{0,10}\b(end|last)\b/i.test(messageLower));
+  if (retentionOverlayRequest) {
+    return {
+      mode: 'agentic',
+      reason: 'retention_overlay_request',
+      estimatedSteps: Math.min(10, Math.max(4, input.clipCount + 2)),
+      estimatedCostUsd: estimateCost(input.clipCount, 'highlight'),
     };
   }
 
@@ -125,6 +159,20 @@ export function decideExecutionMode(input: {
         reason: 'target_duration_constraint',
         estimatedSteps: input.clipCount + 3,
         estimatedCostUsd: estimateCost(input.clipCount, 'target_duration'),
+      };
+    }
+
+    const shortFormStoryRequest =
+      (targetPlatform === 'youtube_shorts' || targetPlatform === 'instagram_reels') &&
+      (normalizedGoals.includes('script_generation') ||
+        normalizedGoals.includes('platform_optimized_output') ||
+        requestedOutputs.includes('short_script_outline'));
+    if (shortFormStoryRequest) {
+      return {
+        mode: 'agentic',
+        reason: 'short_form_story_request',
+        estimatedSteps: Math.min(15, Math.max(6, input.clipCount + 4)),
+        estimatedCostUsd: estimateCost(input.clipCount, 'highlight'),
       };
     }
 
@@ -165,6 +213,19 @@ export function decideExecutionMode(input: {
       reason: 'compound_request',
       estimatedSteps: 5,
       estimatedCostUsd: 0.006,
+    };
+  }
+
+  const executionHeavyShortForm =
+    /\b(make|create|turn|edit|arrange|optimi[sz]e|polish)\b/i.test(messageLower) &&
+    /\b(shorts|reel|tiktok|youtube short|yt short)\b/i.test(messageLower) &&
+    /\b(script|caption|hook|story|views|viral|upload|30\s*(?:s|sec|second))\b/i.test(messageLower);
+  if (executionHeavyShortForm) {
+    return {
+      mode: 'agentic',
+      reason: 'execution_heavy_short_form',
+      estimatedSteps: Math.min(15, Math.max(6, input.clipCount + 4)),
+      estimatedCostUsd: estimateCost(input.clipCount, 'highlight'),
     };
   }
 

@@ -79,7 +79,8 @@ const MediaTab = ({
               path,
               name,
               duration: imageDuration,
-              sourceDuration: imageDuration,
+              assetDuration: imageDuration,
+              sourceDuration: 300,
               thumbnail,
               waveform: undefined,
               mediaType: 'image',
@@ -135,6 +136,7 @@ const MediaTab = ({
             path,
             name,
             duration,
+            assetDuration: duration,
             sourceDuration: duration,
             thumbnail,
             waveform,
@@ -185,7 +187,16 @@ const MediaTab = ({
     }
   };
 
-  const filteredClips = clips.filter(
+  const sourceAssets = Array.from(
+    clips.reduce((map, clip) => {
+      if (!map.has(clip.path)) {
+        map.set(clip.path, clip);
+      }
+      return map;
+    }, new Map<string, (typeof clips)[number]>()),
+  ).map(([, clip]) => clip);
+
+  const filteredClips = sourceAssets.filter(
     (clip) => filterType === 'all' || clip.mediaType === filterType,
   );
 
@@ -263,15 +274,17 @@ const MediaTab = ({
         ) : clips.length === 0 ? null : (
           <div className="grid grid-cols-2 gap-1.5">
             {filteredClips.map((clip) => (
-              <div
+              <button
+                type="button"
                 key={clip.id}
                 onClick={() => setActiveClip(clip.id)}
                 className={clsx(
-                  'relative aspect-video bg-bg-elevated rounded-lg overflow-hidden cursor-pointer border-2 transition-all group',
+                  'relative aspect-video bg-bg-elevated rounded-lg overflow-hidden cursor-pointer border-2 transition-all group text-left',
                   activeClipId === clip.id
                     ? 'border-blue-500'
                     : 'border-transparent hover:border-white/20',
                 )}
+                title={clip.name}
               >
                 {clip.thumbnail ? (
                   <img
@@ -305,11 +318,17 @@ const MediaTab = ({
                 )}
                 {/* Duration badge */}
                 <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/70 rounded text-[9px] text-white font-medium">
-                  {(typeof clip.duration === 'number' ? clip.duration : 0).toFixed(0)}s
+                  {(typeof clip.assetDuration === 'number'
+                    ? clip.assetDuration
+                    : typeof clip.sourceDuration === 'number'
+                      ? clip.sourceDuration
+                      : clip.duration
+                  ).toFixed(0)}
+                  s
                 </div>
                 {/* Hover overlay */}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all" />
-              </div>
+              </button>
             ))}
           </div>
         )}

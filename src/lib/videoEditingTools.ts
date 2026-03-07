@@ -313,6 +313,7 @@ export const updateClipBoundsDeclaration = {
     description:
       'Trims the start and/or end of a clip by adjusting its SOURCE boundaries (positions within the source media file, NOT the timeline). ' +
       'new_start and new_end are in seconds relative to the beginning of the source file, between 0 and sourceDuration. ' +
+      'For still images/text clips, increasing new_end can extend their visible duration on the timeline. ' +
       '\n\nARITHMETIC RULES:\n' +
       '  - To keep the first X seconds of a clip: new_end = sourceStart + X.\n' +
       '  - To trim the last Y seconds off a clip: new_end = sourceEnd - Y.\n' +

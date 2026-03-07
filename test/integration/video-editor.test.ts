@@ -119,7 +119,8 @@ describe('Video Editor Integration Tests', () => {
     });
 
     it('should handle copy-paste workflow', () => {
-      const { addClip, toggleClipSelection, copyClips, pasteClips } = useProjectStore.getState();
+      const { addClip, toggleClipSelection, copyClips, pasteClips, setCurrentTime } =
+        useProjectStore.getState();
 
       // Add clip
       addClip({
@@ -138,11 +139,13 @@ describe('Video Editor Integration Tests', () => {
       expect(useProjectStore.getState().copiedClips).toHaveLength(1);
 
       // Paste
+      setCurrentTime(10);
       pasteClips();
 
       const clips = useProjectStore.getState().clips;
       expect(clips).toHaveLength(2);
       expect(clips[1].name).toContain('Copy');
+      expect(clips[1].startTime).toBe(10);
     });
   });
 

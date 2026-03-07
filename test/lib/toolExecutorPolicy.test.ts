@@ -50,6 +50,41 @@ describe('ToolExecutor planning guard + policy execution', () => {
     expect(preflight.corrections.length).toBeGreaterThan(0);
   });
 
+  it('allows still-image clips to extend beyond their current visible duration', () => {
+    useProjectStore.setState({
+      clips: [
+        {
+          id: 'image-1',
+          path: '/tmp/still.png',
+          name: 'Still',
+          duration: 5,
+          assetDuration: 5,
+          sourceDuration: 300,
+          start: 0,
+          end: 5,
+          startTime: 0,
+          mediaType: 'image',
+          trackIndex: 0,
+          volume: 1,
+          muted: false,
+        },
+      ],
+    } as any);
+
+    const preflight = ToolExecutor.preflightPlan([
+      {
+        name: 'update_clip_bounds',
+        args: {
+          clip_id: 'image-1',
+          new_end: 12,
+        },
+      },
+    ]);
+
+    expect(preflight.valid).toBe(true);
+    expect(preflight.normalizedCalls[0].args.new_end).toBe(12);
+  });
+
   it('preflight fails unsupported tools with tool_missing taxonomy', () => {
     const preflight = ToolExecutor.preflightPlan([
       {
@@ -60,6 +95,29 @@ describe('ToolExecutor planning guard + policy execution', () => {
 
     expect(preflight.valid).toBe(false);
     expect(preflight.issues[0].errorType).toBe('tool_missing');
+  });
+
+  it('preflight simulates subtitle count across sequential add/update calls', () => {
+    const preflight = ToolExecutor.preflightPlan([
+      {
+        name: 'add_subtitle',
+        args: {
+          text: 'Hook',
+          start_time: 0,
+          end_time: 2,
+        },
+      },
+      {
+        name: 'update_subtitle',
+        args: {
+          index: 1,
+          text: 'Better Hook',
+        },
+      },
+    ]);
+
+    expect(preflight.valid).toBe(true);
+    expect(preflight.issues).toHaveLength(0);
   });
 
   it('hybrid execution batches read-only operations safely', async () => {

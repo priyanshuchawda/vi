@@ -42,6 +42,17 @@ function buildScriptPrompt(input: PromptOptimizationInput): string {
   const tone = ATTRACTIVE_TONE_PATTERN.test(input.message)
     ? 'high-energy, attractive'
     : 'confident';
+  const normalizedIntent = input.laneDecision.normalizedIntent;
+  const executionOrEditRequested =
+    normalizedIntent.requiresPlanning ||
+    normalizedIntent.requestedOutputs.includes('edit_plan') ||
+    Number(normalizedIntent.constraints?.target_duration || 0) > 0 ||
+    /\b(arrange|modify|edit|trim|timeline|cut|speed|apply|work with it|go ahead|do it)\b/i.test(
+      input.message,
+    );
+  const finalInstruction = executionOrEditRequested
+    ? '8) Do not ask for confirmation. Return only the finished script draft.'
+    : '8) After the script, ask exactly one question: "Apply these as captions on timeline?"';
 
   return `User request (keep intent): "${input.message}"
 
@@ -61,7 +72,7 @@ Output format requirements:
 5) Avoid repeating the same sentence starter across beats.
 6) Each beat should feel distinct (hook, build, proof, win).
 7) End with one strong winner line in the last beat.
-8) After the script, ask exactly one question: "Apply these as captions on timeline?"
+${finalInstruction}
 
 Do not claim any timeline edit was executed in this response.`;
 }

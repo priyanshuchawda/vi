@@ -372,6 +372,10 @@ const SCRIPT_CAPTION_SAFE_TOOLS = new Set([
   'preview_caption_fit',
 ]);
 
+function hasTargetDurationConstraint(normalizedIntent?: NormalizedIntent): boolean {
+  return Number(normalizedIntent?.constraints?.target_duration || 0) > 0;
+}
+
 function applyCompilerGuardrails(
   operations: PlannedOperation[],
   options?: CompilePlanOptions,
@@ -392,14 +396,36 @@ function applyCompilerGuardrails(
       normalizedIntent?.operationHint === 'script_outline' ||
       normalizedIntent?.requestedOutputs?.includes('short_script_outline') ||
       normalizedIntent?.requestedOutputs?.includes('subtitle_plan'),
-    ) || /\b(script|voiceover|narration|caption|subtitle|on-screen text)\b/.test(userMessage);
+    ) ||
+    /\b(script|voiceover|narration|caption|subtitle|text overlay|overlay|on-screen text|onscreen text)\b/.test(
+      userMessage,
+    );
+  const pureCaptionApplyIntent =
+    (/\bapply\b.*\b(caption|captions|subtitle|subtitles|text overlay|overlay|on-screen text|onscreen text)\b/.test(
+      userMessage,
+    ) ||
+      /\bcaption\b.*\bapply\b/.test(userMessage)) &&
+    !normalizedIntent?.requestedOutputs?.includes('edit_plan') &&
+    !hasTargetDurationConstraint(normalizedIntent) &&
+    !normalizedIntent?.goals?.includes('platform_optimized_output');
 
   const repaired = operations.filter((operation, index) => {
     const name = operation.functionCall.name;
 
-    if (scriptCaptionIntent && !SCRIPT_CAPTION_SAFE_TOOLS.has(name)) {
+    if (pureCaptionApplyIntent && !SCRIPT_CAPTION_SAFE_TOOLS.has(name)) {
       warnings.push(
-        `Op ${index + 1}: Dropped ${name} due to script/caption intent (non-caption timeline mutation blocked).`,
+        `Op ${index + 1}: Dropped ${name} due to caption-apply intent (non-caption timeline mutation blocked).`,
+      );
+      return false;
+    }
+
+    if (
+      scriptCaptionIntent &&
+      hasTargetDurationConstraint(normalizedIntent) &&
+      name === 'move_clip'
+    ) {
+      warnings.push(
+        `Op ${index + 1}: Dropped move_clip because duration-driven script requests must fill time with content, not gaps.`,
       );
       return false;
     }

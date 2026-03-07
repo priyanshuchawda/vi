@@ -55,6 +55,25 @@ export interface AnalysisResponse {
   error_code?: string;
 }
 
+export interface AiConfigSettings {
+  youtubeApiKey: string;
+  awsRegion: string;
+  awsAccessKeyId: string;
+  awsSecretAccessKey: string;
+  awsSessionToken: string;
+  bedrockInferenceProfileId: string;
+  bedrockModelId: string;
+}
+
+export interface AiConfigStatus {
+  bedrockReady: boolean;
+  youtubeReady: boolean;
+  usingSavedSettings: boolean;
+  usingEnvFallback: boolean;
+  missingBedrockFields: string[];
+  missingYouTubeFields: string[];
+}
+
 export interface YouTubeVideoMetadata {
   title: string;
   description: string;
@@ -201,6 +220,13 @@ export interface ElectronAPI {
   rulesWrite: (content: string) => Promise<{ success: boolean; path?: string; error?: string }>;
   rulesRead: () => Promise<{ success: boolean; content?: string | null; error?: string }>;
   bedrockConverse: (input: Record<string, unknown>) => Promise<unknown>;
+  aiConfig: {
+    get: () => Promise<AiConfigSettings>;
+    save: (
+      settings: AiConfigSettings,
+    ) => Promise<{ success: boolean; error?: string; code?: string }>;
+    getStatus: () => Promise<AiConfigStatus>;
+  };
 }
 
 declare global {

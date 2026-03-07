@@ -5,6 +5,9 @@ function decide(input: Partial<ConversationLaneInput>) {
   return resolveConversationLane({
     message: input.message || '',
     lastAssistantMessage: input.lastAssistantMessage || '',
+    lastActionableUserMessage: input.lastActionableUserMessage,
+    lastActionableAssistantMessage: input.lastActionableAssistantMessage,
+    lastActionableAssistantArtifact: input.lastActionableAssistantArtifact,
     hasTimeline: input.hasTimeline ?? true,
     hasPendingPlan: input.hasPendingPlan ?? false,
     hasRecentEditingContext: input.hasRecentEditingContext ?? false,
@@ -23,6 +26,15 @@ describe('conversationLane phase 1', () => {
   it('routes explicit timeline edit prompts to timeline edit lane', () => {
     const result = decide({
       message: 'trim the photo from 2 sec to 6 second and increase it',
+      hasRecentEditingContext: true,
+    });
+    expect(result.lane).toBe('timeline_edit');
+  });
+
+  it('routes broad youtube short creation asks into the edit lane', () => {
+    const result = decide({
+      message:
+        'create a vlog youtube short video which should be attractive lets plan properly and make this yt short video the best',
       hasRecentEditingContext: true,
     });
     expect(result.lane).toBe('timeline_edit');

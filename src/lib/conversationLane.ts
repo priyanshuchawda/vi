@@ -8,6 +8,9 @@ export interface ConversationLaneInput {
   message: string;
   lastAssistantMessage: string;
   lastAssistantArtifact?: NonNullable<ChatMessage['metadata']>['artifact'];
+  lastActionableUserMessage?: string;
+  lastActionableAssistantMessage?: string;
+  lastActionableAssistantArtifact?: NonNullable<ChatMessage['metadata']>['artifact'];
   hasTimeline: boolean;
   hasPendingPlan: boolean;
   hasRecentEditingContext: boolean;
@@ -122,6 +125,21 @@ function looksLikeExecutionResult(text: string): boolean {
   return /execution complete|operations executed|timeline diff:|rollback: use undo/i.test(text);
 }
 
+function looksLikeNoopExecutionResult(text: string): boolean {
+  const normalized = String(text || '').toLowerCase();
+  if (!looksLikeExecutionResult(normalized)) return false;
+
+  const readOnlyOnly =
+    /operations executed:\s*1\.\s*check timeline state/i.test(text) ||
+    /operations executed:\s*1\.\s*get timeline info/i.test(text);
+  const noStructuralChange =
+    /added clips:\s*none/i.test(text) &&
+    /removed clips:\s*none/i.test(text) &&
+    /duration:\s*([0-9.]+)s\s*->\s*\1s/i.test(text);
+
+  return readOnlyOnly || noStructuralChange;
+}
+
 function looksLikeExecutionPlan(text: string): boolean {
   return /complete execution plan|plan ready|execute \(\d+\)/i.test(text);
 }
@@ -131,13 +149,87 @@ export function buildCaptionApplyRequest(lastAssistantMessage: string): string {
   return `Apply the script from your previous response as on-screen captions on my current timeline.
 
 Requirements:
-- Use subtitle/caption editing tools to add the timestamped lines.
+- Prefer preview_caption_fit and apply_script_as_captions so this runs in one reliable pass.
+- Only fall back to atomic subtitle tools if the macro path cannot represent the script.
 - Keep the final caption sequence within the timeline duration.
 - Preserve my existing clips; do not trim or reorder unless absolutely required.
 - Use concise, attractive caption text matching the script tone.
 
 Reference script:
 ${compactScript}`;
+}
+
+function compactText(text: string, maxLength = 2400): string {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+function shouldResumeFullEditRequest(message: string): boolean {
+  const lower = String(message || '').toLowerCase();
+  if (!lower) return false;
+
+  const hasCaptionOnlyIntent =
+    /\b(apply|add|put|insert|use)\b/.test(lower) &&
+    /\b(caption|captions|subtitle|subtitles)\b/.test(lower) &&
+    !/\b(trim|edit|editing|timeline|clip|clips|duration|seconds?|shorts|reel|tiktok|views|viral|speed|arrange|modify)\b/.test(
+      lower,
+    );
+
+  if (hasCaptionOnlyIntent) {
+    return false;
+  }
+
+  return /\b(trim|edit|editing|timeline|clip|clips|duration|seconds?|shorts|reel|tiktok|views|viral|speed|arrange|modify|script|voiceover|hook|story|youtube short|yt short)\b/.test(
+    lower,
+  );
+}
+
+export function buildAutonomousResumeRequest(
+  originalUserMessage: string,
+  referenceAssistantMessage?: string,
+): string {
+  const compactOriginal = compactText(originalUserMessage, 1200);
+  const compactReference = compactText(referenceAssistantMessage || '', 2400);
+  const referenceBlock = compactReference
+    ? `\n\nReference draft/context from the previous assistant response:\n${compactReference}`
+    : '';
+
+  return `Continue the previous editing request and complete it end-to-end.
+
+Original request:
+${compactOriginal}
+
+Execution requirements:
+- Treat this as a full autonomous editing task, not a partial single-step change.
+- If the request includes a target duration, fill that duration with real visible content, not empty gaps.
+- Re-check the timeline/media state after meaningful edits and keep iterating until the request is actually complete.
+- Use the reference draft/context below as guidance for scripting, captions, and pacing when helpful.
+- Prefer reliable macro tools for script/caption application, but keep editing the timeline if the overall short is still incomplete.
+- Do not stop after only trimming/extending/moving one clip if the broader request still is not satisfied.${referenceBlock}`;
+}
+
+function deriveIntentForMessage(
+  message: string,
+  input: Pick<ConversationLaneInput, 'hasTimeline' | 'hasPendingPlan' | 'hasRecentEditingContext'>,
+): {
+  baseIntent: MessageIntent;
+  normalizedIntent: NormalizedIntent;
+} {
+  const baseIntent = classifyIntentWithContext(message, {
+    hasPendingPlan: input.hasPendingPlan,
+    hasRecentEditingContext: input.hasRecentEditingContext,
+  });
+
+  const normalizedIntent = normalizeUserIntent(message, {
+    hasTimeline: input.hasTimeline,
+    baseIntent,
+    hasPendingPlan: input.hasPendingPlan,
+    hasRecentEditingContext: input.hasRecentEditingContext,
+  });
+
+  return { baseIntent, normalizedIntent };
 }
 
 export function hasRecentEditingContext(
@@ -153,36 +245,51 @@ export function hasRecentEditingContext(
 }
 
 export function resolveConversationLane(input: ConversationLaneInput): ConversationLaneDecision {
-  const baseIntent = classifyIntentWithContext(input.message, {
-    hasPendingPlan: input.hasPendingPlan,
-    hasRecentEditingContext: input.hasRecentEditingContext,
-  });
-
-  const normalizedIntent = normalizeUserIntent(input.message, {
-    hasTimeline: input.hasTimeline,
-    baseIntent,
-    hasPendingPlan: input.hasPendingPlan,
-    hasRecentEditingContext: input.hasRecentEditingContext,
-  });
+  const currentIntent = deriveIntentForMessage(input.message, input);
+  const baseIntent = currentIntent.baseIntent;
+  const normalizedIntent = currentIntent.normalizedIntent;
 
   const confirmation = isExecutionConfirmation(input.message);
   const continuation = isAmbiguousContinuation(input.message);
+  const effectiveAssistantMessage =
+    input.lastActionableAssistantMessage || input.lastAssistantMessage;
+  const effectiveAssistantArtifact =
+    input.lastActionableAssistantArtifact ||
+    input.lastAssistantArtifact ||
+    inferAssistantArtifactFromText(effectiveAssistantMessage);
+  const resumeCandidateMessage = input.lastActionableUserMessage || '';
+  const resumeIntent = resumeCandidateMessage
+    ? deriveIntentForMessage(resumeCandidateMessage, input)
+    : currentIntent;
+  const wantsFullEditResume = shouldResumeFullEditRequest(resumeCandidateMessage);
   const assistantLooksLikeExecutionResult = looksLikeExecutionResult(input.lastAssistantMessage);
   const assistantHasEditPlan =
-    !assistantLooksLikeExecutionResult && looksLikeEditPlan(input.lastAssistantMessage);
+    !assistantLooksLikeExecutionResult && looksLikeEditPlan(effectiveAssistantMessage);
   const assistantHasExecutableScriptDraft =
-    !assistantLooksLikeExecutionResult && scriptDraftOffersExecution(input.lastAssistantMessage);
-  const artifact =
-    input.lastAssistantArtifact || inferAssistantArtifactFromText(input.lastAssistantMessage);
+    !assistantLooksLikeExecutionResult && scriptDraftOffersExecution(effectiveAssistantMessage);
+  const artifact = effectiveAssistantArtifact;
   const artifactIsExecutable = Boolean(artifact?.executable);
   const artifactHasCaptionApply =
     artifact?.type === 'script_draft' &&
     Boolean(artifact?.nextActions?.includes('apply_script_as_captions'));
 
   if (confirmation && artifactIsExecutable && artifactHasCaptionApply) {
+    if (wantsFullEditResume) {
+      return {
+        lane: 'timeline_edit',
+        plannerInput: buildAutonomousResumeRequest(
+          resumeCandidateMessage,
+          effectiveAssistantMessage,
+        ),
+        reason: 'confirmation_resume_full_edit_request',
+        baseIntent: resumeIntent.baseIntent,
+        normalizedIntent: resumeIntent.normalizedIntent,
+      };
+    }
+
     return {
       lane: 'timeline_edit',
-      plannerInput: buildCaptionApplyRequest(input.lastAssistantMessage),
+      plannerInput: buildCaptionApplyRequest(effectiveAssistantMessage),
       reason: 'confirmation_bound_to_artifact_action',
       baseIntent,
       normalizedIntent,
@@ -200,9 +307,22 @@ export function resolveConversationLane(input: ConversationLaneInput): Conversat
   }
 
   if (confirmation && assistantHasExecutableScriptDraft) {
+    if (wantsFullEditResume) {
+      return {
+        lane: 'timeline_edit',
+        plannerInput: buildAutonomousResumeRequest(
+          resumeCandidateMessage,
+          effectiveAssistantMessage,
+        ),
+        reason: 'confirmation_resume_full_edit_request',
+        baseIntent: resumeIntent.baseIntent,
+        normalizedIntent: resumeIntent.normalizedIntent,
+      };
+    }
+
     return {
       lane: 'timeline_edit',
-      plannerInput: buildCaptionApplyRequest(input.lastAssistantMessage),
+      plannerInput: buildCaptionApplyRequest(effectiveAssistantMessage),
       reason: 'confirmation_for_executable_script_draft',
       baseIntent,
       normalizedIntent,
@@ -219,6 +339,20 @@ export function resolveConversationLane(input: ConversationLaneInput): Conversat
     };
   }
 
+  if (
+    confirmation &&
+    looksLikeNoopExecutionResult(input.lastAssistantMessage) &&
+    resumeCandidateMessage
+  ) {
+    return {
+      lane: 'timeline_edit',
+      plannerInput: buildAutonomousResumeRequest(resumeCandidateMessage, effectiveAssistantMessage),
+      reason: 'confirmation_resume_after_noop_execution',
+      baseIntent: resumeIntent.baseIntent,
+      normalizedIntent: resumeIntent.normalizedIntent,
+    };
+  }
+
   if (confirmation) {
     return {
       lane: 'script_guidance',
@@ -230,6 +364,29 @@ export function resolveConversationLane(input: ConversationLaneInput): Conversat
   }
 
   if (continuation && input.hasRecentEditingContext) {
+    if (wantsFullEditResume) {
+      return {
+        lane: 'timeline_edit',
+        plannerInput: buildAutonomousResumeRequest(
+          resumeCandidateMessage,
+          effectiveAssistantMessage,
+        ),
+        reason: 'editing_continuation_resume_previous_request',
+        baseIntent: resumeIntent.baseIntent,
+        normalizedIntent: resumeIntent.normalizedIntent,
+      };
+    }
+
+    if (resumeCandidateMessage) {
+      return {
+        lane: 'timeline_edit',
+        plannerInput: resumeCandidateMessage,
+        reason: 'editing_continuation_reuse_previous_request',
+        baseIntent: resumeIntent.baseIntent,
+        normalizedIntent: resumeIntent.normalizedIntent,
+      };
+    }
+
     return {
       lane: 'timeline_edit',
       plannerInput: input.message,

@@ -33,8 +33,9 @@ const STYLE_AMBIGUITY_PATTERN =
 const SHORT_FORM_PATTERN = /\b(yt short|youtube short|shorts|reel|tiktok)\b/i;
 const SCRIPT_PATTERN = /\b(script|voiceover|narration|caption script|storyline|hook)\b/i;
 const EDIT_OPERATION_PATTERN =
-  /\b(edit|trim|split|cut|crop|delete|remove|move|merge|combine|join|duplicate|copy|paste|reorder|timeline|clip|track|transition|effect|filter|fade|speed|audio|mute|unmute|volume|subtitle|caption|transcribe|playhead|export|render)\b/i;
-const VIDEO_BUILD_PATTERN = /\b(make|create|build)\s+(a\s+)?(youtube\s+)?video\b/i;
+  /\b(edit|trim|split|cut|crop|delete|remove|move|merge|combine|join|duplicate|copy|paste|reorder|timeline|clip|track|transition|effect|filter|fade|speed|audio|mute|unmute|volume|subtitle|caption|overlay|on-screen text|onscreen text|transcribe|playhead|export|render)\b/i;
+const VIDEO_BUILD_PATTERN =
+  /\b(make|create|build|turn)\b[\s\S]{0,40}\b(video|short|shorts|reel|vlog|montage|highlight reel)\b/i;
 
 function isScriptOnlyRequest(message: string): boolean {
   if (!SCRIPT_PATTERN.test(message)) return false;
@@ -64,7 +65,8 @@ function detectOperationHint(message: string): string | null {
   if (/\bmerge|combine|join|stitch\b/i.test(message)) return 'merge';
   if (/\btransition|fade|crossfade\b/i.test(message)) return 'transition';
   if (/\bvolume|audio|mute|music|duck\b/i.test(message)) return 'audio_adjust';
-  if (/\bcaption|subtitle\b/i.test(message)) return 'subtitle';
+  if (/\bcaption|subtitle|text overlay|overlay|on-screen text|onscreen text\b/i.test(message))
+    return 'subtitle';
   if (SCRIPT_PATTERN.test(message)) return 'script_outline';
   return null;
 }
@@ -80,7 +82,7 @@ function detectGoals(message: string): string[] {
   if (/\bsmooth|transition|flow|properly\b/i.test(message)) {
     goals.push('smooth_transitions');
   }
-  if (/\bmodern|clean|cinematic|reel|viral|cool\b/i.test(message)) {
+  if (/\bmodern|clean|cinematic|reel|viral|cool|attractive|engaging\b/i.test(message)) {
     goals.push('style_enhancement');
   }
   if (/\bshorts|reel|youtube|yt|tiktok\b/i.test(message)) {
@@ -104,7 +106,7 @@ function detectRequestedOutputs(message: string): string[] {
   if (SCRIPT_PATTERN.test(message)) {
     outputs.push('short_script_outline');
   }
-  if (/\bcaption|subtitle\b/i.test(message)) {
+  if (/\bcaption|subtitle|text overlay|overlay|on-screen text|onscreen text\b/i.test(message)) {
     outputs.push('subtitle_plan');
   }
   return Array.from(new Set(outputs));
@@ -168,6 +170,7 @@ export function normalizeUserIntent(message: string, options: NormalizeOptions):
   const imperativeEditSignal =
     EXECUTION_PATTERN.test(lower) ||
     Boolean(operationHint) ||
+    VIDEO_BUILD_PATTERN.test(lower) ||
     /\bmy clip|my video|timeline|edit this|edit these\b/i.test(lower);
   const baseIntentIsEdit = options.baseIntent === 'edit';
   const contextSuggestsEdit = Boolean(options.hasPendingPlan || options.hasRecentEditingContext);

@@ -9,6 +9,23 @@ const CASES_PATH = path.resolve(process.cwd(), 'test/ai-eval/cases.json');
 const OUTPUT_DIR = path.resolve(process.cwd(), 'test-output/ai-evals');
 const VIDEO_TEST_DIR = path.resolve(process.cwd(), 'video_test');
 
+function inferNovaProfilePrefix(region) {
+  const normalized = String(region || '').toLowerCase();
+  if (normalized.startsWith('eu-')) return 'eu';
+  if (normalized.startsWith('ap-')) return 'apac';
+  return 'us';
+}
+
+function normalizeBedrockModelIdentifier(modelId, awsRegion, explicitInferenceProfileId) {
+  const trimmedExplicit = String(explicitInferenceProfileId || '').trim();
+  if (trimmedExplicit) return trimmedExplicit;
+  if (!modelId) return modelId;
+  if (modelId.startsWith('arn:aws:bedrock:') || /^(us|eu|apac)\./.test(modelId)) return modelId;
+  const novaMatch = modelId.match(/^amazon\.(nova-(micro|lite|pro)-v1:0)$/);
+  if (novaMatch) return `${inferNovaProfilePrefix(awsRegion)}.amazon.${novaMatch[1]}`;
+  return modelId;
+}
+
 function parseArgs(argv) {
   const args = { caseId: '', model: process.env.BEDROCK_MODEL_ID || 'amazon.nova-lite-v1:0' };
   for (let i = 2; i < argv.length; i++) {
@@ -318,6 +335,8 @@ async function run() {
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
   const sessionToken = process.env.AWS_SESSION_TOKEN;
+  const inferenceProfile = process.env.BEDROCK_INFERENCE_PROFILE_ID || '';
+  const resolvedModelId = normalizeBedrockModelIdentifier(args.model, region, inferenceProfile);
 
   if (!accessKeyId || !secretAccessKey) {
     throw new Error('Missing AWS credentials in .env');
@@ -380,7 +399,7 @@ async function run() {
   });
 
   const command = new ConverseCommand({
-    modelId: args.model,
+    modelId: resolvedModelId,
     system: [{ text: systemText }],
     messages: [{ role: 'user', content: userBlocks }],
     inferenceConfig: {
@@ -404,7 +423,7 @@ async function run() {
   if (selectedCase.expectJson && !contractValidation.valid) {
     const repair = await client.send(
       new ConverseCommand({
-        modelId: args.model,
+        modelId: resolvedModelId,
         system: [{ text: systemText }],
         messages: [
           {

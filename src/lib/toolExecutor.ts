@@ -3,6 +3,7 @@ import { useAiMemoryStore } from '../stores/useAiMemoryStore';
 import type { FunctionCall, ToolResult } from './videoEditingTools';
 import { isReadOnlyTool, isToolAllowedInMode, type RuntimeToolMode } from './toolCapabilityMatrix';
 import { retrieveRelevantMemory } from './memoryRetrieval';
+import { detectGaps } from './clipOperations';
 import type { ExportFormat, ExportResolution } from '../stores/useProjectStore';
 
 type ToolErrorCategory =
@@ -77,6 +78,19 @@ interface ToolExecutionHookEvent {
   total: number;
   event: ToolExecutionHookName;
   result?: ToolResult;
+}
+
+interface StoryEvidence {
+  clipId: string;
+  clipName: string;
+  clipIndex: number;
+  startTime: number;
+  duration: number;
+  sourceText: string;
+  shortLabel: string;
+  tags: string[];
+  hasSpeech: boolean;
+  kind: 'summary' | 'scene' | 'transcript' | 'clip_name';
 }
 
 interface ExecutionLifecycleContext {
@@ -299,6 +313,331 @@ export class ToolExecutor {
     return phrases;
   }
 
+  private static cleanStorySnippet(input: string, fallback: string): string {
+    const cleaned = String(input || '')
+      .replace(/[_*#`]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!cleaned) return fallback;
+    const sentence = cleaned
+      .split(/[.!?]/)
+      .map((part) => part.trim())
+      .find((part) => part.length >= 4);
+    return sentence || cleaned || fallback;
+  }
+
+  private static toTitleCaseWords(input: string): string {
+    return input
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  private static extractPlacementPhrase(signal: string): string | null {
+    const lower = signal.toLowerCase();
+    if (/\bfirst place\b/.test(lower)) return 'first place';
+    if (/\bsecond place\b/.test(lower)) return 'second place';
+    if (/\bthird place\b/.test(lower)) return 'third place';
+    if (/\bwinner\b/.test(lower) || /\bwon\b/.test(lower)) return 'the win';
+    if (/\baward\b/.test(lower)) return 'the award';
+    return null;
+  }
+
+  private static pickLabelFromText(input: string, fallback: string): string {
+    const cleaned = String(input || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!cleaned) return fallback;
+
+    const phraseRules: Array<{ pattern: RegExp; label: string }> = [
+      { pattern: /\b(first place)\b/, label: 'First Place' },
+      { pattern: /\b(second place)\b/, label: 'Second Place' },
+      { pattern: /\b(third place)\b/, label: 'Third Place' },
+      {
+        pattern: /\b(winning announcement|winner announcement|winners announced)\b/,
+        label: 'Winner Reveal',
+      },
+      { pattern: /\b(award ceremony|receives award|receiving award)\b/, label: 'Award Moment' },
+      { pattern: /\b(demo to judges|presenting demo|demoing)\b/, label: 'Demo To Judges' },
+      { pattern: /\b(judges reaction|judges)\b/, label: 'Judges Watching' },
+      {
+        pattern: /\b(team candid|team at desk|workspace candid|desk\/laptop|desk laptop)\b/,
+        label: 'Team Build',
+      },
+      { pattern: /\b(build|prototype|coding|iteration)\b/, label: 'Build Sprint' },
+      { pattern: /\b(celebration|cheer|high fives|reaction)\b/, label: 'Team Reaction' },
+    ];
+
+    for (const rule of phraseRules) {
+      if (rule.pattern.test(cleaned)) return rule.label;
+    }
+
+    const words = cleaned
+      .split(' ')
+      .filter(
+        (word) => word.length >= 3 && !['with', 'from', 'that', 'this', 'their'].includes(word),
+      )
+      .slice(0, 3);
+    return words.length > 0 ? this.toTitleCaseWords(words.join(' ')) : fallback;
+  }
+
+  private static buildStoryEvidence(): StoryEvidence[] {
+    const store = useProjectStore.getState();
+    const memoryEntries = useAiMemoryStore.getState().getCompletedEntries();
+    const memoryByClipId = new Map(
+      memoryEntries.filter((entry) => entry.clipId).map((entry) => [entry.clipId!, entry]),
+    );
+    const memoryByFilePath = new Map(memoryEntries.map((entry) => [entry.filePath, entry]));
+    const evidence: StoryEvidence[] = [];
+
+    store.clips
+      .slice()
+      .sort((a, b) => a.startTime - b.startTime)
+      .forEach((clip, index) => {
+        const entry = memoryByClipId.get(clip.id) || memoryByFilePath.get(clip.path);
+        const shared = {
+          clipId: clip.id,
+          clipName: clip.name,
+          clipIndex: index,
+          startTime: clip.startTime,
+          duration: clip.duration,
+          tags: (entry?.tags || []).map((tag) => String(tag).toLowerCase()),
+          hasSpeech: Boolean(entry?.audioInfo?.hasSpeech),
+        };
+
+        evidence.push({
+          ...shared,
+          sourceText: clip.name,
+          shortLabel: this.pickLabelFromText(clip.name, 'Timeline Moment'),
+          kind: 'clip_name',
+        });
+
+        const summary = this.cleanStorySnippet(entry?.summary || '', '');
+        if (summary) {
+          evidence.push({
+            ...shared,
+            sourceText: summary,
+            shortLabel: this.pickLabelFromText(summary, 'Story Beat'),
+            kind: 'summary',
+          });
+        }
+
+        const transcript = this.cleanStorySnippet(entry?.audioInfo?.transcriptSummary || '', '');
+        if (transcript) {
+          evidence.push({
+            ...shared,
+            sourceText: transcript,
+            shortLabel: this.pickLabelFromText(transcript, 'Spoken Proof'),
+            kind: 'transcript',
+          });
+        }
+
+        for (const scene of entry?.scenes || []) {
+          const description = this.cleanStorySnippet(scene.description, '');
+          if (!description) continue;
+          evidence.push({
+            ...shared,
+            sourceText: description,
+            shortLabel: this.pickLabelFromText(description, 'Scene Beat'),
+            kind: 'scene',
+          });
+        }
+      });
+
+    return evidence;
+  }
+
+  private static scoreEvidenceForRole(
+    evidence: StoryEvidence,
+    role: 'hook' | 'build' | 'proof' | 'payoff',
+    objectiveSignal: string,
+  ): number {
+    const text =
+      `${evidence.clipName} ${evidence.sourceText} ${evidence.tags.join(' ')}`.toLowerCase();
+    let score = 0;
+
+    if (evidence.kind === 'summary') score += 5;
+    if (evidence.kind === 'scene') score += 4;
+    if (evidence.kind === 'transcript') score += 3;
+    if (evidence.hasSpeech) score += 1;
+
+    const addIf = (pattern: RegExp, points: number) => {
+      if (pattern.test(text)) score += points;
+    };
+
+    if (role === 'hook') {
+      addIf(/\b(win|winner|award|announcement|reveal|judges|demo|hackathon)\b/, 8);
+      if (evidence.clipIndex === 0) score += 3;
+      if (evidence.duration >= 1.5) score += 1;
+    }
+    if (role === 'build') {
+      addIf(/\b(team|build|desk|workspace|coding|prototype|iterate|prepar|work)\b/, 8);
+      addIf(/\b(demo|present)\b/, 3);
+      if (evidence.clipIndex <= 1) score += 2;
+    }
+    if (role === 'proof') {
+      addIf(/\b(demo|present|judges|pitch|proof|reaction|announcement)\b/, 8);
+      addIf(/\b(team|build)\b/, 2);
+    }
+    if (role === 'payoff') {
+      addIf(
+        /\b(win|winner|award|announcement|first place|second place|third place|celebration)\b/,
+        10,
+      );
+      if (evidence.clipIndex >= 1) score += 2;
+    }
+
+    if (/\bhackathon\b/.test(objectiveSignal)) addIf(/\bhackathon\b/, 2);
+    if (/\bshorts|reel|views|viral\b/.test(objectiveSignal))
+      addIf(/\b(team|demo|winner|award)\b/, 1);
+
+    return score;
+  }
+
+  private static pickEvidenceForRole(
+    allEvidence: StoryEvidence[],
+    role: 'hook' | 'build' | 'proof' | 'payoff',
+    objectiveSignal: string,
+    usedKeys: Set<string>,
+  ): StoryEvidence | null {
+    const ranked = allEvidence
+      .map((entry) => ({
+        entry,
+        score: this.scoreEvidenceForRole(entry, role, objectiveSignal),
+      }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (a.entry.clipIndex !== b.entry.clipIndex) return a.entry.clipIndex - b.entry.clipIndex;
+        return a.entry.kind.localeCompare(b.entry.kind);
+      });
+
+    for (const item of ranked) {
+      const key = `${item.entry.clipId}:${item.entry.kind}:${item.entry.shortLabel}`;
+      if (usedKeys.has(key)) continue;
+      usedKeys.add(key);
+      return item.entry;
+    }
+
+    return null;
+  }
+
+  private static buildRoleDrivenLine(
+    role: 'hook' | 'build' | 'proof' | 'payoff' | 'cta',
+    evidence: StoryEvidence | null,
+    objectiveSignal: string,
+    fallback: string,
+    narrativeFocus: {
+      isHackathonWin: boolean;
+      buildPhrase: string;
+      proofPhrase: string;
+      payoffPhrase: string;
+      ctaPhrase: string;
+    },
+  ): string {
+    const phrase = evidence ? this.cleanStorySnippet(evidence.sourceText, evidence.clipName) : '';
+    const label = evidence?.shortLabel || 'Key Moment';
+    const placement = this.extractPlacementPhrase(`${phrase} ${objectiveSignal}`) || '';
+
+    if (role === 'hook') {
+      if (phrase && /\b(win|winner|award|announcement|reveal|judges)\b/i.test(phrase)) {
+        if (placement && placement !== 'the win' && placement !== 'the award') {
+          return `This is the moment our hackathon run finally landed ${placement}.`;
+        }
+        return placement
+          ? `This is the moment our hackathon run turned into ${placement}.`
+          : `This is the moment our hackathon run turned into a win.`;
+      }
+      if (phrase) {
+        return `This ${label.toLowerCase()} is where our hackathon story hooks fast.`;
+      }
+    }
+
+    if (role === 'build') {
+      if (phrase && /\b(team|build|desk|workspace|coding|prototype|iterate|work)\b/i.test(phrase)) {
+        return `While everyone else slowed down, ${phrase.toLowerCase()}.`;
+      }
+      if (phrase) {
+        return `We kept building through ${phrase.toLowerCase()}.`;
+      }
+      return `We kept building through ${narrativeFocus.buildPhrase.toLowerCase()}.`;
+    }
+
+    if (role === 'proof') {
+      if (phrase && /\b(demo|present|judges|pitch|announcement)\b/i.test(phrase)) {
+        return `Then ${phrase.toLowerCase()} became the proof our idea was landing.`;
+      }
+      if (phrase) {
+        return `Then ${phrase.toLowerCase()} showed the work was paying off.`;
+      }
+      return `Then ${narrativeFocus.proofPhrase.toLowerCase()} became the proof.`;
+    }
+
+    if (role === 'payoff') {
+      if (placement) {
+        return `A few seconds later, the result was official: ${placement}.`;
+      }
+      if (phrase && /\b(win|winner|award|announcement|celebration)\b/i.test(phrase)) {
+        return `A few seconds later, ${phrase.toLowerCase()} made the result official.`;
+      }
+      return `${narrativeFocus.payoffPhrase}.`;
+    }
+
+    if (role === 'cta') {
+      return /\bfull video|full build|full breakdown|more context\b/i.test(objectiveSignal)
+        ? 'Watch the full video for the full build story.'
+        : `${narrativeFocus.ctaPhrase}.`;
+    }
+
+    return fallback;
+  }
+
+  private static pickNarrativeFocus(
+    objective: string,
+    clipNames: string[],
+    keywords: string[],
+    memoryPhrases: string[],
+  ): {
+    isHackathonWin: boolean;
+    buildPhrase: string;
+    proofPhrase: string;
+    payoffPhrase: string;
+    ctaPhrase: string;
+  } {
+    const signal =
+      `${objective} ${clipNames.join(' ')} ${keywords.join(' ')} ${memoryPhrases.join(' ')}`.toLowerCase();
+    const isHackathonWin = /\bhackathon|winner|won|victory|judges|demo\b/.test(signal);
+    const buildPhrase =
+      memoryPhrases.find((phrase) =>
+        /\b(build|demo|present|pitch|prototype|edit)\b/i.test(phrase),
+      ) ||
+      clipNames.find((name) => /\b(demo|team|build|pitch)\b/i.test(name)) ||
+      'we built fast and refined the demo';
+    const proofPhrase =
+      memoryPhrases.find((phrase) =>
+        /\b(judge|reaction|announcement|winner|won|proof)\b/i.test(phrase),
+      ) ||
+      clipNames.find((name) => /\b(winner|reveal|announce|judge)\b/i.test(name)) ||
+      'the demo proved it live';
+    const payoffPhrase =
+      memoryPhrases.find((phrase) => /\b(won|winner|victory|title|secured)\b/i.test(phrase)) ||
+      'that is how we won';
+    const ctaPhrase = /\bfull video|full build|full breakdown|more context\b/.test(signal)
+      ? 'Watch the full video'
+      : 'Full build next';
+
+    return {
+      isHackathonWin,
+      buildPhrase: String(buildPhrase).trim(),
+      proofPhrase: String(proofPhrase).trim(),
+      payoffPhrase: String(payoffPhrase).trim(),
+      ctaPhrase,
+    };
+  }
+
   private static toPunchyCaption(input: string, fallback: string): string {
     const cleaned = String(input || '')
       .replace(/[^a-zA-Z0-9 ]+/g, ' ')
@@ -368,6 +707,18 @@ export class ToolExecutor {
     };
   }
 
+  private static buildShortFormBeatRoles(beatCount: number): string[] {
+    if (beatCount <= 4) return ['hook', 'build', 'proof', 'cta'].slice(0, beatCount);
+    const middleCount = Math.max(0, beatCount - 4);
+    return [
+      'hook',
+      'build',
+      ...Array.from({ length: middleCount }, () => 'proof'),
+      'payoff',
+      'cta',
+    ].slice(0, beatCount);
+  }
+
   private static formatSeconds(seconds: number): string {
     const safe = Math.max(0, Math.floor(seconds));
     const mm = Math.floor(safe / 60)
@@ -396,6 +747,7 @@ export class ToolExecutor {
       .filter(Boolean);
     const keywords = this.extractMemoryKeywords(10);
     const memoryPhrases = this.extractMemoryPhrases(8);
+    const storyEvidence = this.buildStoryEvidence();
     const objective = String(args.objective || 'how I won the hackathon').trim();
     const tone = String(args.tone || 'energetic').trim();
     const requestedDuration = Number(args.target_duration || 16);
@@ -410,8 +762,23 @@ export class ToolExecutor {
     );
     const beatDuration = targetDuration / beatCount;
     const lexicon = this.pickToneLexicon(tone);
+    const storySignal = `${objective} ${tone} ${clipNames.join(' ')} ${keywords.join(' ')} ${memoryPhrases.join(' ')}`;
+    const narrativeFocus = this.pickNarrativeFocus(objective, clipNames, keywords, memoryPhrases);
+    const isShortFormStory =
+      targetDuration <= 45 ||
+      /\b(short|shorts|reel|tiktok|hook|cta|hackathon|winner|won|victory|demo|judges)\b/i.test(
+        storySignal,
+      );
+    const beatRoles = isShortFormStory ? this.buildShortFormBeatRoles(beatCount) : [];
+    const objectiveLine = objective.replace(/\s+/g, ' ').trim();
+    const defaultHook =
+      /\bhackathon\b/i.test(storySignal) || /\bwon|winner|victory\b/i.test(storySignal)
+        ? 'This is how we won the hackathon.'
+        : `This is ${objectiveLine}.`;
 
-    const title = `Hackathon Win Intro (${targetDuration}s)`;
+    const title = narrativeFocus.isHackathonWin
+      ? `How We Won The Hackathon (${targetDuration}s)`
+      : `Short Video Script (${targetDuration}s)`;
     const visualHints = clipNames.slice(0, beatCount);
     const fallbackHints = [
       'the challenge',
@@ -428,6 +795,13 @@ export class ToolExecutor {
     }> = [];
     const usedLines = new Set<string>();
     const usedCaptions = new Set<string>();
+    const usedEvidence = new Set<string>();
+    const roleEvidence = {
+      hook: this.pickEvidenceForRole(storyEvidence, 'hook', storySignal, usedEvidence),
+      build: this.pickEvidenceForRole(storyEvidence, 'build', storySignal, usedEvidence),
+      proof: this.pickEvidenceForRole(storyEvidence, 'proof', storySignal, usedEvidence),
+      payoff: this.pickEvidenceForRole(storyEvidence, 'payoff', storySignal, usedEvidence),
+    };
 
     const uniqueLine = (candidates: string[], fallback: string): string => {
       for (const candidate of candidates) {
@@ -470,16 +844,127 @@ export class ToolExecutor {
       const opener = lexicon.opening[i % lexicon.opening.length];
       const middle = lexicon.middle[i % lexicon.middle.length];
       const ending = lexicon.ending[i % lexicon.ending.length];
+      const beatRole = beatRoles[i];
+      const matchedEvidence =
+        beatRole === 'hook'
+          ? roleEvidence.hook
+          : beatRole === 'build'
+            ? roleEvidence.build
+            : beatRole === 'proof'
+              ? roleEvidence.proof
+              : beatRole === 'payoff'
+                ? roleEvidence.payoff
+                : null;
 
-      const voiceover =
-        i === 0
+      const voiceover = isShortFormStory
+        ? beatRole === 'hook'
           ? uniqueLine(
-              [`${opener}: ${objective}.`, `From concept to spotlight, this is ${objective}.`],
-              `From idea to victory: ${objective}.`,
+              [
+                this.buildRoleDrivenLine(
+                  'hook',
+                  matchedEvidence,
+                  storySignal,
+                  defaultHook,
+                  narrativeFocus,
+                ),
+                defaultHook,
+                narrativeFocus.isHackathonWin ? 'We won because the demo hit immediately.' : '',
+                `Under pressure, ${objectiveLine} became our only focus.`,
+                `One tight deadline. One shot. ${objectiveLine}.`,
+              ].filter(Boolean) as string[],
+              defaultHook,
+            )
+          : beatRole === 'build'
+            ? uniqueLine(
+                [
+                  this.buildRoleDrivenLine(
+                    'build',
+                    matchedEvidence,
+                    storySignal,
+                    `We kept momentum through ${visual}.`,
+                    narrativeFocus,
+                  ),
+                  narrativeFocus.isHackathonWin
+                    ? `We built fast, cut hard, and sharpened the demo around ${visual}.`
+                    : `We kept building around ${visual} until the story felt undeniable.`,
+                  `Build phase: ${narrativeFocus.buildPhrase}.`,
+                  `${middle} around ${visual}.`,
+                  `Every fast iteration around ${visual} made the project stronger.`,
+                ],
+                `We kept momentum through ${visual}.`,
+              )
+            : beatRole === 'proof'
+              ? uniqueLine(
+                  [
+                    this.buildRoleDrivenLine(
+                      'proof',
+                      matchedEvidence,
+                      storySignal,
+                      `Then ${visual} proved the idea was working.`,
+                      narrativeFocus,
+                    ),
+                    narrativeFocus.isHackathonWin
+                      ? `Then ${visual} became the proof: ${narrativeFocus.proofPhrase}.`
+                      : memoryPhrase || `Then ${visual} proved the idea was working.`,
+                    `The proof was simple: ${keyword} plus clean execution.`,
+                    memoryPhrase || `Then ${visual} proved the idea was working.`,
+                  ],
+                  `Then ${visual} proved the idea was working.`,
+                )
+              : beatRole === 'payoff'
+                ? uniqueLine(
+                    [
+                      this.buildRoleDrivenLine(
+                        'payoff',
+                        matchedEvidence,
+                        storySignal,
+                        `That is how we turned pressure into a winning finish.`,
+                        narrativeFocus,
+                      ),
+                      narrativeFocus.isHackathonWin
+                        ? `${narrativeFocus.payoffPhrase}.`
+                        : `That momentum turned into the win.`,
+                      `${ending}.`,
+                      `Execution plus ${keyword} sealed the result.`,
+                    ],
+                    `That is how we turned pressure into a winning finish.`,
+                  )
+                : beatRole === 'cta'
+                  ? uniqueLine(
+                      [
+                        this.buildRoleDrivenLine(
+                          'cta',
+                          null,
+                          storySignal,
+                          'Follow for more builder stories.',
+                          narrativeFocus,
+                        ),
+                        narrativeFocus.isHackathonWin
+                          ? `${narrativeFocus.ctaPhrase} for the full build breakdown.`
+                          : 'Follow for more builder stories and behind-the-scenes wins.',
+                        'Follow for more real demos, fast builds, and wins.',
+                      ],
+                      'Follow for more builder stories.',
+                    )
+                  : uniqueLine(
+                      [
+                        memoryPhrase || `Then ${visual} proved the idea was working.`,
+                        `In ${visual}, ${memoryPhrase || `we focused on ${keyword} and executed cleanly`}.`,
+                        `The proof was simple: ${keyword} plus clean execution.`,
+                      ],
+                      `We kept momentum through ${visual}.`,
+                    )
+        : i === 0
+          ? uniqueLine(
+              [
+                `${opener}: ${objectiveLine}.`,
+                `From concept to spotlight, this is ${objectiveLine}.`,
+              ],
+              `From idea to victory: ${objectiveLine}.`,
             )
           : i === beatCount - 1
             ? uniqueLine(
-                [`${ending}.`, `Final frame: ${objective}, delivered with confidence.`],
+                [`${ending}.`, `Final frame: ${objectiveLine}, delivered with confidence.`],
                 `That is how we turned pressure into a winning finish.`,
               )
             : uniqueLine(
@@ -491,8 +976,24 @@ export class ToolExecutor {
                 `We kept momentum through ${visual}.`,
               );
 
-      const baseCaption =
-        i === 0
+      const baseCaption = isShortFormStory
+        ? beatRole === 'hook'
+          ? matchedEvidence?.shortLabel ||
+            (narrativeFocus.isHackathonWin ? 'We Won With AI' : 'How We Won')
+          : beatRole === 'build'
+            ? matchedEvidence?.shortLabel ||
+              (narrativeFocus.isHackathonWin ? 'Build Under Pressure' : 'Build Fast')
+            : beatRole === 'proof'
+              ? matchedEvidence?.shortLabel ||
+                (narrativeFocus.isHackathonWin
+                  ? 'Demo Was Proof'
+                  : this.toPunchyCaption(`${keyword} ${visual}`, 'Proof'))
+              : beatRole === 'payoff'
+                ? matchedEvidence?.shortLabel || 'Winning Moment'
+                : beatRole === 'cta'
+                  ? this.toPunchyCaption(narrativeFocus.ctaPhrase, 'Follow For More')
+                  : this.toPunchyCaption(`${keyword} ${visual}`, 'Proof')
+        : i === 0
           ? 'Hackathon Victory'
           : i === beatCount - 1
             ? 'Built To Win'
@@ -522,7 +1023,7 @@ export class ToolExecutor {
    * This prevents hard failures when AI asks to extend beyond source media.
    */
   private static normalizeClipBounds(
-    clip: { start: number; end: number; sourceDuration: number },
+    clip: { start: number; end: number; sourceDuration: number; mediaType?: string },
     newStart?: number,
     newEnd?: number,
   ): {
@@ -536,7 +1037,10 @@ export class ToolExecutor {
     const notes: string[] = [];
     let start = newStart !== undefined ? Number(newStart) : Number(clip.start);
     let end = newEnd !== undefined ? Number(newEnd) : Number(clip.end);
-    const max = Number(clip.sourceDuration);
+    const isExtendableStill = clip.mediaType === 'image' || clip.mediaType === 'text';
+    const max = isExtendableStill
+      ? Math.max(Number(clip.sourceDuration), 300)
+      : Number(clip.sourceDuration);
 
     if (!Number.isFinite(start) || !Number.isFinite(end)) {
       return {
@@ -1065,6 +1569,42 @@ export class ToolExecutor {
     }
   }
 
+  private static validateSubtitleCallAgainstCount(
+    call: FunctionCall,
+    subtitleCount: number,
+  ): ValidationResult {
+    switch (call.name) {
+      case 'update_subtitle': {
+        const { index, start_time, end_time } = call.args;
+        if (index < 1 || index > subtitleCount) {
+          return {
+            valid: false,
+            error: `Subtitle ${index} not found. Valid range: 1-${subtitleCount}`,
+          };
+        }
+        if (start_time !== undefined && start_time < 0) {
+          return { valid: false, error: 'Start time cannot be negative' };
+        }
+        if (start_time !== undefined && end_time !== undefined && end_time <= start_time) {
+          return { valid: false, error: 'End time must be after start time' };
+        }
+        return { valid: true };
+      }
+      case 'delete_subtitle': {
+        const { index } = call.args;
+        if (index < 1 || index > subtitleCount) {
+          return {
+            valid: false,
+            error: `Subtitle ${index} not found. Valid range: 1-${subtitleCount}`,
+          };
+        }
+        return { valid: true };
+      }
+      default:
+        return this.validateFunctionCall(call);
+    }
+  }
+
   /**
    * Execute a single function call
    */
@@ -1089,15 +1629,41 @@ export class ToolExecutor {
             selected: store.selectedClipIds.includes(c.id),
             mediaType: c.mediaType,
           }));
+          const primaryVideoTrack = store.clips
+            .filter((clip) => (clip.trackIndex ?? 0) < 10)
+            .map((clip) => clip.trackIndex ?? 0)
+            .sort((a, b) => a - b)[0];
+          const primaryTrackClips = Number.isFinite(primaryVideoTrack)
+            ? store.clips
+                .filter((clip) => (clip.trackIndex ?? 0) === primaryVideoTrack)
+                .map((clip) => ({
+                  id: clip.id,
+                  path: clip.path,
+                  name: clip.name,
+                  start: clip.startTime,
+                  end: clip.startTime + clip.duration,
+                  duration: clip.duration,
+                  sourceDuration: clip.sourceDuration,
+                  trackId: String(clip.trackIndex ?? 0),
+                  trackType: 'video' as const,
+                  thumbnail: clip.thumbnail,
+                  waveform: clip.waveform,
+                }))
+            : [];
+          const gaps = detectGaps(primaryTrackClips);
+          const totalGapDuration = gaps.reduce((sum, gap) => sum + (gap.end - gap.start), 0);
 
           return {
             name: call.name,
             result: {
               success: true,
-              message: `Retrieved ${clips.length} clip(s) from timeline`,
+              message: `Retrieved ${clips.length} clip(s) from timeline${gaps.length > 0 ? ` with ${gaps.length} gap(s)` : ''}`,
               data: {
                 clips,
                 totalDuration: store.getTotalDuration(),
+                gapCount: gaps.length,
+                totalGapDuration: Number(totalGapDuration.toFixed(2)),
+                gaps,
                 selectedCount: store.selectedClipIds.length,
                 currentTime: store.currentTime,
                 isPlaying: store.isPlaying,
@@ -1377,6 +1943,11 @@ export class ToolExecutor {
             start: normalized.start,
             end: normalized.end,
             duration: normalized.end - normalized.start,
+            ...(clip.mediaType === 'image' || clip.mediaType === 'text'
+              ? {
+                  sourceDuration: Math.max(clip.sourceDuration, normalized.end),
+                }
+              : {}),
           };
 
           store.updateClip(clip_id, updates);
@@ -2315,6 +2886,7 @@ export class ToolExecutor {
     const normalizedCalls: FunctionCall[] = [];
     const corrections: string[] = [];
     const issues: PreflightIssue[] = [];
+    let subtitleCount = useProjectStore.getState().subtitles.length;
 
     for (const [index, original] of calls.entries()) {
       const call: FunctionCall = {
@@ -2322,7 +2894,10 @@ export class ToolExecutor {
         args: { ...(original.args || {}) },
         id: original.id,
       };
-      const validation = this.validateFunctionCall(call);
+      const validation =
+        call.name === 'update_subtitle' || call.name === 'delete_subtitle'
+          ? this.validateSubtitleCallAgainstCount(call, subtitleCount)
+          : this.validateFunctionCall(call);
 
       if (!validation.valid) {
         issues.push({
@@ -2336,6 +2911,22 @@ export class ToolExecutor {
 
       if (validation.adjustments && validation.adjustments.length > 0) {
         corrections.push(`${call.name}: ${validation.adjustments.join('; ')}`);
+      }
+
+      if (validation.valid) {
+        if (call.name === 'add_subtitle') {
+          subtitleCount += 1;
+        } else if (call.name === 'delete_subtitle') {
+          subtitleCount = Math.max(0, subtitleCount - 1);
+        } else if (call.name === 'clear_all_subtitles') {
+          subtitleCount = 0;
+        } else if (call.name === 'apply_script_as_captions') {
+          const blocks = this.coerceScriptBlocks(
+            call.args?.script_blocks ?? call.args?.script_text ?? call.args?.script,
+          );
+          const replaceExisting = call.args?.replace_existing !== false;
+          subtitleCount = (replaceExisting ? 0 : subtitleCount) + blocks.length;
+        }
       }
 
       normalizedCalls.push(call);

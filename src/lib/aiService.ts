@@ -41,6 +41,7 @@ import { useAiMemoryStore } from '../stores/useAiMemoryStore';
 import { formatRetrievedMemoryContext, retrieveRelevantMemory } from './memoryRetrieval';
 import { getSupportedToolNames } from './toolCapabilityMatrix';
 import { truncateToolResultForModel } from './outputTruncation';
+import { selectToolsForRequest } from './toolSelection';
 
 const INLINE_MEDIA_LIMIT_BYTES = 25 * 1024 * 1024;
 const CHAT_MAX_TOKENS = 1024;
@@ -148,6 +149,14 @@ IMPORTANT RULES:
 - For MODIFY/DELETE style requests, apply minimal timeline delta edits instead of rebuilding full sequence
 - Prefer apply_script_as_captions for script-to-caption tasks to reduce tool-call errors
 - For intro-script tasks, prefer generate_intro_script_from_timeline and then optionally preview_caption_fit
+- For Shorts / Reels / hackathon-story requests, shape the result as:
+  hook -> build -> proof/demo -> payoff -> CTA
+  Keep captions punchy and grounded in actual media memory/timeline context.
+- If script + captions are requested, prefer:
+  generate_intro_script_from_timeline -> preview_caption_fit -> apply_script_as_captions
+- For exact target-duration requests, empty gaps do NOT count toward the requested duration.
+- Never use move_clip by itself to fake a longer timeline. Prefer restoring source bounds,
+  extending still-image clips, slowing clips moderately, or duplicating existing content.
 - For HIGHLIGHT / VLOG / BEST-MOMENTS trim requests: ALWAYS call get_all_media_analysis first,
   read scene timestamps, pick the best-interest scene per clip, then call update_clip_bounds with
   new_start=scene.startTime and new_end based on that scene. NEVER trim clips equally.
@@ -1276,74 +1285,5 @@ export async function* sendToolResultsToAI(
 }
 
 function pickToolsForMessage(message: string, mode: 'standard' | 'economy' = 'standard') {
-  const text = message.toLowerCase();
-  const selected = new Set<string>([
-    'get_timeline_info',
-    'ask_clarification',
-    'get_clip_details',
-    'split_clip',
-    'delete_clips',
-    'move_clip',
-    'merge_clips',
-    'update_clip_bounds',
-    'select_clips',
-    'undo_action',
-    'redo_action',
-  ]);
-
-  if (/\b(volume|mute|audio|sound|quiet|loud)\b/.test(text)) {
-    selected.add('set_clip_volume');
-    selected.add('toggle_clip_mute');
-  }
-  if (/\b(copy|duplicate|paste)\b/.test(text)) {
-    selected.add('copy_clips');
-    selected.add('paste_clips');
-  }
-  if (/\b(subtitle|caption)\b/.test(text) && mode === 'standard') {
-    selected.add('add_subtitle');
-    selected.add('update_subtitle');
-    selected.add('delete_subtitle');
-    selected.add('update_subtitle_style');
-    selected.add('get_subtitles');
-    selected.add('clear_all_subtitles');
-    selected.add('apply_script_as_captions');
-    selected.add('preview_caption_fit');
-  }
-  if (/\b(script|voiceover|intro|hook|narration)\b/.test(text) && mode === 'standard') {
-    selected.add('generate_intro_script_from_timeline');
-    selected.add('preview_caption_fit');
-  }
-  if (/\b(transcribe|transcription|transcript)\b/.test(text) && mode === 'standard') {
-    selected.add('transcribe_clip');
-    selected.add('transcribe_timeline');
-    selected.add('get_transcription');
-    selected.add('apply_transcript_edits');
-  }
-  if (/\b(effect|filter|speed|highlight|chapter)\b/.test(text) && mode === 'standard') {
-    selected.add('set_clip_speed');
-    selected.add('apply_clip_effect');
-    selected.add('find_highlights');
-    selected.add('generate_chapters');
-  }
-  // For highlight reel / vlog / best-moments trim requests, always surface analysis
-  // tools so the AI can read scene timestamps and pick the best window per clip.
-  if (
-    /\b(highlight|vlog|best.?moment|important|interesting|key.?part|content.?aware)\b/.test(text) &&
-    mode === 'standard'
-  ) {
-    selected.add('get_all_media_analysis');
-    selected.add('get_clip_analysis');
-  }
-  if (/\b(save|export|project)\b/.test(text) && mode === 'standard') {
-    selected.add('save_project');
-    selected.add('set_export_settings');
-    selected.add('get_project_info');
-  }
-  if (/\b(search|analy|memory|scene)\b/.test(text) && mode === 'standard') {
-    selected.add('search_clips_by_content');
-    selected.add('get_clip_analysis');
-    selected.add('get_all_media_analysis');
-  }
-
-  return allVideoEditingTools.filter((tool: any) => selected.has(tool?.toolSpec?.name));
+  return selectToolsForRequest({ message, mode }).tools;
 }

@@ -55,4 +55,25 @@ describe('toolSelection', () => {
     expect(result.toolNames).not.toContain('transcribe_timeline');
     expect(result.toolNames).not.toContain('save_project');
   });
+
+  it('keeps atomic subtitle tools available for text overlay retention asks', () => {
+    const result = selectToolsForRequest({
+      message: 'add a text overlay so users watch till the end of this vlog',
+      mode: 'agentic',
+      normalizedIntent: {
+        goals: [],
+        requestedOutputs: ['subtitle_plan'],
+        constraints: {},
+        operationHint: 'subtitle',
+      },
+    });
+
+    expect(result.toolNames).toEqual(
+      expect.arrayContaining([
+        'add_subtitle',
+        'update_subtitle_style',
+        'get_subtitles',
+      ]),
+    );
+  });
 });

@@ -59,6 +59,9 @@ const EDIT_KEYWORDS = [
   'transcribe',
   'caption',
   'subtitle',
+  'overlay',
+  'on-screen text',
+  'onscreen text',
   // Direct tool references
   'clip',
   'track',
@@ -95,7 +98,7 @@ const EXECUTION_CONFIRM_PATTERNS = [
 
 const SCRIPT_REQUEST_PATTERN = /\b(script|voiceover|narration|hook|intro)\b/i;
 const HARD_EDIT_OPERATION_PATTERN =
-  /\b(trim|split|cut|crop|delete|remove|move|merge|combine|join|duplicate|copy|paste|reorder|timeline|clip|track|transition|effect|filter|fade|speed|mute|unmute|volume|subtitle|caption|transcribe|playhead|export|render)\b/i;
+  /\b(trim|split|cut|crop|delete|remove|move|merge|combine|join|duplicate|copy|paste|reorder|timeline|clip|track|transition|effect|filter|fade|speed|mute|unmute|volume|subtitle|caption|overlay|on-screen text|onscreen text|transcribe|playhead|export|render)\b/i;
 const VIDEO_BUILD_PATTERN =
   /\b(make|create|build|turn)\b[\s\S]{0,40}\b(video|short|shorts|reel|vlog|montage|highlight reel)\b/i;
 const EXPLICIT_EDIT_WORD_PATTERN = /\bedit(?:ing)?\b/i;

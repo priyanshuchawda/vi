@@ -125,6 +125,21 @@ function looksLikeExecutionResult(text: string): boolean {
   return /execution complete|operations executed|timeline diff:|rollback: use undo/i.test(text);
 }
 
+function looksLikeNoopExecutionResult(text: string): boolean {
+  const normalized = String(text || '').toLowerCase();
+  if (!looksLikeExecutionResult(normalized)) return false;
+
+  const readOnlyOnly =
+    /operations executed:\s*1\.\s*check timeline state/i.test(text) ||
+    /operations executed:\s*1\.\s*get timeline info/i.test(text);
+  const noStructuralChange =
+    /added clips:\s*none/i.test(text) &&
+    /removed clips:\s*none/i.test(text) &&
+    /duration:\s*([0-9.]+)s\s*->\s*\1s/i.test(text);
+
+  return readOnlyOnly || noStructuralChange;
+}
+
 function looksLikeExecutionPlan(text: string): boolean {
   return /complete execution plan|plan ready|execute \(\d+\)/i.test(text);
 }
@@ -321,6 +336,20 @@ export function resolveConversationLane(input: ConversationLaneInput): Conversat
       reason: 'confirmation_for_existing_edit_execution',
       baseIntent,
       normalizedIntent,
+    };
+  }
+
+  if (
+    confirmation &&
+    looksLikeNoopExecutionResult(input.lastAssistantMessage) &&
+    resumeCandidateMessage
+  ) {
+    return {
+      lane: 'timeline_edit',
+      plannerInput: buildAutonomousResumeRequest(resumeCandidateMessage, effectiveAssistantMessage),
+      reason: 'confirmation_resume_after_noop_execution',
+      baseIntent: resumeIntent.baseIntent,
+      normalizedIntent: resumeIntent.normalizedIntent,
     };
   }
 

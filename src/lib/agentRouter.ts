@@ -51,6 +51,12 @@ const AGENTIC_KEYWORDS = new Set([
   'hook',
   'proof',
   'cta',
+  'text overlay',
+  'on-screen text',
+  'onscreen text',
+  'watch till the end',
+  'watch till end',
+  'watch till last',
 ]);
 
 // Keywords that suggest simple single-pass execution
@@ -104,6 +110,20 @@ export function decideExecutionMode(input: {
       reason: 'non_edit_intent',
       estimatedSteps: 1,
       estimatedCostUsd: 0.001,
+    };
+  }
+
+  const retentionOverlayRequest =
+    (/\b(text overlay|on-screen text|onscreen text|caption|subtitle)\b/i.test(messageLower) &&
+      /\b(retention|hook)\b/i.test(messageLower)) ||
+    (/\b(text overlay|on-screen text|onscreen text|caption|subtitle)\b/i.test(messageLower) &&
+      /\bwatch\b[\s\S]{0,30}\btil+l?\b[\s\S]{0,10}\b(end|last)\b/i.test(messageLower));
+  if (retentionOverlayRequest) {
+    return {
+      mode: 'agentic',
+      reason: 'retention_overlay_request',
+      estimatedSteps: Math.min(10, Math.max(4, input.clipCount + 2)),
+      estimatedCostUsd: estimateCost(input.clipCount, 'highlight'),
     };
   }
 

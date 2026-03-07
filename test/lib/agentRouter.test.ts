@@ -171,6 +171,17 @@ Execution requirements:
       expect(result.mode).toBe('agentic');
     });
 
+    it('routes retention overlay requests to agentic', () => {
+      const result = decideExecutionMode({
+        message: 'now add a text overlay so users will definitely watch this vlog till last',
+        baseIntent: 'edit',
+        clipCount: 4,
+        hasTimeline: true,
+      });
+      expect(result.mode).toBe('agentic');
+      expect(result.reason).toBe('retention_overlay_request');
+    });
+
     it('routes to agentic for compound requests', () => {
       const result = decideExecutionMode({
         message: 'trim the clips and then add transitions between them',

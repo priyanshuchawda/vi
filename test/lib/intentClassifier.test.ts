@@ -17,6 +17,11 @@ describe('intentClassifier', () => {
         'create a vlog youtube short video which should be attractive and make this yt short the best',
       ),
     ).toBe('edit');
+    expect(
+      classifyIntent(
+        'now add a text overlay so users will definitely watch this vlog till last in such a way',
+      ),
+    ).toBe('edit');
   });
 
   it('keeps simple acknowledgements as chat', () => {

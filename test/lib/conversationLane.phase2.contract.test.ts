@@ -201,4 +201,38 @@ Apply these as captions on timeline?`,
     expect(decision.plannerInput).toContain('30 second youtube short');
     expect(decision.plannerInput).not.toContain('Apply the script from your previous response');
   });
+
+  it('resumes the previous edit request when yes follows a no-op execution result', () => {
+    const decision = lane({
+      message: 'yes',
+      lastAssistantMessage: `Execution complete.
+
+What I understood: now add a text overlay so users will definitely watch this vlog till last in such a way
+
+Operations executed:
+1. Check timeline state
+
+Timeline diff:
+- Clips: 4 -> 4
+- Duration: 40.0s -> 40.0s
+- Added clips: none
+- Removed clips: none
+
+Rollback: Use Undo to revert the changes if needed.`,
+      lastAssistantArtifact: {
+        type: 'tool_execution_result',
+        executable: false,
+        nextActions: ['undo_last_action', 'refine_request'],
+      },
+      lastActionableUserMessage:
+        'now add a text overlay so users will definitely watch this vlog till last in such a way',
+      hasRecentEditingContext: true,
+    });
+
+    expect(decision.lane).toBe('timeline_edit');
+    expect(decision.reason).toBe('confirmation_resume_after_noop_execution');
+    expect(decision.plannerInput).toContain('Continue the previous editing request');
+    expect(decision.normalizedIntent.operationHint).toBe('subtitle');
+    expect(decision.normalizedIntent.requestedOutputs).toContain('subtitle_plan');
+  });
 });

@@ -112,7 +112,8 @@ const TOOL_RULES: ToolRule[] = [
   },
   {
     id: 'caption',
-    pattern: /\b(caption|captions|subtitle|subtitles|on-screen text|onscreen text)\b/i,
+    pattern:
+      /\b(caption|captions|subtitle|subtitles|text overlay|overlay|on-screen text|onscreen text)\b/i,
     tools: [...CAPTION_TOOLS, ...SCRIPT_TOOLS, ...SUBTITLE_ATOMIC_TOOLS],
     weight: 7,
   },
@@ -231,14 +232,25 @@ function getToolLimit(mode: ToolSelectionMode): number {
 function getSeedTools(mode: ToolSelectionMode, message: string): string[] {
   const lower = message.toLowerCase();
   const seeds = new Set<string>(BASE_EDIT_TOOLS);
+  const overlayRequest = /\b(text overlay|overlay|on-screen text|onscreen text)\b/.test(lower);
 
   if (mode !== 'economy') {
     seeds.add('get_all_media_analysis');
   }
 
-  if (/\b(script|caption|subtitle|story|hook|voiceover|narration)\b/.test(lower)) {
+  if (
+    /\b(script|caption|subtitle|text overlay|overlay|story|hook|voiceover|narration|on-screen text|onscreen text)\b/.test(
+      lower,
+    )
+  ) {
     SCRIPT_TOOLS.forEach((tool) => seeds.add(tool));
     CAPTION_TOOLS.forEach((tool) => seeds.add(tool));
+  }
+
+  if (overlayRequest) {
+    ['add_subtitle', 'update_subtitle', 'update_subtitle_style', 'get_subtitles'].forEach((tool) =>
+      seeds.add(tool),
+    );
   }
 
   if (/\b(duration|30 second|shorts|reel|tiktok)\b/.test(lower)) {
@@ -307,11 +319,19 @@ export function selectToolsForRequest(options: ToolSelectionOptions): ToolSelect
     }
   }
 
+  const overlayRequest = /\b(text overlay|overlay|on-screen text|onscreen text)\b/i.test(lower);
+  if (overlayRequest) {
+    addScore(
+      scores,
+      ['add_subtitle', 'update_subtitle', 'update_subtitle_style', 'get_subtitles'],
+      24,
+    );
+  }
   const prefersCaptionMacro =
     /\b(shorts|reel|tiktok|script|voiceover|hook|story|caption script|apply these captions)\b/i.test(
       lower,
     ) && !/\b(update subtitle|subtitle \d+|caption \d+|delete subtitle)\b/i.test(lower);
-  if (prefersCaptionMacro) {
+  if (prefersCaptionMacro && !overlayRequest) {
     for (const name of SUBTITLE_ATOMIC_TOOLS) {
       scores.delete(name);
     }

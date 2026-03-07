@@ -1698,7 +1698,10 @@ function selectPlanningTools(message: string, mode: 'standard' | 'economy' = 'st
     base.add('paste_clips');
   }
 
-  if (/\b(subtitle|caption)\b/.test(text) && mode === 'standard') {
+  if (
+    /\b(subtitle|caption|text overlay|overlay|on-screen text|onscreen text)\b/.test(text) &&
+    mode === 'standard'
+  ) {
     base.add('add_subtitle');
     base.add('update_subtitle');
     base.add('delete_subtitle');

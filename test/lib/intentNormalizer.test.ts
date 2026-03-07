@@ -87,6 +87,18 @@ describe('intentNormalizer', () => {
     expect(result.constraints.platform).toBe('youtube_shorts');
   });
 
+  it('treats text overlay asks as subtitle planning requests', () => {
+    const result = normalizeUserIntent(
+      'now add a text overlay so users will definitely watch this vlog till last in such a way',
+      { hasTimeline: true, baseIntent: 'edit' },
+    );
+
+    expect(result.intent_type).toBe('multi_video_edit');
+    expect(result.requiresPlanning).toBe(true);
+    expect(result.operationHint).toBe('subtitle');
+    expect(result.requestedOutputs).toContain('subtitle_plan');
+  });
+
   it('flags missing duration when user asks for shorts without length', () => {
     const result = normalizeUserIntent('make this a youtube short and script it', {
       hasTimeline: true,

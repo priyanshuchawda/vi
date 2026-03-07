@@ -396,9 +396,14 @@ function applyCompilerGuardrails(
       normalizedIntent?.operationHint === 'script_outline' ||
       normalizedIntent?.requestedOutputs?.includes('short_script_outline') ||
       normalizedIntent?.requestedOutputs?.includes('subtitle_plan'),
-    ) || /\b(script|voiceover|narration|caption|subtitle|on-screen text)\b/.test(userMessage);
+    ) ||
+    /\b(script|voiceover|narration|caption|subtitle|text overlay|overlay|on-screen text|onscreen text)\b/.test(
+      userMessage,
+    );
   const pureCaptionApplyIntent =
-    (/\bapply\b.*\b(caption|captions|subtitle|subtitles)\b/.test(userMessage) ||
+    (/\bapply\b.*\b(caption|captions|subtitle|subtitles|text overlay|overlay|on-screen text|onscreen text)\b/.test(
+      userMessage,
+    ) ||
       /\bcaption\b.*\bapply\b/.test(userMessage)) &&
     !normalizedIntent?.requestedOutputs?.includes('edit_plan') &&
     !hasTargetDurationConstraint(normalizedIntent) &&

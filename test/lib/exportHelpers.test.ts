@@ -16,6 +16,7 @@ describe('exportHelpers', () => {
     sourceDuration: 10,
     start: 0,
     end: 10,
+    startTime: 0,
     ...overrides,
   });
 

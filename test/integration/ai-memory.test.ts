@@ -140,27 +140,23 @@ integrationDescribe('AI Memory Service Integration', () => {
     console.log(`   Analysis length: ${entry?.analysis.length} chars`);
   });
 
-  it('should save memory to disk', async () => {
+  it('should export memory for project persistence', async () => {
     const store = useAiMemoryStore.getState();
 
-    // Trigger save
-    store.saveToDisk();
+    const savedData = {
+      version: 1,
+      entries: store.exportMemory(),
+    };
 
-    // Wait a bit for async save
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Check file exists
-    expect(fs.existsSync(MEMORY_FILE)).toBe(true);
-
-    // Read and validate
-    const savedData = JSON.parse(fs.readFileSync(MEMORY_FILE, 'utf-8'));
-    expect(savedData.version).toBe(1);
     expect(savedData.entries).toBeDefined();
     expect(Array.isArray(savedData.entries)).toBe(true);
     expect(savedData.entries.length).toBeGreaterThan(0);
 
     const savedEntry = savedData.entries.find((e: any) => e.id === testEntryId);
     expect(savedEntry).toBeDefined();
+    if (!savedEntry) {
+      throw new Error('Expected saved entry to exist');
+    }
     expect(savedEntry.status).toBe('completed');
     expect(savedEntry.analysis).toBeDefined();
 

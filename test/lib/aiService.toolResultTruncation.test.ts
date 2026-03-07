@@ -53,8 +53,8 @@ describe('aiService tool result truncation', () => {
     ];
 
     const stream = sendToolResultsToAI(history, modelContent, toolResults);
-    for await (const _chunk of stream) {
-      // consume
+    for await (const chunk of stream) {
+      void chunk;
     }
 
     expect(converseBedrockMock).toHaveBeenCalledTimes(1);

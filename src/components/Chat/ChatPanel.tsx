@@ -55,6 +55,11 @@ type ToolCallLike = {
 const STREAM_FLUSH_INTERVAL_MS = 32;
 const STREAM_MAX_BUFFERED_CHARS = 160;
 
+function formatMissingAiConfigMessage(missingFields: string[]): string {
+  const fieldList = missingFields.length > 0 ? missingFields.join(', ') : 'AWS credentials';
+  return `AI setup is incomplete. Fill ${fieldList} in Settings before using the AI editor. I opened the Settings tab for you.`;
+}
+
 function isActionableUserMessage(message: string): boolean {
   const trimmed = String(message || '').trim();
   if (!trimmed) return false;
@@ -103,7 +108,8 @@ const ChatPanel = () => {
     setTurnStatus,
     closeTurn,
   } = useChatStore();
-  const { clips, currentTime, addTurnAudit, getTurnAudit } = useProjectStore();
+  const { clips, currentTime, addTurnAudit, getTurnAudit, setActiveSidebarTab, setNotification } =
+    useProjectStore();
   const { entries } = useAiMemoryStore();
   const { requestPublish, setIsGeneratingMeta } = usePublishStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -494,6 +500,31 @@ const ChatPanel = () => {
       return;
     }
     // ──────────────────────────────────────────────────────────────────────────
+
+    try {
+      const aiStatus = await window.electronAPI.aiConfig.getStatus();
+      if (!aiStatus.bedrockReady) {
+        setActiveSidebarTab('settings');
+        setNotification({
+          type: 'warning',
+          message: 'AI settings are incomplete. Open Settings and fill your AWS credentials.',
+        });
+        assistantMessage(formatMissingAiConfigMessage(aiStatus.missingBedrockFields), {
+          error: true,
+        });
+        setIsTyping(false);
+        setHasActiveAbortableRequest(false);
+        return;
+      }
+    } catch {
+      assistantMessage(
+        'I could not verify your AI configuration. Open Settings and check your Bedrock credentials before retrying.',
+        { error: true },
+      );
+      setIsTyping(false);
+      setHasActiveAbortableRequest(false);
+      return;
+    }
 
     try {
       const activeAwaitingTurn = activeTurnId

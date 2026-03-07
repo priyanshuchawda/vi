@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  aiConfigSettingsSchema,
+  aiConfigStatusSchema,
   bedrockConverseInputSchema,
   exportVideoRequestSchema,
   ipcErrorEnvelopeSchema,
@@ -71,6 +73,25 @@ describe('IPC contract schemas', () => {
     const bad = bedrockConverseInputSchema.safeParse('not-an-object');
     expect(ok.success).toBe(true);
     expect(bad.success).toBe(false);
+  });
+
+  it('accepts AI config settings and status payloads', () => {
+    const settings = aiConfigSettingsSchema.safeParse({
+      awsRegion: 'eu-central-1',
+      awsAccessKeyId: 'key',
+      awsSecretAccessKey: 'secret',
+    });
+    const status = aiConfigStatusSchema.safeParse({
+      bedrockReady: false,
+      youtubeReady: true,
+      usingSavedSettings: true,
+      usingEnvFallback: false,
+      missingBedrockFields: ['AWS Region'],
+      missingYouTubeFields: [],
+    });
+
+    expect(settings.success).toBe(true);
+    expect(status.success).toBe(true);
   });
 
   it('accepts standardized IPC error envelopes with optional code', () => {

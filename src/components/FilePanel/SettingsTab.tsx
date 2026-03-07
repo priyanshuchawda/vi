@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
+import { useAiConfigStore } from '../../stores/useAiConfigStore';
+import type { AiConfigSettings } from '../../types/electron';
 
 const SettingsTab = () => {
   const {
@@ -14,7 +17,45 @@ const SettingsTab = () => {
     gridSize,
     setSnapToGrid,
     setGridSize,
+    setNotification,
   } = useProjectStore();
+  const {
+    settings: aiSettings,
+    status: aiStatus,
+    isLoading: isAiConfigLoading,
+    isSaving: isAiConfigSaving,
+    load: loadAiConfig,
+    save: saveAiConfig,
+  } = useAiConfigStore();
+  const [draftAiSettings, setDraftAiSettings] = useState<AiConfigSettings>(aiSettings);
+  const [hasAiDraftChanges, setHasAiDraftChanges] = useState(false);
+
+  useEffect(() => {
+    void loadAiConfig();
+  }, [loadAiConfig]);
+
+  const handleAiFieldChange = (field: keyof AiConfigSettings, value: string) => {
+    setHasAiDraftChanges(true);
+    setDraftAiSettings((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handleSaveAiSettings = async () => {
+    const nextSettings = hasAiDraftChanges ? draftAiSettings : aiSettings;
+    const result = await saveAiConfig(nextSettings);
+    if (result.success) {
+      setHasAiDraftChanges(false);
+      setDraftAiSettings(nextSettings);
+    }
+    setNotification({
+      type: result.success ? 'success' : 'error',
+      message: result.success ? 'AI settings saved' : result.error || 'Failed to save AI settings',
+    });
+  };
+
+  const displayedAiSettings = hasAiDraftChanges ? draftAiSettings : aiSettings;
 
   const autoSaveIntervalOptions = [
     { value: 30, label: '30 seconds' },
@@ -33,6 +74,153 @@ const SettingsTab = () => {
       </div>
 
       <div className="p-4 space-y-6">
+        <div>
+          <h4 className="text-xs font-bold text-text-primary mb-3 flex items-center gap-2">
+            <svg
+              className="w-4 h-4 text-accent"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 15v2m-6 4h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V6a5 5 0 00-10 0v1H6a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+            AI Credentials
+          </h4>
+          <div className="space-y-3">
+            <div className="rounded border border-border-primary bg-bg-elevated/70 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-text-primary">
+                    {aiStatus?.bedrockReady ? 'AI editor is ready' : 'AI editor setup required'}
+                  </p>
+                  <p className="mt-1 text-[10px] text-text-muted">
+                    {aiStatus?.usingSavedSettings
+                      ? 'Using credentials saved in QuickCut settings.'
+                      : aiStatus?.usingEnvFallback
+                        ? 'Using credentials from your .env file.'
+                        : 'No Bedrock credentials detected yet.'}
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                    aiStatus?.bedrockReady
+                      ? 'bg-green-500/10 text-green-400'
+                      : 'bg-amber-500/10 text-amber-300'
+                  }`}
+                >
+                  {aiStatus?.bedrockReady ? 'Ready' : 'Missing'}
+                </span>
+              </div>
+              {aiStatus && !aiStatus.bedrockReady && (
+                <p className="mt-3 text-[10px] text-amber-200">
+                  Fill: {aiStatus.missingBedrockFields.join(', ')}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-text-primary">AWS Region</label>
+              <input
+                value={displayedAiSettings.awsRegion}
+                onChange={(e) => handleAiFieldChange('awsRegion', e.target.value)}
+                placeholder="eu-central-1"
+                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-text-primary">AWS Access Key ID</label>
+              <input
+                value={displayedAiSettings.awsAccessKeyId}
+                onChange={(e) => handleAiFieldChange('awsAccessKeyId', e.target.value)}
+                placeholder="AKIA..."
+                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-text-primary">AWS Secret Access Key</label>
+              <input
+                type="password"
+                value={displayedAiSettings.awsSecretAccessKey}
+                onChange={(e) => handleAiFieldChange('awsSecretAccessKey', e.target.value)}
+                placeholder="Your Bedrock secret"
+                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-text-primary">
+                AWS Session Token <span className="text-text-muted">(optional)</span>
+              </label>
+              <input
+                type="password"
+                value={displayedAiSettings.awsSessionToken}
+                onChange={(e) => handleAiFieldChange('awsSessionToken', e.target.value)}
+                placeholder="Optional session token"
+                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-text-primary">
+                Bedrock Inference Profile <span className="text-text-muted">(optional)</span>
+              </label>
+              <input
+                value={displayedAiSettings.bedrockInferenceProfileId}
+                onChange={(e) => handleAiFieldChange('bedrockInferenceProfileId', e.target.value)}
+                placeholder="eu.amazon.nova-lite-v1:0"
+                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-text-primary">
+                Bedrock Model ID <span className="text-text-muted">(optional)</span>
+              </label>
+              <input
+                value={displayedAiSettings.bedrockModelId}
+                onChange={(e) => handleAiFieldChange('bedrockModelId', e.target.value)}
+                placeholder="amazon.nova-lite-v1:0"
+                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-text-primary">
+                YouTube API Key <span className="text-text-muted">(optional)</span>
+              </label>
+              <input
+                type="password"
+                value={displayedAiSettings.youtubeApiKey}
+                onChange={(e) => handleAiFieldChange('youtubeApiKey', e.target.value)}
+                placeholder="Used for channel analysis features"
+                className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded border border-border-primary bg-bg-elevated/50 px-3 py-2">
+              <p className="text-[10px] text-text-muted">
+                These saved settings override `.env` values for this desktop app.
+              </p>
+              <button
+                onClick={() => void handleSaveAiSettings()}
+                disabled={isAiConfigLoading || isAiConfigSaving}
+                className="rounded bg-accent px-3 py-2 text-[11px] font-semibold text-bg-primary transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isAiConfigSaving ? 'Saving...' : 'Save AI Settings'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-border-primary"></div>
+
         {/* Auto-Save Settings */}
         <div>
           <h4 className="text-xs font-bold text-text-primary mb-3 flex items-center gap-2">

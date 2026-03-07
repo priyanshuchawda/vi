@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import {
+  aiConfigSettingsSchema,
   IPC_CHANNELS,
   bedrockConverseInputSchema,
   exportVideoRequestSchema,
@@ -146,6 +147,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   rulesRead: () => invokeIpc(IPC_CHANNELS.rules.read),
   bedrockConverse: (input: Record<string, unknown>) =>
     invokeIpc(IPC_CHANNELS.bedrock.converse, bedrockConverseInputSchema.parse(input)),
+  aiConfig: {
+    get: () => invokeIpc(IPC_CHANNELS.aiConfig.get),
+    save: (settings: IpcInvokeContract['aiConfig:save']['args'][0]) =>
+      invokeIpc(IPC_CHANNELS.aiConfig.save, aiConfigSettingsSchema.parse(settings)),
+    getStatus: () => invokeIpc(IPC_CHANNELS.aiConfig.status),
+  },
   // YouTube Upload
   youtube: {
     isAuthenticated: () => invokeIpc(IPC_CHANNELS.youtube.isAuthenticated),

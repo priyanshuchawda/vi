@@ -15,14 +15,10 @@ import fs from 'fs/promises';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { config } from 'dotenv';
 import { z } from 'zod';
-import {
-  BedrockRuntimeClient,
-  ConverseCommand,
-  type ConverseCommandOutput,
-} from '@aws-sdk/client-bedrock-runtime';
-import { NodeHttpHandler } from '@smithy/node-http-handler';
+import { ConverseCommand, type ConverseCommandOutput } from '@aws-sdk/client-bedrock-runtime';
 import type { FfprobeData, FfprobeStream } from 'fluent-ffmpeg';
 import {
+  aiConfigSettingsSchema,
   IPC_CHANNELS,
   bedrockConverseInputSchema,
   exportVideoRequestSchema,
@@ -37,7 +33,6 @@ import {
 } from './ipc/contracts.js';
 import ffmpeg, { exportVideo, generateThumbnail, generateWaveform } from './ffmpeg/processor.js';
 import { transcribeVideo, transcribeTimeline } from './utils/transcription.js';
-import { ChannelAnalysisService } from './services/channelAnalysisService.js';
 import {
   authenticateUser,
   isAuthenticated,
@@ -46,6 +41,7 @@ import {
 import { uploadVideo } from './services/youtubeUploadService.js';
 import { setupAutoUpdates } from './services/updateService.js';
 import { captureMainException, initMainObservability } from './services/observabilityService.js';
+import { AiConfigService, normalizeBedrockModelIdentifier } from './services/aiConfigService.js';
 import { log } from './utils/logger.js';
 import {
   assertSecureWebPreferences,
@@ -61,32 +57,6 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const APP_MEDIA_SCHEME = 'app-media';
-
-function inferNovaProfilePrefix(region: string): 'us' | 'eu' | 'apac' {
-  const normalized = region.toLowerCase();
-  if (normalized.startsWith('eu-')) return 'eu';
-  if (normalized.startsWith('ap-')) return 'apac';
-  return 'us';
-}
-
-function normalizeBedrockModelIdentifier(
-  modelId: string,
-  awsRegion: string,
-  explicitInferenceProfileId?: string,
-): string {
-  const trimmedExplicit = explicitInferenceProfileId?.trim();
-  if (trimmedExplicit) return trimmedExplicit;
-  if (!modelId) return modelId;
-  if (modelId.startsWith('arn:aws:bedrock:') || /^(us|eu|apac)\./.test(modelId)) {
-    return modelId;
-  }
-  const novaMatch = modelId.match(/^amazon\.(nova-(micro|lite|pro)-v1:0)$/);
-  if (novaMatch) {
-    const profilePrefix = inferNovaProfilePrefix(awsRegion);
-    return `${profilePrefix}.amazon.${novaMatch[1]}`;
-  }
-  return modelId;
-}
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -105,56 +75,18 @@ protocol.registerSchemesAsPrivileged([
 config({ path: path.join(__dirname, '../.env') });
 initMainObservability();
 
-// API Keys from environment variables
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
-const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
-const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || '';
-const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || '';
-const BEDROCK_INFERENCE_PROFILE_ID = process.env.BEDROCK_INFERENCE_PROFILE_ID || '';
-const BEDROCK_MODEL_ID = normalizeBedrockModelIdentifier(
-  process.env.BEDROCK_MODEL_ID || 'amazon.nova-lite-v1:0',
-  AWS_REGION,
-  BEDROCK_INFERENCE_PROFILE_ID,
-);
+const aiConfigService = new AiConfigService(app.getPath('userData'));
+const initialAiSettings = aiConfigService.getSettings();
+const initialAiStatus = aiConfigService.getStatus();
 
-log('info', 'API keys loaded', {
-  youtubeApiKey: YOUTUBE_API_KEY ? 'Set' : 'Missing',
-  awsRegion: AWS_REGION,
-  awsAccessKey: AWS_ACCESS_KEY_ID ? 'Set' : 'Missing',
-  awsSecretKey: AWS_SECRET_ACCESS_KEY ? 'Set' : 'Missing',
+log('info', 'AI config loaded', {
+  youtubeApiKey: initialAiSettings.youtubeApiKey ? 'Set' : 'Missing',
+  awsRegion: initialAiSettings.awsRegion,
+  awsAccessKey: initialAiSettings.awsAccessKeyId ? 'Set' : 'Missing',
+  awsSecretKey: initialAiSettings.awsSecretAccessKey ? 'Set' : 'Missing',
+  usingSavedSettings: initialAiStatus.usingSavedSettings,
+  usingEnvFallback: initialAiStatus.usingEnvFallback,
 });
-
-// Initialize analysis service
-let analysisService: ChannelAnalysisService | null = null;
-let bedrockGatewayClient: BedrockRuntimeClient | null = null;
-if (YOUTUBE_API_KEY && AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
-  analysisService = new ChannelAnalysisService(
-    YOUTUBE_API_KEY,
-    AWS_REGION,
-    AWS_ACCESS_KEY_ID,
-    AWS_SECRET_ACCESS_KEY,
-    BEDROCK_MODEL_ID,
-    process.env.AWS_SESSION_TOKEN || undefined,
-  );
-  log('info', 'Channel analysis service initialized (Bedrock)');
-  bedrockGatewayClient = new BedrockRuntimeClient({
-    region: AWS_REGION,
-    maxAttempts: 4,
-    retryMode: 'adaptive',
-    requestHandler: new NodeHttpHandler({
-      connectionTimeout: 5_000,
-      requestTimeout: 30_000,
-      socketTimeout: 30_000,
-    }),
-    credentials: {
-      accessKeyId: AWS_ACCESS_KEY_ID,
-      secretAccessKey: AWS_SECRET_ACCESS_KEY,
-      ...(process.env.AWS_SESSION_TOKEN ? { sessionToken: process.env.AWS_SESSION_TOKEN } : {}),
-    },
-  });
-} else {
-  log('warn', 'Missing API keys - channel analysis disabled');
-}
 
 // Set the application name for the menu bar
 app.setName('QuickCut');
@@ -278,8 +210,11 @@ function isExpiredAwsTokenError(error: unknown): boolean {
 async function sendBedrockConverseWithRetry(
   commandInput: ConstructorParameters<typeof ConverseCommand>[0],
 ): Promise<ConverseCommandOutput> {
+  const bedrockGatewayClient = aiConfigService.getBedrockClient();
   if (!bedrockGatewayClient) {
-    throw new Error('Bedrock gateway unavailable: missing AWS credentials in Electron environment');
+    throw new Error(
+      'Bedrock gateway unavailable: missing AWS credentials. Open Settings and fill your AI configuration first.',
+    );
   }
 
   const maxTransportRetries = 2;
@@ -704,6 +639,7 @@ handleTrustedIpc(IPC_CHANNELS.transcription.transcribeTimeline, async (event, ra
 
 // Channel Analysis handlers
 handleTrustedIpc(IPC_CHANNELS.analysis.analyzeChannel, async (_event, rawChannelUrl: string) => {
+  const analysisService = aiConfigService.getAnalysisService();
   if (!analysisService) {
     return {
       success: false,
@@ -728,6 +664,7 @@ handleTrustedIpc(IPC_CHANNELS.analysis.analyzeChannel, async (_event, rawChannel
 });
 
 handleTrustedIpc(IPC_CHANNELS.analysis.getUserAnalysis, async (_event, rawUserId: string) => {
+  const analysisService = aiConfigService.getAnalysisService();
   if (!analysisService) {
     return ipcFailure('Analysis service not initialized', 'ANALYSIS_SERVICE_UNAVAILABLE');
   }
@@ -749,6 +686,7 @@ handleTrustedIpc(IPC_CHANNELS.analysis.getUserAnalysis, async (_event, rawUserId
 handleTrustedIpc(
   IPC_CHANNELS.analysis.linkToUser,
   async (_event, rawUserId: string, rawChannelUrl: string) => {
+    const analysisService = aiConfigService.getAnalysisService();
     if (!analysisService) {
       return ipcFailure('Analysis service not initialized', 'ANALYSIS_SERVICE_UNAVAILABLE');
     }
@@ -769,6 +707,7 @@ handleTrustedIpc(
 
 handleTrustedIpc(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => {
   const input = bedrockConverseInputSchema.parse(rawInput);
+  const aiSettings = aiConfigService.getSettings();
 
   const reviveBytes = (value: unknown): unknown => {
     // TypedArrays (e.g. Uint8Array) travel through Electron IPC via structured clone
@@ -813,8 +752,8 @@ handleTrustedIpc(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => 
   ) {
     (commandInput as { modelId: string }).modelId = normalizeBedrockModelIdentifier(
       (commandInput as { modelId: string }).modelId,
-      AWS_REGION,
-      BEDROCK_INFERENCE_PROFILE_ID,
+      aiSettings.awsRegion,
+      aiSettings.bedrockInferenceProfileId,
     );
   }
   try {
@@ -825,11 +764,11 @@ handleTrustedIpc(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => 
   } catch (error) {
     if (isExpiredAwsTokenError(error)) {
       throw new Error(
-        'AWS credentials expired for Bedrock access. Refresh AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN in .env and restart QuickCut.',
+        'AWS credentials expired for Bedrock access. Refresh them in Settings or .env and retry.',
       );
     }
     if (isRetryableBedrockTransportError(error)) {
-      const endpoint = `bedrock-runtime.${AWS_REGION}.amazonaws.com`;
+      const endpoint = `bedrock-runtime.${aiSettings.awsRegion}.amazonaws.com`;
       throw new Error(
         `Bedrock endpoint unreachable (${endpoint}). Check internet/firewall/VPN/proxy settings, then retry. Root cause: ${getErrorMessage(
           error,
@@ -838,6 +777,33 @@ handleTrustedIpc(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => 
       );
     }
     throw error;
+  }
+});
+
+handleTrustedIpc(IPC_CHANNELS.aiConfig.get, async () => {
+  return aiConfigService.getSettings();
+});
+
+handleTrustedIpc(IPC_CHANNELS.aiConfig.status, async () => {
+  return aiConfigService.getStatus();
+});
+
+handleTrustedIpc(IPC_CHANNELS.aiConfig.save, async (_event, rawSettings: unknown) => {
+  try {
+    const settings = aiConfigSettingsSchema.parse(rawSettings);
+    aiConfigService.saveSettings(settings);
+    const status = aiConfigService.getStatus();
+    const effective = aiConfigService.getSettings();
+    log('info', 'AI config updated', {
+      youtubeApiKey: effective.youtubeApiKey ? 'Set' : 'Missing',
+      awsRegion: effective.awsRegion,
+      bedrockReady: status.bedrockReady,
+      youtubeReady: status.youtubeReady,
+      usingSavedSettings: status.usingSavedSettings,
+    });
+    return { success: true };
+  } catch (error) {
+    return ipcFailure(error, 'AI_CONFIG_SAVE_FAILED');
   }
 });
 

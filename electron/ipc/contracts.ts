@@ -48,6 +48,11 @@ export const IPC_CHANNELS = {
   bedrock: {
     converse: 'bedrock:converse',
   },
+  aiConfig: {
+    get: 'aiConfig:get',
+    save: 'aiConfig:save',
+    status: 'aiConfig:status',
+  },
   youtube: {
     isAuthenticated: 'youtube:isAuthenticated',
     authenticate: 'youtube:authenticate',
@@ -151,6 +156,23 @@ export const youtubeUploadRequestSchema = z.object({
 });
 
 export const bedrockConverseInputSchema = z.record(z.string(), z.unknown());
+export const aiConfigSettingsSchema = z.object({
+  youtubeApiKey: z.string().optional().default(''),
+  awsRegion: z.string().optional().default(''),
+  awsAccessKeyId: z.string().optional().default(''),
+  awsSecretAccessKey: z.string().optional().default(''),
+  awsSessionToken: z.string().optional().default(''),
+  bedrockInferenceProfileId: z.string().optional().default(''),
+  bedrockModelId: z.string().optional().default(''),
+});
+export const aiConfigStatusSchema = z.object({
+  bedrockReady: z.boolean(),
+  youtubeReady: z.boolean(),
+  usingSavedSettings: z.boolean(),
+  usingEnvFallback: z.boolean(),
+  missingBedrockFields: z.array(z.string()),
+  missingYouTubeFields: z.array(z.string()),
+});
 export const ipcErrorEnvelopeSchema = z.object({
   success: z.literal(false),
   error: z.string(),
@@ -232,6 +254,12 @@ export type IpcInvokeContract = {
   };
   'memory:getDir': { args: []; result: { dir: string; index: string; analyses: string } };
   'bedrock:converse': { args: [input: Record<string, unknown>]; result: unknown };
+  'aiConfig:get': { args: []; result: z.infer<typeof aiConfigSettingsSchema> };
+  'aiConfig:save': {
+    args: [settings: z.infer<typeof aiConfigSettingsSchema>];
+    result: { success: boolean; error?: string; code?: string };
+  };
+  'aiConfig:status': { args: []; result: z.infer<typeof aiConfigStatusSchema> };
   'rules:write': {
     args: [content: string];
     result: { success: boolean; path?: string; error?: string; code?: string };

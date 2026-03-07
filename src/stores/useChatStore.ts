@@ -77,14 +77,30 @@ interface ChatStore {
 
 const MIN_PANEL_WIDTH = 240;
 const MAX_PANEL_WIDTH = 900;
-const TERMINAL_TURN_STATUSES: ChatTurnStatus[] = ['completed', 'error', 'interrupted'];
+const TERMINAL_TURN_STATUSES: ChatTurnStatus[] = [
+  'completed',
+  'error',
+  'interrupted',
+  'agentic_done',
+];
 
 const TURN_STATUS_TRANSITIONS: Record<ChatTurnStatus, ChatTurnStatus[]> = {
-  idle: ['planning', 'awaiting_approval', 'executing', 'completed', 'error', 'interrupted'],
+  idle: [
+    'planning',
+    'awaiting_approval',
+    'executing',
+    'agentic_running',
+    'completed',
+    'error',
+    'interrupted',
+  ],
   planning: ['awaiting_approval', 'executing', 'retry', 'completed', 'error', 'interrupted'],
   awaiting_approval: ['planning', 'executing', 'completed', 'error', 'interrupted'],
   executing: ['retry', 'completed', 'error', 'interrupted'],
   retry: ['planning', 'executing', 'error', 'interrupted'],
+  agentic_running: ['agentic_step', 'agentic_done', 'error', 'interrupted'],
+  agentic_step: ['agentic_step', 'agentic_running', 'agentic_done', 'error', 'interrupted'],
+  agentic_done: [],
   completed: [],
   error: [],
   interrupted: [],

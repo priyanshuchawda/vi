@@ -1,5 +1,5 @@
 export type MessageRole = 'user' | 'assistant' | 'system';
-export type ChatTurnMode = 'ask' | 'plan' | 'edit';
+export type ChatTurnMode = 'ask' | 'plan' | 'edit' | 'agentic';
 export type AssistantArtifactType =
   | 'script_draft'
   | 'execution_plan'
@@ -13,7 +13,10 @@ export type ChatTurnStatus =
   | 'retry'
   | 'completed'
   | 'error'
-  | 'interrupted';
+  | 'interrupted'
+  | 'agentic_running'
+  | 'agentic_step'
+  | 'agentic_done';
 
 export type TurnPart =
   | { type: 'text'; text: string; role: 'user' | 'assistant'; timestamp: number }
@@ -35,7 +38,29 @@ export type TurnPart =
   | { type: 'step_start'; label: string; timestamp: number }
   | { type: 'step_finish'; label: string; success: boolean; timestamp: number }
   | { type: 'status'; from: ChatTurnStatus; to: ChatTurnStatus; timestamp: number }
-  | { type: 'error'; message: string; timestamp: number };
+  | { type: 'error'; message: string; timestamp: number }
+  | {
+      type: 'agent_step';
+      stepNumber: number;
+      status: 'thinking' | 'executing' | 'verifying' | 'completed' | 'failed' | 'skipped';
+      thought: string;
+      toolName: string | null;
+      toolArgs: Record<string, unknown> | null;
+      success: boolean | null;
+      resultSummary: string;
+      costUsd: number;
+      durationMs: number;
+      timestamp: number;
+    }
+  | {
+      type: 'agent_complete';
+      totalSteps: number;
+      totalCostUsd: number;
+      totalDurationMs: number;
+      success: boolean;
+      summary: string;
+      timestamp: number;
+    };
 
 export interface ChatTurn {
   id: string;

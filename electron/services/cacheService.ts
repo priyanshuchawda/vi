@@ -11,7 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { getAwsStorageService } from './awsStorageService.js';
+import { getCloudBackendService } from './cloudBackendService.js';
 
 interface CacheEntry<T> {
   value: T;
@@ -267,7 +267,7 @@ export class AnalysisCacheService {
     if (local !== null) return local;
 
     // L3: DynamoDB
-    const aws = getAwsStorageService();
+    const aws = getCloudBackendService();
     const remote = await aws.getChannelAnalysis(channelId);
     if (remote !== null) {
       // Warm L1/L2 so next read is free
@@ -282,7 +282,7 @@ export class AnalysisCacheService {
   async setChannelAnalysisWithCloud(channelId: string, data: unknown): Promise<void> {
     this.setChannelAnalysis(channelId, data);
     // Non-blocking DDB write — errors are logged inside the service
-    void getAwsStorageService().setChannelAnalysis(channelId, data);
+    void getCloudBackendService().setChannelAnalysis(channelId, data);
   }
 
   /**
@@ -294,7 +294,7 @@ export class AnalysisCacheService {
     if (local !== null) return local;
 
     // L3: look up user→channel mapping in DDB
-    const aws = getAwsStorageService();
+    const aws = getCloudBackendService();
     const channelId = await aws.getUserLink(userId);
     if (!channelId) return null;
 
@@ -307,7 +307,7 @@ export class AnalysisCacheService {
    */
   async linkUserToChannelWithCloud(userId: string, channelId: string): Promise<boolean> {
     const local = this.linkUserToChannel(userId, channelId);
-    void getAwsStorageService().setUserLink(userId, channelId);
+    void getCloudBackendService().setUserLink(userId, channelId);
     return local;
   }
 }

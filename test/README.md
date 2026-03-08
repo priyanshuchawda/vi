@@ -42,6 +42,27 @@ npm run test:coverage
 npx vitest test/stores/useProjectStore.test.ts
 ```
 
+### Run optional live AWS storage test
+
+This test writes temporary data to the configured DynamoDB tables and S3 bucket,
+verifies round-trips through `CloudBackendService` in `direct` mode, and then cleans up.
+
+```bash
+RUN_AWS_LIVE_TESTS=1 npx vitest run test/electron/awsStorage.live.test.ts
+```
+
+To preserve the written AWS objects for CLI inspection after the run:
+
+```bash
+AWS_LIVE_TEST_KEEP_DATA=1 RUN_AWS_LIVE_TESTS=1 npx vitest run test/electron/awsStorage.live.test.ts
+```
+
+Requirements:
+
+- valid AWS credentials available through `.env` or the default AWS SDK provider chain
+- access to the configured region and bucket/tables
+- local fixture media under `video_test/`
+
 ## Test Coverage
 
 ### Store Tests (`useProjectStore.test.ts`)

@@ -45,7 +45,7 @@ import { setupAutoUpdates } from './services/updateService.js';
 import { captureMainException, initMainObservability } from './services/observabilityService.js';
 import { AiConfigService, normalizeBedrockModelIdentifier } from './services/aiConfigService.js';
 import { log } from './utils/logger.js';
-import { getAwsStorageService } from './services/awsStorageService.js';
+import { getCloudBackendService } from './services/cloudBackendService.js';
 import {
   assertSecureWebPreferences,
   AuthorizedPathRegistry,
@@ -106,6 +106,7 @@ log('info', 'AI config loaded', {
   awsSecretKey: initialAiSettings.awsSecretAccessKey ? 'Set' : 'Missing',
   usingSavedSettings: initialAiStatus.usingSavedSettings,
   usingEnvFallback: initialAiStatus.usingEnvFallback,
+  cloudBackendMode: getCloudBackendService().mode,
 });
 
 // Set the application name for the menu bar
@@ -623,7 +624,7 @@ handleTrustedIpc(IPC_CHANNELS.media.exportVideo, async (event, rawPayload) => {
     // Uses a placeholder userId ('anonymous') when no profile is persisted.
     void (async () => {
       try {
-        const record = await getAwsStorageService().uploadExportedVideo(outputPath, 'anonymous');
+        const record = await getCloudBackendService().uploadExportedVideo(outputPath, 'anonymous');
         if (record) {
           log('info', '[Export] Video uploaded to S3', { s3Key: record.s3Key });
         }
@@ -909,7 +910,7 @@ handleTrustedIpc(IPC_CHANNELS.memory.save, async (_, rawData) => {
     );
     // Async S3 backup — errors logged inside service, does not block the response
     const s3Key = `${projectId ?? 'default'}/memory.json`;
-    void getAwsStorageService().uploadMemoryFile(s3Key, serialized);
+    void getCloudBackendService().uploadMemoryFile(s3Key, serialized);
     return { success: true, path: paths.index };
   } catch (error) {
     console.error('[Memory] Failed to save:', error);
@@ -937,7 +938,7 @@ handleTrustedIpc(IPC_CHANNELS.memory.load, async (_, projectId?: string) => {
         `[Memory] Local file absent for project ${projectId || 'default'}, checking S3...`,
       );
       const s3Key = `${safeProjectId ?? 'default'}/memory.json`;
-      const remote = await getAwsStorageService().downloadMemoryFile(s3Key);
+      const remote = await getCloudBackendService().downloadMemoryFile(s3Key);
       if (remote) {
         const parsed = JSON.parse(remote);
         // Restore to disk for subsequent fast reads
@@ -1054,7 +1055,7 @@ handleTrustedIpc(
       console.log(`[Memory] Saved analysis markdown: ${mdPath}`);
       // Async S3 backup of the markdown file
       const s3Key = `${safeProjectId ?? 'default'}/analyses/${safeName}.md`;
-      void getAwsStorageService().uploadMemoryFile(s3Key, md);
+      void getCloudBackendService().uploadMemoryFile(s3Key, md);
       return { success: true, path: mdPath };
     } catch (error) {
       console.error('[Memory] Failed to save markdown:', error);
@@ -1113,7 +1114,7 @@ handleTrustedIpc(
   async (_, rawProfile: Record<string, unknown>) => {
     try {
       const userId = nonEmptyStringSchema.parse(rawProfile['userId']);
-      await getAwsStorageService().setUserProfile({
+      await getCloudBackendService().setUserProfile({
         userId,
         userName: typeof rawProfile['userName'] === 'string' ? rawProfile['userName'] : undefined,
         email: typeof rawProfile['email'] === 'string' ? rawProfile['email'] : undefined,
@@ -1141,7 +1142,7 @@ handleTrustedIpc(
 handleTrustedIpc(IPC_CHANNELS.storage.loadProfile, async (_, rawUserId: string) => {
   try {
     const userId = nonEmptyStringSchema.parse(rawUserId);
-    const data = await getAwsStorageService().getUserProfile(userId);
+    const data = await getCloudBackendService().getUserProfile(userId);
     return { success: true, data: data as Record<string, unknown> | null };
   } catch (error) {
     log('warn', '[Storage] loadProfile failed', { error });
@@ -1156,7 +1157,7 @@ handleTrustedIpc(
     try {
       const localPath = authorizeFilePath(rawLocalPath);
       const userId = nonEmptyStringSchema.parse(rawUserId);
-      const record = await getAwsStorageService().uploadExportedVideo(localPath, userId);
+      const record = await getCloudBackendService().uploadExportedVideo(localPath, userId);
       return { success: true, record };
     } catch (error) {
       log('warn', '[Storage] uploadExportedVideo failed', { error });
@@ -1169,7 +1170,7 @@ handleTrustedIpc(
 handleTrustedIpc(IPC_CHANNELS.storage.listExportedVideos, async (_, rawUserId: string) => {
   try {
     const userId = nonEmptyStringSchema.parse(rawUserId);
-    const items = await getAwsStorageService().listExportedVideos(userId);
+    const items = await getCloudBackendService().listExportedVideos(userId);
     return { success: true, items };
   } catch (error) {
     log('warn', '[Storage] listExportedVideos failed', { error });
@@ -1184,7 +1185,7 @@ handleTrustedIpc(
     try {
       const key = nonEmptyStringSchema.parse(rawKey);
       const content = nonEmptyStringSchema.parse(rawContent);
-      await getAwsStorageService().uploadAiContext(key, content, 'ai-context');
+      await getCloudBackendService().uploadAiContext(key, content, 'ai-context');
       return { success: true };
     } catch (error) {
       log('warn', '[Storage] syncAiContext failed', { error });
@@ -1197,7 +1198,7 @@ handleTrustedIpc(
 handleTrustedIpc(IPC_CHANNELS.storage.loadAiContext, async (_, rawKey: string) => {
   try {
     const key = nonEmptyStringSchema.parse(rawKey);
-    const data = await getAwsStorageService().downloadAiContext(key, 'ai-context');
+    const data = await getCloudBackendService().downloadAiContext(key, 'ai-context');
     return { success: true, data };
   } catch (error) {
     log('warn', '[Storage] loadAiContext failed', { error });

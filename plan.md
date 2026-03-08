@@ -737,3 +737,330 @@ without:
 - producing generic filler scripts
 - needing the user to micromanage every step
 - wasting tokens on tools or context it does not need
+
+## AWS API Gateway + Lambda Migration Plan
+
+## Goal
+
+Move QuickCut away from direct desktop-to-AWS service coupling where it makes
+sense, without breaking the local-first editing runtime.
+
+The design target is:
+
+- local editing, export, transcription, and timeline reasoning stay local
+- small remote metadata and orchestration flows move behind API Gateway + Lambda
+- large media uploads go direct to S3 through presigned URLs
+- rollout happens behind feature flags with phase-by-phase verification
+
+## Current AWS Surface
+
+Today the desktop app talks directly to AWS from Electron main:
+
+- Bedrock chat / Converse
+- YouTube channel analysis orchestration
+- DynamoDB user profiles
+- DynamoDB channel analysis cache
+- DynamoDB user-to-channel links
+- S3 AI context backup
+- S3 memory backup
+- S3 exported video upload
+
+Key code paths:
+
+- `electron/services/awsStorageService.ts`
+- `electron/services/channelAnalysisService.ts`
+- `electron/services/aiConfigService.ts`
+- `electron/services/cacheService.ts`
+- `electron/main.ts`
+
+## Non-Goals
+
+These should not be moved behind Lambda/API Gateway early:
+
+- FFmpeg export runtime
+- local transcription runtime
+- local timeline tools
+- media protocol serving
+- main Bedrock chat/tool loop
+
+Reason:
+
+- they are latency-sensitive
+- they depend on local files and local process state
+- pushing them remote would cost more and complicate correctness
+
+## Design Principles
+
+1. Keep the renderer contract stable.
+
+- Renderer keeps using preload + IPC.
+- Main process owns backend selection.
+
+2. Use API Gateway + Lambda as control plane, not file pipe.
+
+- metadata and orchestration go through Gateway/Lambda
+- video bytes do not
+
+3. Always support controlled rollback.
+
+- `direct` mode must remain available until the backend path is proven
+
+4. Prefer async jobs for long-running analysis.
+
+- YouTube fetch + Bedrock analysis should not depend on a fragile long sync
+  request path
+
+5. Optimize for cost before scaling.
+
+- small JSON APIs
+- direct-to-S3 uploads with presigned URLs
+- avoid proxying large payloads through Lambda
+
+## Backend Architecture Target
+
+### Desktop App
+
+- Renderer -> preload -> IPC
+- Electron main chooses backend mode
+- Backend mode options:
+  - `direct`
+  - `apigw`
+
+### API Layer
+
+- API Gateway HTTP API
+- Lambda handlers for metadata and orchestration
+- IAM role-based access from Lambda to:
+  - DynamoDB
+  - S3
+  - Bedrock
+  - Secrets Manager / Parameter Store if needed later
+
+### Storage
+
+- DynamoDB
+  - `quickcut-user-profiles`
+  - `quickcut-channel-analysis`
+  - `quickcut-user-links`
+  - future analysis job table if async jobs are added
+- S3
+  - `videos/...`
+  - `ai-context/...`
+  - `memory/...`
+
+## Auth Decision
+
+This is the first hard architecture decision.
+
+Recommended:
+
+- API Gateway HTTP API
+- JWT-based auth (for example Cognito user pools or equivalent)
+
+Allowed alternatives:
+
+- IAM SigV4 from trusted desktop clients
+
+Do not use:
+
+- API keys as auth
+
+Reason:
+
+- API keys are not sufficient for authorization or identity
+- they are for metering / usage plans, not real access control
+
+## Current Identity Constraints
+
+The repo currently has no server-issued user identity model.
+
+Observed behavior in code:
+
+- profile `userId` is generated client-side with `crypto.randomUUID()`
+- profile state is persisted in renderer local storage through Zustand
+- onboarding completion state is also local-only Zustand persistence
+- `storage.saveProfile` is used for fire-and-forget cloud sync
+- `storage.loadProfile` exists in IPC but is not currently used to hydrate the
+  renderer
+- user-to-analysis linking is keyed only by the client-provided `userId`
+- AI settings store AWS keys and YouTube API/OAuth config, but they are not
+  app-user auth
+- YouTube OAuth token storage exists only for YouTube upload access, not
+  QuickCut backend auth
+- no JWT/Cognito/session/token backend flow exists in the current app
+- no existing API Gateway/Lambda deployment infrastructure exists in the repo
+  yet
+
+Implication for Phase B:
+
+- if routes are exposed remotely without a real auth layer, any caller who knows
+  or guesses a `userId` can read or write profile-linked metadata
+- Phase B can still be built behind a feature flag, but production rollout
+  should not happen before auth is chosen
+
+## Route Design Target
+
+### Phase 2 Metadata Routes
+
+- `GET /profiles/{userId}`
+- `PUT /profiles/{userId}`
+- `GET /analysis/users/{userId}`
+- `PUT /analysis/users/{userId}/link`
+- `PUT /ai-context/{key}`
+- `GET /ai-context/{key}`
+- `PUT /memory/{key}`
+- `GET /memory/{key}`
+- `DELETE /memory/{key}`
+
+### Phase 3 Export Routes
+
+- `POST /videos/uploads/presign`
+- optional `POST /videos/uploads/complete`
+- `GET /videos/users/{userId}`
+
+### Phase 4 Channel Analysis Job Routes
+
+- `POST /analysis/jobs`
+- `GET /analysis/jobs/{jobId}`
+
+## Delivery Phases
+
+## Phase A - Backend Adapter Seam
+
+Objective:
+
+- Introduce a single cloud-backend adapter in Electron main
+- keep current behavior in `direct` mode
+
+Work:
+
+- create cloud backend interface
+- support backend mode selection by env
+- route existing storage/cache call sites through the adapter
+- preserve current live AWS behavior
+
+Acceptance:
+
+- no renderer contract changes
+- direct mode remains the default
+- live AWS test still passes
+
+## Phase B - Profiles + Links + Context via API
+
+Objective:
+
+- Move small metadata flows behind API Gateway + Lambda
+
+Work:
+
+- implement Lambda routes for profile and analysis-link operations
+- implement AI context and memory object routes
+- switch `apigw` adapter mode to use real HTTP calls
+- keep `direct` as fallback
+
+Acceptance:
+
+- profile save/load works in `apigw` mode
+- link/user-analysis retrieval works in `apigw` mode
+- context backup/load works in `apigw` mode
+- CLI verification confirms DynamoDB and S3 writes
+
+## Phase C - Export Upload Cost Optimization
+
+Objective:
+
+- stop using desktop credentials for export uploads
+- avoid Lambda proxying large files
+
+Work:
+
+- add presigned upload route
+- upload exported file directly from desktop to S3
+- optionally store upload metadata through Lambda
+
+Acceptance:
+
+- export still feels local-first
+- no file bytes pass through API Gateway/Lambda
+- S3 object lands under the expected user prefix
+
+## Phase D - Channel Analysis Job Backend
+
+Objective:
+
+- move YouTube analysis orchestration off the desktop
+
+Work:
+
+- add async job submission + polling
+- Lambda fetches YouTube data and calls Bedrock
+- Lambda persists analysis + user links in DynamoDB
+
+Acceptance:
+
+- onboarding/profile analysis works without desktop AWS credentials
+- analysis results are cached remotely
+- retries and failure states are visible and recoverable
+
+## Phase E - Bedrock Chat Decision
+
+Objective:
+
+- decide whether the main chat/tool loop should stay local or move remote
+
+Recommendation:
+
+- defer until earlier phases are stable
+
+Reason:
+
+- current chat loop depends on local project snapshot, local tools, and
+  low-latency iteration
+
+## Cost Optimization Rules
+
+1. Use Lambda only for small JSON requests and orchestration.
+2. Use presigned S3 URLs for file uploads.
+3. Keep analysis asynchronous if it may become slow or bursty.
+4. Use PAY_PER_REQUEST tables unless predictable sustained traffic justifies
+   something else.
+5. Cache analysis aggressively:
+   - L1 memory
+   - L2 disk
+   - L3 remote store
+6. Do not duplicate writes unless they materially improve recovery or UX.
+7. Keep logs structured and redact secrets.
+
+## Verification Strategy
+
+Every phase must validate three layers:
+
+1. local tests
+2. live project integration test
+3. AWS CLI confirmation
+
+For each phase:
+
+- add focused unit/integration tests
+- run the relevant Vitest files
+- run live AWS tests where applicable
+- confirm resource state with AWS CLI
+
+## Immediate Implementation Order
+
+1. Phase A - adapter seam
+2. Verify direct mode with existing live AWS test
+3. Build Phase B routes and adapter
+4. Verify with live AWS + CLI
+5. Build Phase C presigned export flow
+6. Verify with live AWS + CLI
+7. Build Phase D async analysis backend
+8. Verify with live AWS + CLI
+
+## Exit Criteria
+
+- desktop app no longer needs direct DynamoDB/S3 credentials for normal storage
+  flows in `apigw` mode
+- export uploads use presigned S3, not Lambda file proxying
+- analysis can run as backend job flow
+- `direct` mode remains available for rollback during migration

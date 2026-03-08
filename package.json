@@ -12,7 +12,7 @@
     "dev:react": "vite",
     "build:electron": "tsc -p tsconfig.electron.json && node scripts/build/build-electron-preload.mjs",
     "dist:check:assets": "node scripts/build/check-release-assets.mjs",
-    "dev:electron": "npm run build:electron && concurrently -k \"tsc -p tsconfig.electron.json -w\" \"node scripts/build/build-electron-preload.mjs --watch\" \"wait-on http-get://localhost:7377 && electron .\"",
+    "dev:electron": "npm run build:electron && concurrently -k \"tsc -p tsconfig.electron.json -w\" \"node scripts/build/build-electron-preload.mjs --watch\" \"wait-on http-get://localhost:7377 && node scripts/dev/run-electron.mjs\"",
     "build": "tsc -b && npm run build:electron && vite build",
     "dist": "npm run build && npm run dist:check:assets -- linux && electron-builder --publish never",
     "dist:all": "npm run build && npm run dist:check:assets -- mac win linux && electron-builder --mac --arm64 --x64 --publish never && electron-builder --win nsis --x64 --publish never && electron-builder --linux AppImage deb --x64 --publish never",

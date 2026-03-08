@@ -148,11 +148,19 @@ export async function authenticateUser(mainWindow: BrowserWindow): Promise<boole
 
     authWindow.loadURL(authUrl);
 
+    // One-shot guard: the OAuth server can trigger both will-navigate AND
+    // will-redirect for the same redirect URL (3xx response).  Without the
+    // guard, handleCallback races with itself: the second invocation calls
+    // client.getToken with an already-consumed code (→ invalid_grant) and
+    // attempts to close an already-destroyed window (→ crash).
+    let callbackHandled = false;
+
     // Handler to capture the OAuth callback redirect to localhost
     const handleCallback = async (callbackUrl: string) => {
-      if (!callbackUrl.startsWith(redirectUri)) {
-        return; // Not our callback, let it proceed
+      if (!callbackUrl.startsWith(redirectUri) || callbackHandled) {
+        return; // Not our callback, or already handled
       }
+      callbackHandled = true;
 
       authWindow.close();
 

@@ -46,6 +46,23 @@ class ChatRequestQueue {
     });
   }
 
+  /**
+   * Force-reset the queue: reject all pending items and unlock inFlight so the
+   * queue can accept new work immediately (e.g. after the user clicks Stop).
+   */
+  forceReset(reason = 'Queue reset by user'): void {
+    const abortErr = new DOMException(reason, 'AbortError');
+    // Drain and reject all waiting items
+    let item = this.queue.shift();
+    while (item) {
+      item.reject(abortErr);
+      item = this.queue.shift();
+    }
+    this.inFlight = false;
+    this.activeLabel = null;
+    this.emit();
+  }
+
   getSnapshot(): ChatQueueSnapshot {
     return {
       inFlight: this.inFlight,
@@ -75,12 +92,13 @@ class ChatRequestQueue {
     }
 
     while (this.queue.length > 0) {
-      this.inFlight = true;
+      // Shift the item BEFORE setting inFlight so a null result never locks the queue.
       const item = this.queue.shift();
       if (!item) {
         break;
       }
 
+      this.inFlight = true;
       this.activeLabel = item.label;
       this.emit();
 

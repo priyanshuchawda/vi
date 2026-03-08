@@ -150,6 +150,10 @@ const ChatInput = ({ onSendMessage, disabled }: ChatInputProps) => {
       const msg = trimmedMessage || (attachments.length > 0 ? 'Analyze this file' : '');
       onSendMessage(msg, attachments.length > 0 ? attachments : undefined);
       setMessage('');
+      // Revoke object URLs before clearing so they aren't leaked as memory.
+      attachmentsRef.current.forEach((a) => {
+        if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+      });
       setAttachments([]);
     }
   };

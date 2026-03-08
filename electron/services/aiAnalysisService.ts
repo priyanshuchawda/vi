@@ -4,7 +4,12 @@
  * Runs in Electron main process (Node.js context).
  */
 
-import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
+import {
+  BedrockRuntimeClient,
+  ConverseCommand,
+  type ConverseCommandOutput,
+} from '@aws-sdk/client-bedrock-runtime';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
 
 interface ChannelMetadata {
   channel_id: string;
@@ -37,9 +42,86 @@ export interface AnalysisResult {
   audience_insights: string[];
 }
 
+type BedrockSendClient = {
+  send(command: unknown): Promise<ConverseCommandOutput>;
+};
+
+interface AIAnalysisServiceOptions {
+  client?: BedrockSendClient;
+  maxTransportRetries?: number;
+  retryBaseDelayMs?: number;
+}
+
+const RETRYABLE_ERROR_NAMES = new Set([
+  'InternalServerException',
+  'ServiceUnavailableException',
+  'ThrottlingException',
+  'ModelNotReadyException',
+]);
+
+const RETRYABLE_ERROR_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'EAI_AGAIN',
+  'ENETUNREACH',
+  'ETIMEDOUT',
+  'TimeoutError',
+]);
+
+function getErrorName(error: unknown): string {
+  return error instanceof Error ? error.name : '';
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function getErrorCode(error: unknown): string {
+  if (!error || typeof error !== 'object' || !('code' in error)) {
+    return '';
+  }
+
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' ? code : '';
+}
+
+function isRetryableBedrockError(error: unknown): boolean {
+  const name = getErrorName(error);
+  const code = getErrorCode(error);
+  const message = getErrorMessage(error).toLowerCase();
+
+  if (RETRYABLE_ERROR_NAMES.has(name) || RETRYABLE_ERROR_CODES.has(code)) {
+    return true;
+  }
+
+  return (
+    message.includes('socket hang up') ||
+    message.includes('timed out') ||
+    message.includes('timeout') ||
+    message.includes('connection reset') ||
+    message.includes('temporarily unavailable') ||
+    message.includes('rate exceeded')
+  );
+}
+
+function isExpiredAwsTokenError(error: unknown): boolean {
+  const combined = `${getErrorName(error)} ${getErrorMessage(error)}`.toLowerCase();
+  return (
+    combined.includes('expiredtoken') ||
+    combined.includes('expired token') ||
+    combined.includes('security token included in the request is expired')
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class AIAnalysisService {
-  private client: BedrockRuntimeClient;
+  private client: BedrockSendClient;
   private modelId: string;
+  private maxTransportRetries: number;
+  private retryBaseDelayMs: number;
 
   constructor(
     region: string = 'us-east-1',
@@ -47,12 +129,24 @@ export class AIAnalysisService {
     secretAccessKey: string = '',
     modelId: string = 'amazon.nova-lite-v1:0',
     sessionToken?: string,
+    options: AIAnalysisServiceOptions = {},
   ) {
-    this.client = new BedrockRuntimeClient({
-      region,
-      credentials: { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) },
-    });
+    this.client =
+      options.client ??
+      new BedrockRuntimeClient({
+        region,
+        maxAttempts: 4,
+        retryMode: 'adaptive',
+        requestHandler: new NodeHttpHandler({
+          connectionTimeout: 5_000,
+          requestTimeout: 30_000,
+          socketTimeout: 30_000,
+        }),
+        credentials: { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) },
+      });
     this.modelId = modelId;
+    this.maxTransportRetries = options.maxTransportRetries ?? 2;
+    this.retryBaseDelayMs = options.retryBaseDelayMs ?? 500;
   }
 
   /**
@@ -155,14 +249,17 @@ Based on the channel data provided above, generate your analysis:`;
    * Call Bedrock Converse API
    */
   private async callBedrock(prompt: string): Promise<string> {
-    try {
-      const response = await this.client.send(
-        new ConverseCommand({
-          modelId: this.modelId,
-          messages: [{ role: 'user', content: [{ text: prompt }] }],
-          system: [
-            {
-              text: `<role>
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= this.maxTransportRetries + 1; attempt += 1) {
+      try {
+        const response = await this.client.send(
+          new ConverseCommand({
+            modelId: this.modelId,
+            messages: [{ role: 'user', content: [{ text: prompt }] }],
+            system: [
+              {
+                text: `<role>
 You are a specialized AI assistant for YouTube channel analysis in a video editing application.
 You are precise, analytical, and data-driven.
 </role>
@@ -180,17 +277,38 @@ You are precise, analytical, and data-driven.
 - Tone: Professional and analytical
 - Output: Valid JSON only, no markdown code blocks
 </constraints>`,
-            },
-          ],
-          inferenceConfig: { maxTokens: 2000, temperature: 0.7 },
-        }),
-      );
+              },
+            ],
+            inferenceConfig: { maxTokens: 2000, temperature: 0.7 },
+          }),
+        );
 
-      return response.output?.message?.content?.[0]?.text || '';
-    } catch (error) {
-      console.error('Bedrock API call failed:', error);
-      throw error;
+        return response.output?.message?.content?.[0]?.text || '';
+      } catch (error) {
+        lastError = error;
+
+        if (isExpiredAwsTokenError(error)) {
+          throw new Error(
+            'AWS credentials expired for YouTube channel analysis. Refresh them in Settings or .env and retry.',
+          );
+        }
+
+        if (!isRetryableBedrockError(error) || attempt > this.maxTransportRetries) {
+          console.error('Bedrock API call failed:', error);
+          throw error;
+        }
+
+        const backoffMs = this.retryBaseDelayMs * 2 ** (attempt - 1);
+        console.warn(
+          `Retrying Bedrock channel analysis request (attempt ${attempt}/${this.maxTransportRetries + 1}) after ${backoffMs}ms`,
+          getErrorMessage(error),
+        );
+        await sleep(backoffMs);
+      }
     }
+
+    console.error('Bedrock API call failed:', lastError);
+    throw lastError instanceof Error ? lastError : new Error('Bedrock API call failed');
   }
 
   /**

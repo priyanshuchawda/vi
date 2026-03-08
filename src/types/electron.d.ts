@@ -171,6 +171,7 @@ export interface ElectronAPI {
     resolution?: string,
     subtitles?: unknown[],
     subtitleStyle?: unknown,
+    userId?: string,
   ) => Promise<boolean>;
   onExportProgress: (callback: (percent: number) => void) => () => void;
   saveProject: () => Promise<string | null>;
@@ -244,7 +245,7 @@ export interface ElectronAPI {
     ) => Promise<{ success: boolean; record?: unknown; error?: string }>;
     listExportedVideos: (
       userId: string,
-    ) => Promise<{ success: boolean; videos?: unknown[]; error?: string }>;
+    ) => Promise<{ success: boolean; items?: unknown[]; error?: string }>;
     syncAiContext: (key: string, content: string) => Promise<{ success: boolean; error?: string }>;
     loadAiContext: (key: string) => Promise<{ success: boolean; data?: string; error?: string }>;
   };

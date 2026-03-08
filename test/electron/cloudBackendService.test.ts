@@ -64,6 +64,31 @@ describe('cloudBackendService', () => {
     });
   });
 
+  it('sends the configured bearer auth token in apigw mode', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: { userId: 'user-1', createdAt: 1, updatedAt: 2 } }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = createCloudBackendService({
+      env: {
+        AWS_BACKEND_MODE: 'apigw',
+        AWS_BACKEND_URL: 'https://example.execute-api.eu-central-1.amazonaws.com',
+        AWS_BACKEND_AUTH_TOKEN: 'test-token',
+      } as NodeJS.ProcessEnv,
+    });
+
+    await service.getUserProfile('user-1');
+
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      headers: {
+        authorization: 'Bearer test-token',
+      },
+    });
+  });
+
   it('still rejects export routes in apigw mode until Phase C', async () => {
     const service = createCloudBackendService({
       env: {

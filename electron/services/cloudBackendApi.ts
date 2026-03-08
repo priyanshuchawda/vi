@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { type UserProfile, getAwsStorageService } from './awsStorageService.js';
 
@@ -47,6 +48,7 @@ export interface CloudBackendApiRequest {
   method: string;
   path: string;
   body?: string | null;
+  headers?: Record<string, string | undefined>;
 }
 
 export interface CloudBackendApiResponse {
@@ -92,11 +94,45 @@ function decodeObjectKey(segments: string[], startIndex: number): string {
   return segments.slice(startIndex).join('/').trim();
 }
 
+function getConfiguredApiAuthToken(env: NodeJS.ProcessEnv): string | null {
+  const configured = env.AWS_BACKEND_AUTH_TOKEN?.trim();
+  return configured ? configured : null;
+}
+
+function isBearerTokenAuthorized(request: CloudBackendApiRequest, env: NodeJS.ProcessEnv): boolean {
+  const configuredToken = getConfiguredApiAuthToken(env);
+  if (!configuredToken) {
+    return true;
+  }
+
+  const authorizationHeader =
+    request.headers?.authorization ?? request.headers?.Authorization ?? '';
+  const match = authorizationHeader.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    return false;
+  }
+
+  const receivedToken = match[1].trim();
+  const expectedBuffer = Buffer.from(configuredToken, 'utf8');
+  const receivedBuffer = Buffer.from(receivedToken, 'utf8');
+
+  if (expectedBuffer.length !== receivedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
 export async function handleCloudBackendApiRequest(
   request: CloudBackendApiRequest,
   storage: CloudBackendApiStorage = getAwsStorageService(),
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<CloudBackendApiResponse> {
   try {
+    if (!isBearerTokenAuthorized(request, env)) {
+      return jsonResponse(401, { error: 'Unauthorized' });
+    }
+
     const method = request.method.toUpperCase();
     const segments = splitPath(request.path);
 

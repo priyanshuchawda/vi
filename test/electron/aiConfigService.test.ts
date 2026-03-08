@@ -105,4 +105,53 @@ describe('AiConfigService', () => {
       usingEnvFallback: true,
     });
   });
+
+  it('applies saved AWS settings as SDK env fallback without overwriting real env values', () => {
+    const tempDir = makeTempDir();
+    const envFilePath = path.join(tempDir, '.env');
+    const userDataPath = path.join(tempDir, 'user-data');
+
+    const service = new AiConfigService(userDataPath, {
+      env: {},
+      envFilePath,
+    });
+
+    service.saveSettings({
+      youtubeApiKey: '',
+      awsRegion: 'eu-central-1',
+      awsAccessKeyId: 'saved-key',
+      awsSecretAccessKey: 'saved-secret',
+      awsSessionToken: 'saved-session',
+      bedrockInferenceProfileId: '',
+      bedrockModelId: 'amazon.nova-lite-v1:0',
+      youtubeOAuthClientId: '',
+      youtubeOAuthClientSecret: '',
+      youtubeOAuthRedirectUri: '',
+    });
+
+    const targetEnv: NodeJS.ProcessEnv = {};
+    service.applyAwsSdkEnvFallback(targetEnv);
+
+    expect(targetEnv).toMatchObject({
+      AWS_REGION: 'eu-central-1',
+      AWS_ACCESS_KEY_ID: 'saved-key',
+      AWS_SECRET_ACCESS_KEY: 'saved-secret',
+      AWS_SESSION_TOKEN: 'saved-session',
+    });
+
+    writeEnvFile(envFilePath, {
+      AWS_REGION: 'ap-south-1',
+      AWS_ACCESS_KEY_ID: 'env-key',
+      AWS_SECRET_ACCESS_KEY: 'env-secret',
+    });
+
+    service.applyAwsSdkEnvFallback(targetEnv);
+
+    expect(targetEnv).toMatchObject({
+      AWS_REGION: 'ap-south-1',
+      AWS_ACCESS_KEY_ID: 'env-key',
+      AWS_SECRET_ACCESS_KEY: 'env-secret',
+    });
+    expect(targetEnv.AWS_SESSION_TOKEN).toBeUndefined();
+  });
 });

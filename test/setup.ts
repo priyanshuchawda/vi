@@ -86,7 +86,7 @@ const mockElectronAPI: ElectronAPI = {
     saveProfile: vi.fn().mockResolvedValue({ success: true }),
     loadProfile: vi.fn().mockResolvedValue({ success: true, data: null }),
     uploadExportedVideo: vi.fn().mockResolvedValue({ success: true, record: null }),
-    listExportedVideos: vi.fn().mockResolvedValue({ success: true, videos: [] }),
+    listExportedVideos: vi.fn().mockResolvedValue({ success: true, items: [] }),
     syncAiContext: vi.fn().mockResolvedValue({ success: true }),
     loadAiContext: vi.fn().mockResolvedValue({ success: true, data: null }),
   },

@@ -5,6 +5,7 @@ interface ApiGatewayV2Event {
   rawQueryString?: string;
   body?: string | null;
   isBase64Encoded?: boolean;
+  headers?: Record<string, string | undefined>;
   requestContext?: {
     http?: {
       method?: string;
@@ -30,5 +31,6 @@ export async function handler(event: ApiGatewayV2Event): Promise<ApiGatewayV2Res
     method,
     path: `${event.rawPath ?? '/'}${query}`,
     body,
+    headers: event.headers,
   });
 }

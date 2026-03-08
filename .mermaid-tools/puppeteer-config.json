@@ -1,0 +1,5 @@
+{
+  "executablePath": "/usr/bin/google-chrome",
+  "headless": true,
+  "args": ["--disable-dev-shm-usage"]
+}

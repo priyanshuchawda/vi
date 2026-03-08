@@ -82,15 +82,15 @@ export interface AgentLoopConfig {
 }
 
 export const DEFAULT_AGENT_LOOP_CONFIG: AgentLoopConfig = {
-  maxSteps: 15,
-  maxCostUsd: 0.1,
-  maxDurationMs: 120_000,
+  maxSteps: 1000,
+  maxCostUsd: 1000.0,
+  maxDurationMs: 86_400_000,
   autoApproveReadOnly: true,
   autoApproveMutations: true,
   verifyAfterMutation: true,
   compressContextAfterSteps: 5,
-  enableDoomLoopDetection: true,
-  doomLoopThreshold: 3,
+  enableDoomLoopDetection: false,
+  doomLoopThreshold: 20,
 };
 
 export interface AgentLoopState {

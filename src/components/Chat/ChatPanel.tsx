@@ -650,10 +650,6 @@ const ChatPanel = () => {
             const agentResult = await runAgentLoop({
               userMessage: plannerInput,
               history: aiHistory,
-              config: {
-                maxSteps: Math.min(routingDecision.estimatedSteps + 3, 15),
-                maxCostUsd: 0.1,
-              },
               callbacks: {
                 onStepStart: (step) => {
                   if (agentTurnId) {
@@ -2956,7 +2952,7 @@ const ChatPanel = () => {
           </button>
         </div>
       )}
-      <ChatInput onSendMessage={handleSendMessage} disabled={isTyping} />
+      <ChatInput onSendMessage={handleSendMessage} disabled={false} />
     </div>
   );
 };

@@ -55,14 +55,14 @@ import type {
 } from '../types/agentTypes';
 import { DEFAULT_AGENT_LOOP_CONFIG } from '../types/agentTypes';
 
-const AGENTIC_MAX_TOKENS = 1024;
+const AGENTIC_MAX_TOKENS = 8192;
 
 /**
  * System prompt for the agentic loop.
  * Key difference from planning prompt: tells the AI to work step-by-step
  * and continue autonomously instead of outputting a batch plan.
  */
-function buildAgenticSystemPrompt(config: AgentLoopConfig): string {
+function buildAgenticSystemPrompt(): string {
   return `<role>
 You are QuickCut's autonomous video editing copilot.
 You work step-by-step until the user's goal is FULLY achieved.
@@ -137,7 +137,7 @@ If a tool call fails:
 1a. Bedrock constraint: emit at most ONE toolUse block in each assistant response.
 2. NEVER ask the user for permission — you are autonomous.
 3. Prefer fewer, larger operations over many small ones.
-4. Budget: ${config.maxSteps} steps max, $${config.maxCostUsd.toFixed(2)} cost cap.
+4. No step or cost limit — continue until the goal is FULLY achieved.
 5. Treat edits as DELTA operations — only modify what needs changing.
 6. After mutations, the system auto-verifies timeline state for you.
 7. If you detect the timeline is already correct, STOP and summarize.
@@ -510,7 +510,7 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
   const snapshotContext = formatSnapshotForPrompt(aliasedSnapshot, 'planning', 3400);
   const capabilityContext = formatCapabilityMatrixForPrompt(toolNames, 2400);
 
-  const systemPrompt = buildAgenticSystemPrompt(config);
+  const systemPrompt = buildAgenticSystemPrompt();
 
   // Build initial context message
   const dynamicContext = `<ai-project-snapshot>
@@ -747,13 +747,8 @@ When the goal is fully achieved, respond with a summary (no tool calls).
           };
         }
 
-        // Budget countdown to help AI pace itself
-        const remainingSteps = config.maxSteps - stepNumber;
-        const remainingBudget = config.maxCostUsd - costGuard.totalCostUsd;
-        resultPayload.budget = {
-          stepsRemaining: remainingSteps,
-          costRemainingUsd: Number(remainingBudget.toFixed(4)),
-        };
+        // Step counter (no hard limits)
+        resultPayload.stepsSoFar = stepNumber;
 
         const toolResultContent = [
           {

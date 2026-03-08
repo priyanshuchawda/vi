@@ -59,6 +59,7 @@ export const IPC_CHANNELS = {
     logout: 'youtube:logout',
     uploadVideo: 'youtube:uploadVideo',
     uploadProgress: 'youtube:uploadProgress',
+    checkCredentials: 'youtube:checkCredentials',
   },
   window: {
     close: 'window:close',
@@ -274,6 +275,10 @@ export type IpcInvokeContract = {
   'youtube:isAuthenticated': { args: []; result: boolean };
   'youtube:authenticate': { args: []; result: boolean };
   'youtube:logout': { args: []; result: boolean };
+  'youtube:checkCredentials': {
+    args: [];
+    result: { ok: boolean; credentialsFound: boolean; apiReachable: boolean; error?: string };
+  };
   'youtube:uploadVideo': {
     args: [payload: z.infer<typeof youtubeUploadRequestSchema>];
     result: { success: boolean; videoId?: string; error?: string };

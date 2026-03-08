@@ -317,7 +317,7 @@ export const useChatStore = create<ChatStore>()(
         });
       },
 
-      toggleAutoExecute: () => set({ autoExecute: true }),
+      toggleAutoExecute: () => set((state) => ({ autoExecute: !state.autoExecute })),
 
       setPanelWidth: (width) => set({ panelWidth: clampPanelWidth(width) }),
       setExecutionContext: (newContext) =>
@@ -482,7 +482,7 @@ export const useChatStore = create<ChatStore>()(
           ...persisted,
           ...compacted,
           isOpen: true,
-          autoExecute: true,
+          autoExecute: persisted.autoExecute ?? currentState.autoExecute,
           panelWidth: clampPanelWidth(persisted.panelWidth ?? currentState.panelWidth),
         };
       },

@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useChatStore } from '../../stores/useChatStore';
 import { useProjectStore } from '../../stores/useProjectStore';
 import { useAiMemoryStore } from '../../stores/useAiMemoryStore';
@@ -116,6 +116,13 @@ const ChatPanel = () => {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const sendQueueRef = useRef(createChatRequestQueue());
   const activeAbortControllerRef = useRef<AbortController | null>(null);
+  // Always points to the latest processSendMessage so the stable handleSendMessage
+  // callback below never closes over stale state.
+  const processSendMessageRef = useRef<
+    (content: string, attachments?: MediaAttachment[]) => Promise<void>
+  >(async () => {
+    /* populated after component mounts */
+  });
   const [hasActiveAbortableRequest, setHasActiveAbortableRequest] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [showLogs, setShowLogs] = useState(false);
@@ -453,9 +460,9 @@ const ChatPanel = () => {
         "I couldn't generate publish metadata right now. Please open the Publish panel manually from the right-side toolbar.",
         { error: true },
       );
-      setIsGeneratingMeta(false);
       closeTurn(turnId, 'error');
     } finally {
+      setIsGeneratingMeta(false); // always reset, even on success
       setIsTyping(false);
     }
   };
@@ -668,9 +675,17 @@ const ChatPanel = () => {
                       timestamp: Date.now(),
                     });
                   }
-                  assistantMessage(
-                    ` Step ${step.stepNumber}: ${step.toolCall ? `Executing ${step.toolCall.name}...` : 'Thinking...'}`,
-                  );
+                  // agentLoop calls onStepStart twice per step: once with no toolCall
+                  // ("Thinking...") and again after tool selection ("Executing...").
+                  // On the second call we update in-place so we don't accumulate
+                  // orphaned "Thinking..." messages in the chat.
+                  if (step.toolCall) {
+                    updateLastMessage(
+                      ` Step ${step.stepNumber}: Executing ${step.toolCall.name}...`,
+                    );
+                  } else {
+                    assistantMessage(` Step ${step.stepNumber}: Thinking...`);
+                  }
                 },
                 onStepComplete: (step) => {
                   if (agentTurnId) {
@@ -744,6 +759,7 @@ const ChatPanel = () => {
 
             if (agentTurnId) {
               closeTurn(agentTurnId, agentResult.success ? 'agentic_done' : 'error');
+              turnClosed = true; // prevent outer finally from overwriting the turn status
             }
             clearExecutionContext();
           } catch (error) {
@@ -1301,24 +1317,32 @@ const ChatPanel = () => {
     }
   };
 
+  // Keep the ref up-to-date with the latest processSendMessage closure on every render.
+  processSendMessageRef.current = processSendMessage;
+
   const handleStopActiveRequest = () => {
     const activeController = activeAbortControllerRef.current;
-    if (!activeController || activeController.signal.aborted) {
-      return;
+    if (activeController && !activeController.signal.aborted) {
+      activeController.abort();
     }
-    activeController.abort();
+    // Force-reset the queue so it can accept new messages even if the
+    // in-flight IPC/API call doesn't honour the abort signal.
+    sendQueueRef.current.forceReset('Stopped by user');
+    activeAbortControllerRef.current = null;
     setHasActiveAbortableRequest(false);
     setIsTyping(false);
     setIsGeneratingPlan(false);
     setUploadStatus(null);
   };
 
-  const handleSendMessage = (content: string, attachments?: MediaAttachment[]) => {
+  const handleSendMessage = useCallback((content: string, attachments?: MediaAttachment[]) => {
     const label = content.trim().slice(0, 80) || '[attachment-only message]';
-    void sendQueueRef.current.enqueue(() => processSendMessage(content, attachments), {
+    void sendQueueRef.current.enqueue(() => processSendMessageRef.current(content, attachments), {
       label,
     });
-  };
+    // sendQueueRef and processSendMessageRef are stable refs — no deps needed.
+     
+  }, []);
 
   const handleClearChat = () => {
     if (confirm('Clear all chat messages?')) {

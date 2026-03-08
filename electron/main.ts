@@ -39,6 +39,8 @@ import {
   logout as youtubeLogout,
 } from './services/youtubeAuthService.js';
 import { uploadVideo } from './services/youtubeUploadService.js';
+import { loadYouTubeOAuthCredentials } from './services/youtubeOAuthConfig.js';
+import fssync from 'fs';
 import { setupAutoUpdates } from './services/updateService.js';
 import { captureMainException, initMainObservability } from './services/observabilityService.js';
 import { AiConfigService, normalizeBedrockModelIdentifier } from './services/aiConfigService.js';
@@ -76,12 +78,22 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-// Load environment variables from .env file
-config({ path: path.join(__dirname, '../.env') });
+// Load environment variables from .env file.
+// For packaged builds, first look next to the executable so users can drop a
+// .env file alongside QuickCut.exe.  Fall back to the dev-time path when
+// running from source.
+const devEnvPath = path.join(__dirname, '../.env');
+const exeEnvPath = path.join(path.dirname(app.getPath('exe')), '.env');
+const resolvedEnvPath = app.isPackaged ? exeEnvPath : devEnvPath;
+config({ path: resolvedEnvPath });
+// Also try the dev path as a secondary fallback for packaged dev builds
+if (app.isPackaged) {
+  config({ path: devEnvPath, override: false });
+}
 initMainObservability();
 
 const aiConfigService = new AiConfigService(app.getPath('userData'), {
-  envFilePath: path.join(__dirname, '../.env'),
+  envFilePath: resolvedEnvPath,
 });
 const initialAiSettings = aiConfigService.getSettings();
 const initialAiStatus = aiConfigService.getStatus();
@@ -609,7 +621,7 @@ handleTrustedIpc(IPC_CHANNELS.media.exportVideo, async (event, rawPayload) => {
     return true;
   } catch (error) {
     console.error('Export failed:', error);
-    throw error;
+    return ipcFailure(error, 'EXPORT_VIDEO_FAILED');
   }
 });
 
@@ -831,7 +843,7 @@ handleTrustedIpc(IPC_CHANNELS.file.readFileAsBase64, async (_, rawFilePath: stri
     return buffer.toString('base64');
   } catch (error) {
     console.error('Failed to read file as base64:', error);
-    throw error;
+    return ipcFailure(error, 'FILE_READ_BASE64_FAILED');
   }
 });
 
@@ -1079,7 +1091,7 @@ handleTrustedIpc(IPC_CHANNELS.youtube.authenticate, async () => {
     return success;
   } catch (error) {
     console.error('[YouTube] Authentication error:', error);
-    throw error;
+    return false;
   }
 });
 
@@ -1091,6 +1103,39 @@ handleTrustedIpc(IPC_CHANNELS.youtube.logout, async () => {
     console.error('[YouTube] Logout error:', error);
     return false;
   }
+});
+
+// Check YouTube OAuth credentials and API reachability
+handleTrustedIpc(IPC_CHANNELS.youtube.checkCredentials, async () => {
+  let credentialsFound = false;
+  let apiReachable = false;
+  try {
+    loadYouTubeOAuthCredentials(process.env, fssync, process.cwd());
+    credentialsFound = true;
+  } catch (credErr) {
+    const msg = credErr instanceof Error ? credErr.message : String(credErr);
+    console.error('[YouTube] Credentials check failed:', msg);
+    return { ok: false, credentialsFound: false, apiReachable: false, error: msg };
+  }
+
+  try {
+    // Probe Google's OAuth discovery endpoint to confirm internet + API reachability
+    const resp = await net.fetch('https://accounts.google.com/.well-known/openid-configuration', {
+      method: 'HEAD',
+    });
+    apiReachable = resp.ok || resp.status < 500;
+  } catch {
+    apiReachable = false;
+  }
+
+  return {
+    ok: credentialsFound && apiReachable,
+    credentialsFound,
+    apiReachable,
+    error: apiReachable
+      ? undefined
+      : 'Cannot reach Google OAuth servers — check your internet connection.',
+  };
 });
 
 // Upload video to YouTube

@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, Component } from 'react';
+import type { ReactNode, ErrorInfo } from 'react';
 import Preview from './components/Preview/Preview';
 import Timeline from './components/Timeline/Timeline';
 import Toolbar from './components/Toolbar/Toolbar';
@@ -23,6 +24,33 @@ const OnboardingWizard = lazy(() =>
 );
 
 const panelFallback = <div className="h-full w-full animate-pulse bg-bg-secondary/50" />;
+
+// Error boundary for ChatPanel — prevents a render crash from wiping the whole UI
+class ChatErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  override state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  override componentDidCatch(_err: Error, info: ErrorInfo) {
+    console.error('[ChatPanel] Render error:', _err, info.componentStack);
+  }
+  override render() {
+    if (this.state.error) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-3 p-6 text-center">
+          <p className="text-sm text-text-muted">Chat encountered an error.</p>
+          <button
+            className="px-3 py-1.5 text-xs rounded-md bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 transition-colors"
+            onClick={() => this.setState({ error: null })}
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 const DESKTOP_TIMELINE_DEFAULT_HEIGHT = 250;
 const MOBILE_TIMELINE_HEIGHT = 160;
 const TIMELINE_MIN_HEIGHT = 140;
@@ -428,9 +456,11 @@ function App() {
               )}
               {isChatOpen ? (
                 <div className="bg-bg-secondary flex flex-col h-full">
-                  <Suspense fallback={panelFallback}>
-                    <ChatPanel />
-                  </Suspense>
+                  <ChatErrorBoundary>
+                    <Suspense fallback={panelFallback}>
+                      <ChatPanel />
+                    </Suspense>
+                  </ChatErrorBoundary>
                 </div>
               ) : (
                 <Suspense fallback={panelFallback}>

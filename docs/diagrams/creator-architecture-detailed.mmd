@@ -1,0 +1,50 @@
+flowchart TB
+    subgraph ROW1[" "]
+        direction LR
+        CREATOR(["Creator<br/>Natural Language<br/>Edit · Enhance · Analyze"])
+        --> CHAT["AI Chat Interface<br/>Intent Classifier · Normalizer<br/>Agent Router (single_pass · agentic)<br/>Conversation Lane · Request Queue"]
+        --> BEDROCK["Amazon Bedrock<br/>Nova Lite v1 · Converse API<br/>Autonomous Plan→Act→Verify<br/>Tool Use (1 per step)"]
+        --> BACKEND["Cloud Backend Adapter<br/>direct mode (AWS SDK)<br/>apigw mode (HTTP + JWT)<br/>Zod-Validated REST Routes"]
+    end
+
+    subgraph ROW2[" "]
+        direction LR
+        YTAPI["YouTube Data API v3<br/>Channel Metadata<br/>Top Videos · Recent Videos<br/>OAuth Upload"]
+        --> ANALYSIS["Channel Analysis Engine<br/>Content Strengths · Weaknesses<br/>Growth Suggestions<br/>Editing Recommendations"]
+        TOOLS["Tool Orchestration<br/>40+ Tools · Validation · Recovery<br/>Cut · Trim · Merge · Effects<br/>Captions · Script · Story Beats"]
+        --> LOCAL["Local Desktop Processing<br/>FFmpeg Export Pipeline<br/>Vosk Speech Transcription<br/>Timeline Engine · Zustand State"]
+    end
+
+    subgraph ROW3[" "]
+        direction LR
+        DDB["Amazon DynamoDB<br/>user-profiles (permanent)<br/>channel-analysis (TTL 7d)<br/>user-links (TTL 30d)<br/>PAY_PER_REQUEST"]
+        --> CACHE["3-Tier Cache<br/>L1: In-Memory Map<br/>L2: Local Disk JSON<br/>L3: DynamoDB Fallback"]
+        S3["Amazon S3<br/>videos/ — Multipart Export<br/>ai-context/ — Snapshots (gzip)<br/>memory/ — Clip Analysis (gzip)<br/>Lifecycle: STANDARD→IA→Expire"]
+        --> CONTEXT["Context Engine<br/>YouTube Analysis · Timeline State<br/>Clip Scene Memory · Story Scores<br/>Creator Preferences · Token Budget"]
+    end
+
+    BEDROCK -->|"JSON Tool Calls"| TOOLS
+    BEDROCK -->|"Analysis Prompt"| ANALYSIS
+    TOOLS -->|"Verify + Continue"| BEDROCK
+    ANALYSIS -->|"Cache Results"| DDB
+    LOCAL -->|"Export Upload"| S3
+    CACHE -->|"Cached Data"| CHAT
+    CONTEXT -->|"Enriched Context"| BEDROCK
+    BACKEND --> DDB
+    BACKEND --> S3
+
+    style ROW1 fill:none,stroke:none
+    style ROW2 fill:none,stroke:none
+    style ROW3 fill:none,stroke:none
+    style CREATOR fill:#4caf50,stroke:#2e7d32,color:#fff
+    style CHAT fill:#ff9800,stroke:#e65100,color:#fff
+    style BEDROCK fill:#f44336,stroke:#c62828,color:#fff
+    style BACKEND fill:#3f51b5,stroke:#283593,color:#fff
+    style TOOLS fill:#e91e63,stroke:#ad1457,color:#fff
+    style LOCAL fill:#9c27b0,stroke:#6a1b9a,color:#fff
+    style YTAPI fill:#f44336,stroke:#c62828,color:#fff
+    style ANALYSIS fill:#ff9800,stroke:#e65100,color:#fff
+    style DDB fill:#2196f3,stroke:#1565c0,color:#fff
+    style CACHE fill:#00bcd4,stroke:#00838f,color:#fff
+    style S3 fill:#4caf50,stroke:#2e7d32,color:#fff
+    style CONTEXT fill:#ff5722,stroke:#d84315,color:#fff

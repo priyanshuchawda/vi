@@ -230,6 +230,24 @@ export interface ElectronAPI {
     ) => Promise<{ success: boolean; error?: string; code?: string }>;
     getStatus: () => Promise<AiConfigStatus>;
   };
+  // Cloud Storage (DynamoDB + S3)
+  storage: {
+    saveProfile: (
+      profile: Record<string, unknown>,
+    ) => Promise<{ success: boolean; error?: string }>;
+    loadProfile: (
+      userId: string,
+    ) => Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }>;
+    uploadExportedVideo: (
+      localPath: string,
+      userId: string,
+    ) => Promise<{ success: boolean; record?: unknown; error?: string }>;
+    listExportedVideos: (
+      userId: string,
+    ) => Promise<{ success: boolean; videos?: unknown[]; error?: string }>;
+    syncAiContext: (key: string, content: string) => Promise<{ success: boolean; error?: string }>;
+    loadAiContext: (key: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+  };
 }
 
 declare global {

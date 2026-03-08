@@ -77,6 +77,21 @@ interface ChatStore {
 
 const MIN_PANEL_WIDTH = 240;
 const MAX_PANEL_WIDTH = 900;
+
+// Debounced S3 backup for chat context (5-second delay to batch rapid messages)
+let _chatSyncTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleChatSync(messages: ChatMessage[], projectId: string | null): void {
+  if (typeof window === 'undefined') return;
+  const api = (window as Window & typeof globalThis).electronAPI?.storage;
+  if (!api?.syncAiContext) return;
+  if (_chatSyncTimer) clearTimeout(_chatSyncTimer);
+  _chatSyncTimer = setTimeout(() => {
+    const key = `chat-history/${projectId ?? 'default'}`;
+    const content = JSON.stringify({ messages, savedAt: Date.now() });
+    void api.syncAiContext(key, content);
+  }, 5000);
+}
+
 const TERMINAL_TURN_STATUSES: ChatTurnStatus[] = [
   'completed',
   'error',
@@ -167,6 +182,9 @@ export const useChatStore = create<ChatStore>()(
             },
           ],
         }));
+        // Debounced S3 backup (fire-and-forget, 5s delay)
+        const s = get();
+        scheduleChatSync(s.messages, s.currentProjectId);
         return id;
       },
 

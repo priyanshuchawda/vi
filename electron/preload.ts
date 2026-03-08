@@ -193,4 +193,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener(IPC_CHANNELS.update.status, listener);
     },
   },
+  // ── Cloud Storage (DynamoDB + S3) ─────────────────────────────────────────
+  storage: {
+    saveProfile: (profile: Record<string, unknown>) =>
+      invokeIpc(IPC_CHANNELS.storage.saveProfile, profile),
+    loadProfile: (userId: string) =>
+      invokeIpc(IPC_CHANNELS.storage.loadProfile, nonEmptyStringSchema.parse(userId)),
+    uploadExportedVideo: (localPath: string, userId: string) =>
+      invokeIpc(
+        IPC_CHANNELS.storage.uploadExportedVideo,
+        filePathSchema.parse(localPath),
+        nonEmptyStringSchema.parse(userId),
+      ),
+    listExportedVideos: (userId: string) =>
+      invokeIpc(IPC_CHANNELS.storage.listExportedVideos, nonEmptyStringSchema.parse(userId)),
+    syncAiContext: (key: string, content: string) =>
+      invokeIpc(
+        IPC_CHANNELS.storage.syncAiContext,
+        nonEmptyStringSchema.parse(key),
+        nonEmptyStringSchema.parse(content),
+      ),
+    loadAiContext: (key: string) =>
+      invokeIpc(IPC_CHANNELS.storage.loadAiContext, nonEmptyStringSchema.parse(key)),
+  },
 });

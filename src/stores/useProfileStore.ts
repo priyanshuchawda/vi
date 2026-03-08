@@ -87,28 +87,24 @@ export const useProfileStore = create<ProfileState>()(
       // Actions
       createProfile: (userId, userName, email) => {
         const now = Date.now();
-        set({
-          profile: {
-            userId,
-            userName,
-            email,
-            createdAt: now,
-            updatedAt: now,
-          },
-        });
+        const profile = { userId, userName, email, createdAt: now, updatedAt: now };
+        set({ profile });
+        // Sync to DynamoDB (fire-and-forget)
+        void window.electronAPI?.storage?.saveProfile?.(
+          profile as unknown as Record<string, unknown>,
+        );
       },
 
       updateProfile: (updates) => {
         const current = get().profile;
         if (!current) return;
 
-        set({
-          profile: {
-            ...current,
-            ...updates,
-            updatedAt: Date.now(),
-          },
-        });
+        const updated = { ...current, ...updates, updatedAt: Date.now() };
+        set({ profile: updated });
+        // Sync to DynamoDB (fire-and-forget)
+        void window.electronAPI?.storage?.saveProfile?.(
+          updated as unknown as Record<string, unknown>,
+        );
       },
 
       setYouTubeChannel: (channelUrl, analysisData) => {
@@ -154,10 +150,17 @@ export const useProfileStore = create<ProfileState>()(
               console.warn('[Profile] Could not save rules.md:', rulesErr);
             }
 
-            // Link analysis to user
+            // Link analysis to user in DynamoDB
             const profile = get().profile;
             if (profile && window.electronAPI.linkAnalysisToUser) {
               await window.electronAPI.linkAnalysisToUser(profile.userId, response.data.channel.id);
+            }
+            // Sync updated profile (with channelUrl) to DynamoDB
+            const currentProfile = get().profile;
+            if (currentProfile) {
+              void window.electronAPI?.storage?.saveProfile?.(
+                currentProfile as unknown as Record<string, unknown>,
+              );
             }
 
             set({ isAnalyzing: false });

@@ -1,11 +1,17 @@
 /**
  * Simple In-Memory Cache Manager
  * For storing analysis results and preventing redundant API calls
+ *
+ * Cache tiers:
+ *  L1 — In-memory Map (fastest, lost on restart)
+ *  L2 — Local disk JSON  (~/.quickcut/analysis_cache.json)
+ *  L3 — DynamoDB (persistent, cross-device; checked only on L1+L2 miss)
  */
 
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { getAwsStorageService } from './awsStorageService.js';
 
 interface CacheEntry<T> {
   value: T;
@@ -246,6 +252,63 @@ export class AnalysisCacheService {
    */
   clearAll(): void {
     this.cache.clear();
+  }
+
+  // ── L3 DynamoDB-backed async helpers ──────────────────────────────────────
+  // These check L1/L2 first and only hit DynamoDB on a miss (cost-optimized).
+
+  /**
+   * Get channel analysis from L1+L2 cache, falling back to DynamoDB (L3).
+   * On DDB hit the result is written back into L1/L2 for subsequent fast reads.
+   */
+  async getChannelAnalysisWithCloud(channelId: string): Promise<unknown | null> {
+    // L1 + L2 fast path
+    const local = this.getChannelAnalysis(channelId);
+    if (local !== null) return local;
+
+    // L3: DynamoDB
+    const aws = getAwsStorageService();
+    const remote = await aws.getChannelAnalysis(channelId);
+    if (remote !== null) {
+      // Warm L1/L2 so next read is free
+      this.setChannelAnalysis(channelId, remote);
+    }
+    return remote;
+  }
+
+  /**
+   * Persist channel analysis to L1/L2 and fire-and-forget write to DynamoDB.
+   */
+  async setChannelAnalysisWithCloud(channelId: string, data: unknown): Promise<void> {
+    this.setChannelAnalysis(channelId, data);
+    // Non-blocking DDB write — errors are logged inside the service
+    void getAwsStorageService().setChannelAnalysis(channelId, data);
+  }
+
+  /**
+   * Get the analysis linked to a userId, checking L1/L2 then DynamoDB.
+   */
+  async getUserAnalysisWithCloud(userId: string): Promise<unknown | null> {
+    // L1/L2 fast path
+    const local = this.getUserAnalysis(userId);
+    if (local !== null) return local;
+
+    // L3: look up user→channel mapping in DDB
+    const aws = getAwsStorageService();
+    const channelId = await aws.getUserLink(userId);
+    if (!channelId) return null;
+
+    // Fetch the actual analysis (L1/L2 → DDB)
+    return this.getChannelAnalysisWithCloud(channelId);
+  }
+
+  /**
+   * Link a userId to a channelId in L1/L2 and DynamoDB.
+   */
+  async linkUserToChannelWithCloud(userId: string, channelId: string): Promise<boolean> {
+    const local = this.linkUserToChannel(userId, channelId);
+    void getAwsStorageService().setUserLink(userId, channelId);
+    return local;
   }
 }
 

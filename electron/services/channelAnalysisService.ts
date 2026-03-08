@@ -92,8 +92,8 @@ export class ChannelAnalysisService {
 
       console.log(`[Analysis] Channel ID: ${channelId}`);
 
-      // Step 2: Check cache first
-      const cachedAnalysis = analysisCacheService.getChannelAnalysis(channelId);
+      // Step 2: Check cache first (L1/L2 in-memory/disk → L3 DynamoDB)
+      const cachedAnalysis = await analysisCacheService.getChannelAnalysisWithCloud(channelId);
       if (isAnalysisPayload(cachedAnalysis)) {
         console.log('[Analysis] Cache hit! Returning cached analysis');
         return {
@@ -201,9 +201,9 @@ export class ChannelAnalysisService {
         },
       };
 
-      // Step 9: Cache the result
+      // Step 9: Cache the result (L1/L2 sync + L3 DynamoDB async)
       console.log('[Analysis] Caching analysis result...');
-      analysisCacheService.setChannelAnalysis(channelId, response.data);
+      void analysisCacheService.setChannelAnalysisWithCloud(channelId, response.data);
 
       return response;
     } catch (error) {
@@ -226,7 +226,7 @@ export class ChannelAnalysisService {
         return false;
       }
 
-      return analysisCacheService.linkUserToChannel(userId, channelId);
+      return analysisCacheService.linkUserToChannelWithCloud(userId, channelId);
     } catch (error) {
       console.error('Error linking analysis to user:', error);
       return false;
@@ -234,9 +234,9 @@ export class ChannelAnalysisService {
   }
 
   /**
-   * Get analysis for a user
+   * Get analysis for a user (L1/L2 cache → DynamoDB fallback)
    */
-  getUserAnalysis(userId: string): unknown | null {
-    return analysisCacheService.getUserAnalysis(userId);
+  async getUserAnalysis(userId: string): Promise<unknown | null> {
+    return analysisCacheService.getUserAnalysisWithCloud(userId);
   }
 }

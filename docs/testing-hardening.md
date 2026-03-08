@@ -21,6 +21,12 @@ This matrix maps automated tests to runtime risk areas.
 - `test/stores/useProjectStore.test.ts` (sidebar tab persistence)
 - Covers namespaced storage keys and safe read/write behavior.
 
+### Cloud storage regressions
+
+- `test/electron/channelAnalysisService.test.ts`
+- Covers user-to-channel linking compatibility for both direct channel IDs and
+  YouTube URLs.
+
 ### Optional live AWS validation
 
 - `test/electron/awsStorage.live.test.ts`

@@ -13,6 +13,9 @@ const loadedAiSettings: AiConfigSettings = {
   awsSessionToken: 'loaded-session-token',
   bedrockInferenceProfileId: 'us.amazon.nova-lite-v1:0',
   bedrockModelId: 'amazon.nova-lite-v1:0',
+  youtubeOAuthClientId: '',
+  youtubeOAuthClientSecret: '',
+  youtubeOAuthRedirectUri: '',
 };
 
 const loadedAiStatus: AiConfigStatus = {
@@ -34,7 +37,9 @@ describe('OnboardingWizard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.clear();
+    if (typeof window !== 'undefined' && typeof window.localStorage?.clear === 'function') {
+      window.localStorage.clear();
+    }
 
     useProfileStore.setState({
       profile: null,
@@ -50,6 +55,9 @@ describe('OnboardingWizard', () => {
         awsSessionToken: '',
         bedrockInferenceProfileId: '',
         bedrockModelId: 'amazon.nova-lite-v1:0',
+        youtubeOAuthClientId: '',
+        youtubeOAuthClientSecret: '',
+        youtubeOAuthRedirectUri: '',
       },
       status: null,
       isLoading: false,

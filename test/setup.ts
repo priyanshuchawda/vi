@@ -68,6 +68,9 @@ const mockElectronAPI: ElectronAPI = {
       awsSessionToken: '',
       bedrockInferenceProfileId: '',
       bedrockModelId: 'amazon.nova-lite-v1:0',
+      youtubeOAuthClientId: '',
+      youtubeOAuthClientSecret: '',
+      youtubeOAuthRedirectUri: '',
     }),
     save: vi.fn().mockResolvedValue({ success: true }),
     getStatus: vi.fn().mockResolvedValue({
@@ -79,7 +82,58 @@ const mockElectronAPI: ElectronAPI = {
       missingYouTubeFields: ['YouTube API Key'],
     }),
   },
+  storage: {
+    saveProfile: vi.fn().mockResolvedValue({ success: true }),
+    loadProfile: vi.fn().mockResolvedValue({ success: true, data: null }),
+    uploadExportedVideo: vi.fn().mockResolvedValue({ success: true, record: null }),
+    listExportedVideos: vi.fn().mockResolvedValue({ success: true, videos: [] }),
+    syncAiContext: vi.fn().mockResolvedValue({ success: true }),
+    loadAiContext: vi.fn().mockResolvedValue({ success: true, data: null }),
+  },
 };
 
-// Mock window.electronAPI
-global.window.electronAPI = mockElectronAPI;
+function createStorageMock(): Storage {
+  const store = new Map<string, string>();
+
+  return {
+    get length() {
+      return store.size;
+    },
+    clear: vi.fn(() => {
+      store.clear();
+    }),
+    getItem: vi.fn((key: string) => store.get(key) ?? null),
+    key: vi.fn((index: number) => Array.from(store.keys())[index] ?? null),
+    removeItem: vi.fn((key: string) => {
+      store.delete(key);
+    }),
+    setItem: vi.fn((key: string, value: string) => {
+      store.set(key, String(value));
+    }),
+  };
+}
+
+const localStorageMock = createStorageMock();
+
+// Make the Electron bridge available in both browser-like and node test environments.
+if (typeof globalThis.window === 'undefined') {
+  vi.stubGlobal('window', { electronAPI: mockElectronAPI });
+} else {
+  globalThis.window.electronAPI = mockElectronAPI;
+}
+
+if (
+  typeof globalThis.localStorage === 'undefined' ||
+  typeof globalThis.localStorage?.getItem !== 'function' ||
+  typeof globalThis.localStorage?.setItem !== 'function' ||
+  typeof globalThis.localStorage?.clear !== 'function'
+) {
+  vi.stubGlobal('localStorage', localStorageMock);
+}
+
+if (typeof globalThis.window !== 'undefined') {
+  Object.defineProperty(globalThis.window, 'localStorage', {
+    value: globalThis.localStorage,
+    configurable: true,
+  });
+}

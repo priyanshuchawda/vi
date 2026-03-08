@@ -85,6 +85,9 @@ describe('AiConfigService', () => {
       awsSessionToken: '',
       bedrockInferenceProfileId: '',
       bedrockModelId: 'amazon.nova-lite-v1:0',
+      youtubeOAuthClientId: '',
+      youtubeOAuthClientSecret: '',
+      youtubeOAuthRedirectUri: '',
     });
 
     expect(service.getSettings()).toMatchObject({

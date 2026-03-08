@@ -73,6 +73,21 @@ export class ChannelAnalysisService {
   }
 
   /**
+   * Accept either a canonical YouTube channel URL or a direct channel ID.
+   * This keeps the IPC path tolerant to older/newer renderer callers.
+   */
+  private async resolveChannelReference(channelRef: string): Promise<string | null> {
+    const trimmed = channelRef.trim();
+    if (!trimmed) return null;
+
+    if (/^UC[a-zA-Z0-9_-]{10,}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    return this.youtubeService.extractChannelId(trimmed);
+  }
+
+  /**
    * Analyze a YouTube channel from URL
    * Uses cache to prevent redundant API calls
    */
@@ -221,7 +236,7 @@ export class ChannelAnalysisService {
    */
   async linkAnalysisToUser(userId: string, channelUrl: string): Promise<boolean> {
     try {
-      const channelId = await this.youtubeService.extractChannelId(channelUrl);
+      const channelId = await this.resolveChannelReference(channelUrl);
       if (!channelId) {
         return false;
       }

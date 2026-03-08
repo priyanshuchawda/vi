@@ -117,6 +117,17 @@ Native Mermaid CLI outputs (`.svg`, `.png`, `.pdf`) are supported directly, and
 the project wrapper also supports `.jpg` / `.jpeg` by rasterizing the generated
 SVG through the local Chrome install.
 
+Current creator-system diagrams live in:
+
+- [docs/creator-architecture.md](./docs/creator-architecture.md)
+
+If Chrome sandboxing is unavailable on Linux, the Mermaid renderer also accepts
+the included fallback Puppeteer config:
+
+```bash
+npm run mermaid:render -- -p .mermaid-tools/puppeteer-no-sandbox.json -i docs/diagram.mmd -o docs/diagram.png
+```
+
 ## Build
 
 ```bash

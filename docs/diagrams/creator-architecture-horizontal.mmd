@@ -1,0 +1,38 @@
+flowchart LR
+    CREATOR(["Creator<br/>Natural Language"])
+    -->|"Intent<br/>Classification"| CHAT["AI Chat Interface<br/>Agent Router<br/>Request Queue"]
+    -->|"Converse API"| BEDROCK["Amazon Bedrock<br/>Nova Lite v1<br/>Plan→Act→Verify"]
+
+    BEDROCK -->|"Tool Calls"| TOOLS["Tool Orchestration<br/>40+ Video Tools<br/>Validation · Recovery"]
+    BEDROCK -->|"Analysis"| ANALYSIS["Channel Analysis<br/>Strengths · Insights<br/>Recommendations"]
+
+    TOOLS -->|"Verify"| BEDROCK
+    TOOLS -->|"Mutations"| LOCAL["Local Processing<br/>FFmpeg · Vosk<br/>Timeline · Zustand"]
+
+    ANALYSIS -->|"Fetch"| YTAPI["YouTube API v3<br/>Channels · Videos<br/>OAuth Upload"]
+    ANALYSIS -->|"Cache"| DDB
+
+    LOCAL -->|"Export"| S3
+    CONTEXT -->|"Enriched<br/>Context"| BEDROCK
+    CACHE -->|"Cached<br/>Data"| CHAT
+
+    subgraph STORAGE[" "]
+        direction TB
+        DDB["DynamoDB<br/>user-profiles · channel-analysis<br/>user-links · PAY_PER_REQUEST"]
+        -->|"L3"| CACHE["3-Tier Cache<br/>L1 Memory → L2 Disk → L3 DDB"]
+        S3["Amazon S3<br/>videos/ · ai-context/ · memory/<br/>Gzip · Lifecycle · Multipart"]
+        -->|"Load"| CONTEXT["Context Engine<br/>Clip Memory · Story Scores<br/>Timeline State · Preferences"]
+    end
+
+    style CREATOR fill:#4caf50,stroke:#2e7d32,color:#fff
+    style CHAT fill:#ff9800,stroke:#e65100,color:#fff
+    style BEDROCK fill:#f44336,stroke:#c62828,color:#fff
+    style TOOLS fill:#e91e63,stroke:#ad1457,color:#fff
+    style LOCAL fill:#9c27b0,stroke:#6a1b9a,color:#fff
+    style YTAPI fill:#f44336,stroke:#c62828,color:#fff
+    style ANALYSIS fill:#ff9800,stroke:#e65100,color:#fff
+    style DDB fill:#2196f3,stroke:#1565c0,color:#fff
+    style CACHE fill:#00bcd4,stroke:#00838f,color:#fff
+    style S3 fill:#4caf50,stroke:#2e7d32,color:#fff
+    style CONTEXT fill:#ff5722,stroke:#d84315,color:#fff
+    style STORAGE fill:none,stroke:none

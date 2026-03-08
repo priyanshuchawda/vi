@@ -61,3 +61,8 @@ resources/ffmpeg-linux/
 # Local AI eval outputs/media
 test-output/
 video_test/
+
+# Local scratch diagram outputs
+/creator-architecture*.mmd
+/creator-architecture*.png
+/puppeteer-mermaid-config.json

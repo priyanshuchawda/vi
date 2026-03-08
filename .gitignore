@@ -27,10 +27,12 @@ dist-ssr
 dist-electron
 release/
 build/
+.aws/
 !scripts/build/
 !scripts/build/*.mjs
 coverage/
 test-media/
+test-results/
 create_test_media.py
 
 # Local sibling/codebase checkouts (not part of this app repo)

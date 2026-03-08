@@ -78,6 +78,10 @@ Create `.env` from `.env.example` and set required values for AI features:
 - `AWS_REGION`
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
+- Optional: `AWS_S3_BUCKET`
+- Optional: `AWS_BACKEND_MODE` (`direct` by default, `apigw` for the future API
+  Gateway path)
+- Optional: `AWS_BACKEND_URL` (required only when `AWS_BACKEND_MODE=apigw`)
 - Optional: `BEDROCK_MODEL_ID` (defaults to `amazon.nova-lite-v1:0`)
 - Optional onboarding/creator analysis keys if used
 - Optional YouTube upload OAuth settings:

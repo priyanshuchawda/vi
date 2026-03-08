@@ -1,0 +1,211 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: QuickCut Phase B cloud backend metadata API (HTTP API + Lambda)
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: quickcut
+  EnvironmentName:
+    Type: String
+    Default: dev
+  StorageBucketName:
+    Type: String
+    Default: quickcut-279158981022-storage
+  ProfilesTableName:
+    Type: String
+    Default: quickcut-user-profiles
+  AnalysisTableName:
+    Type: String
+    Default: quickcut-channel-analysis
+  UserLinksTableName:
+    Type: String
+    Default: quickcut-user-links
+
+Resources:
+  StorageApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub '${ProjectName}-${EnvironmentName}-storage-api-access'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProfilesTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AnalysisTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserLinksTableName}'
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub 'arn:aws:s3:::${StorageBucketName}/ai-context/*'
+                  - !Sub 'arn:aws:s3:::${StorageBucketName}/memory/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::${StorageBucketName}'
+
+  StorageApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${EnvironmentName}-storage-api'
+      Runtime: nodejs20.x
+      Architectures:
+        - x86_64
+      Handler: storageApiHandler.handler
+      MemorySize: 256
+      Timeout: 15
+      Role: !GetAtt StorageApiRole.Arn
+      Code: ../.aws/cloud-backend/storage-api.zip
+      Environment:
+        Variables:
+          AWS_S3_BUCKET: !Ref StorageBucketName
+          AWS_DYNAMODB_PROFILES_TABLE: !Ref ProfilesTableName
+          AWS_DYNAMODB_ANALYSIS_TABLE: !Ref AnalysisTableName
+          AWS_DYNAMODB_USER_LINKS_TABLE: !Ref UserLinksTableName
+          LOG_LEVEL: info
+
+  StorageHttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${ProjectName}-${EnvironmentName}-storage-api'
+      ProtocolType: HTTP
+
+  StorageHttpApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt StorageApiFunction.Arn
+      PayloadFormatVersion: '2.0'
+
+  StorageProfilesGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'GET /profiles/{userId}'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageProfilesPutRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'PUT /profiles/{userId}'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageAnalysisChannelGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'GET /analysis/channels/{channelId}'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageAnalysisChannelPutRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'PUT /analysis/channels/{channelId}'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageAnalysisUserLinkGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'GET /analysis/users/{userId}/link'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageAnalysisUserLinkPutRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'PUT /analysis/users/{userId}/link'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageAiContextGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'GET /ai-context/{proxy+}'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageAiContextPutRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'PUT /ai-context/{proxy+}'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageMemoryGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'GET /memory/{proxy+}'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageMemoryPutRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'PUT /memory/{proxy+}'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageMemoryDeleteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'DELETE /memory/{proxy+}'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageHttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      StageName: '$default'
+      AutoDeploy: true
+
+  StorageApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref StorageApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${StorageHttpApi}/*/*/*'
+
+Outputs:
+  ApiId:
+    Value: !Ref StorageHttpApi
+  ApiUrl:
+    Value: !Sub 'https://${StorageHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  FunctionName:
+    Value: !Ref StorageApiFunction
+  RoleArn:
+    Value: !GetAtt StorageApiRole.Arn

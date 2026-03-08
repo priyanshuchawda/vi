@@ -78,6 +78,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     resolution?: string,
     subtitles?: unknown[],
     subtitleStyle?: unknown,
+    userId?: string,
   ) =>
     invokeIpc(
       IPC_CHANNELS.media.exportVideo,
@@ -88,6 +89,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         resolution,
         subtitles,
         subtitleStyle,
+        userId,
       }),
     ),
   onExportProgress: (callback: (percent: number) => void) => {

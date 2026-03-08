@@ -28,6 +28,7 @@ interface ProfileState {
   updateProfile: (updates: Partial<UserProfile>) => void;
   setYouTubeChannel: (channelUrl: string, analysisData?: ChannelAnalysisData) => void;
   analyzeYouTubeChannel: (channelUrl: string) => Promise<boolean>;
+  hydrateProfileFromCloud: (userId: string) => Promise<boolean>;
   clearProfile: () => void;
   setAnalyzing: (isAnalyzing: boolean) => void;
   setAnalysisError: (error: string | null) => void;
@@ -179,6 +180,63 @@ export const useProfileStore = create<ProfileState>()(
             isAnalyzing: false,
             analysisError: error instanceof Error ? error.message : 'Unknown error',
           });
+          return false;
+        }
+      },
+
+      hydrateProfileFromCloud: async (userId) => {
+        const normalizedUserId = userId.trim();
+        if (!normalizedUserId) return false;
+
+        const current = get().profile;
+        if (current?.userId === normalizedUserId && current.userName?.trim()) {
+          return true;
+        }
+
+        try {
+          const response = await window.electronAPI?.storage?.loadProfile?.(normalizedUserId);
+          const remote = response?.success ? response.data : null;
+
+          if (!remote || typeof remote['userId'] !== 'string') {
+            return false;
+          }
+
+          const profile: UserProfile = {
+            userId: remote['userId'],
+            userName:
+              typeof remote['userName'] === 'string'
+                ? remote['userName']
+                : current?.userId === remote['userId']
+                  ? current.userName
+                  : undefined,
+            email:
+              typeof remote['email'] === 'string'
+                ? remote['email']
+                : current?.userId === remote['userId']
+                  ? current.email
+                  : undefined,
+            youtubeChannelUrl:
+              typeof remote['youtubeChannelUrl'] === 'string'
+                ? remote['youtubeChannelUrl']
+                : current?.userId === remote['userId']
+                  ? current.youtubeChannelUrl
+                  : undefined,
+            channelAnalysis:
+              current?.userId === remote['userId'] ? current.channelAnalysis : undefined,
+            createdAt:
+              typeof remote['createdAt'] === 'number'
+                ? remote['createdAt']
+                : (current?.createdAt ?? Date.now()),
+            updatedAt:
+              typeof remote['updatedAt'] === 'number'
+                ? remote['updatedAt']
+                : (current?.updatedAt ?? Date.now()),
+          };
+
+          set({ profile });
+          return true;
+        } catch (error) {
+          console.warn('[Profile] Failed to hydrate profile from cloud:', error);
           return false;
         }
       },

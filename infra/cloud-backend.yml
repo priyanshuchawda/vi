@@ -20,6 +20,10 @@ Parameters:
   UserLinksTableName:
     Type: String
     Default: quickcut-user-links
+  BackendAuthToken:
+    Type: String
+    Default: ''
+    NoEcho: true
 
 Resources:
   StorageApiRole:
@@ -81,6 +85,7 @@ Resources:
           AWS_DYNAMODB_PROFILES_TABLE: !Ref ProfilesTableName
           AWS_DYNAMODB_ANALYSIS_TABLE: !Ref AnalysisTableName
           AWS_DYNAMODB_USER_LINKS_TABLE: !Ref UserLinksTableName
+          AWS_BACKEND_AUTH_TOKEN: !Ref BackendAuthToken
           LOG_LEVEL: info
 
   StorageHttpApi:

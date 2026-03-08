@@ -322,6 +322,53 @@ export class AiConfigService {
     return { ...this.savedSettings };
   }
 
+  applyAwsSdkEnvFallback(targetEnv: NodeJS.ProcessEnv = process.env): void {
+    this.syncSettings();
+    const hasSavedAwsConfig =
+      this.savedSettings.awsRegion !== DEFAULT_REGION ||
+      Boolean(
+        this.savedSettings.awsAccessKeyId ||
+        this.savedSettings.awsSecretAccessKey ||
+        this.savedSettings.awsSessionToken,
+      );
+    const savedAwsRegion = hasSavedAwsConfig ? this.savedSettings.awsRegion : '';
+
+    const syncKey = (envKey: keyof NodeJS.ProcessEnv, effectiveValue: string, envValue: string) => {
+      if (envValue) {
+        targetEnv[envKey] = envValue;
+        return;
+      }
+
+      if (effectiveValue) {
+        targetEnv[envKey] = effectiveValue;
+        return;
+      }
+
+      delete targetEnv[envKey];
+    };
+
+    syncKey('AWS_REGION', savedAwsRegion, this.envSettings.awsRegion);
+    syncKey(
+      'AWS_ACCESS_KEY_ID',
+      this.effectiveSettings.awsAccessKeyId,
+      this.envSettings.awsAccessKeyId,
+    );
+    syncKey(
+      'AWS_SECRET_ACCESS_KEY',
+      this.effectiveSettings.awsSecretAccessKey,
+      this.envSettings.awsSecretAccessKey,
+    );
+    if (this.envSettings.awsSessionToken) {
+      targetEnv.AWS_SESSION_TOKEN = this.envSettings.awsSessionToken;
+    } else if (this.envSettings.awsAccessKeyId || this.envSettings.awsSecretAccessKey) {
+      delete targetEnv.AWS_SESSION_TOKEN;
+    } else if (this.effectiveSettings.awsSessionToken) {
+      targetEnv.AWS_SESSION_TOKEN = this.effectiveSettings.awsSessionToken;
+    } else {
+      delete targetEnv.AWS_SESSION_TOKEN;
+    }
+  }
+
   getStatus(): AiConfigStatus {
     this.syncSettings();
     const usingEnvFallback = hasMeaningfulSettings(this.envSettings);

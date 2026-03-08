@@ -96,6 +96,7 @@ export const exportVideoRequestSchema = z.object({
   resolution: z.string().optional(),
   subtitles: z.array(z.unknown()).optional(),
   subtitleStyle: z.unknown().optional(),
+  userId: z.string().trim().optional(),
 });
 
 export const timelineClipSchema = z.object({

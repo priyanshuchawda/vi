@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
+import { useProfileStore } from '../../stores/useProfileStore';
 import type {
   YouTubeVideoMetadata,
   YouTubeUploadProgress,
@@ -16,6 +17,7 @@ import clsx from 'clsx';
 
 const YouTubeUploadTab = () => {
   const clips = useProjectStore((state) => state.clips);
+  const profile = useProfileStore((state) => state.profile);
   const [uploadProgress, setUploadProgress] = useState<YouTubeUploadProgress | null>(null);
   const [recentVideos, setRecentVideos] = useState<YouTubeVideo[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
@@ -125,7 +127,15 @@ const YouTubeUploadTab = () => {
         });
 
         // Export the video
-        await window.electronAPI.exportVideo(clips, outputPath, 'mp4', undefined, [], {});
+        await window.electronAPI.exportVideo(
+          clips,
+          outputPath,
+          'mp4',
+          undefined,
+          [],
+          {},
+          profile?.userId,
+        );
         videoPath = outputPath;
         setExportedVideoPath(outputPath);
       } else {

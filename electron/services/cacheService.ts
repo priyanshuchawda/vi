@@ -307,7 +307,11 @@ export class AnalysisCacheService {
    */
   async linkUserToChannelWithCloud(userId: string, channelId: string): Promise<boolean> {
     const local = this.linkUserToChannel(userId, channelId);
-    void getCloudBackendService().setUserLink(userId, channelId);
+    try {
+      await getCloudBackendService().setUserLink(userId, channelId);
+    } catch (error) {
+      console.warn('Cloud user-link persistence failed:', error);
+    }
     return local;
   }
 }

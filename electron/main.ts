@@ -45,7 +45,10 @@ import { setupAutoUpdates } from './services/updateService.js';
 import { captureMainException, initMainObservability } from './services/observabilityService.js';
 import { AiConfigService, normalizeBedrockModelIdentifier } from './services/aiConfigService.js';
 import { log } from './utils/logger.js';
-import { getCloudBackendService } from './services/cloudBackendService.js';
+import {
+  getCloudBackendService,
+  resetCloudBackendService,
+} from './services/cloudBackendService.js';
 import {
   assertSecureWebPreferences,
   AuthorizedPathRegistry,
@@ -96,6 +99,7 @@ initMainObservability();
 const aiConfigService = new AiConfigService(app.getPath('userData'), {
   envFilePath: resolvedEnvPath,
 });
+aiConfigService.applyAwsSdkEnvFallback();
 const initialAiSettings = aiConfigService.getSettings();
 const initialAiStatus = aiConfigService.getStatus();
 
@@ -599,6 +603,7 @@ handleTrustedIpc(IPC_CHANNELS.media.exportVideo, async (event, rawPayload) => {
       resolution,
       subtitles,
       subtitleStyle,
+      userId,
     } = exportVideoRequestSchema.parse(rawPayload);
     authorizeFilePath(outputPath);
     for (const clip of clips) {
@@ -621,10 +626,14 @@ handleTrustedIpc(IPC_CHANNELS.media.exportVideo, async (event, rawPayload) => {
       subtitleStyle as Parameters<typeof exportVideo>[6],
     );
     // Fire-and-forget S3 upload of the exported video.
-    // Uses a placeholder userId ('anonymous') when no profile is persisted.
+    // Prefer the current profile userId so exports stay grouped per user.
     void (async () => {
       try {
-        const record = await getCloudBackendService().uploadExportedVideo(outputPath, 'anonymous');
+        const exportOwnerUserId = userId?.trim() || 'anonymous';
+        const record = await getCloudBackendService().uploadExportedVideo(
+          outputPath,
+          exportOwnerUserId,
+        );
         if (record) {
           log('info', '[Export] Video uploaded to S3', { s3Key: record.s3Key });
         }
@@ -825,6 +834,8 @@ handleTrustedIpc(IPC_CHANNELS.aiConfig.save, async (_event, rawSettings: unknown
   try {
     const settings = aiConfigSettingsSchema.parse(rawSettings);
     aiConfigService.saveSettings(settings);
+    aiConfigService.applyAwsSdkEnvFallback();
+    resetCloudBackendService();
     const status = aiConfigService.getStatus();
     const effective = aiConfigService.getSettings();
     log('info', 'AI config updated', {

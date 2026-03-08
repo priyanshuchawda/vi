@@ -197,6 +197,7 @@ const Toolbar = ({
           resolution,
           subtitles,
           subtitleStyle,
+          profile?.userId,
         );
         setExportedVideoPath(outputPath); // Save the exported video path
         setNotification({

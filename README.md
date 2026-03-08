@@ -82,6 +82,7 @@ Create `.env` from `.env.example` and set required values for AI features:
 - Optional: `AWS_BACKEND_MODE` (`direct` by default, `apigw` for the future API
   Gateway path)
 - Optional: `AWS_BACKEND_URL` (required only when `AWS_BACKEND_MODE=apigw`)
+- Optional: `AWS_BACKEND_AUTH_TOKEN` (recommended when `AWS_BACKEND_MODE=apigw`)
 - Optional: `BEDROCK_MODEL_ID` (defaults to `amazon.nova-lite-v1:0`)
 - Optional onboarding/creator analysis keys if used
 - Optional YouTube upload OAuth settings:
@@ -91,8 +92,9 @@ Create `.env` from `.env.example` and set required values for AI features:
   - or `YOUTUBE_OAUTH_CREDENTIALS_PATH` for an external Google OAuth JSON file
 
 Packaged app users can also configure AI keys inside
-`Settings -> AI Credentials`, so production installs do not require editing
-`.env`.
+`Settings -> AI Credentials`. When `.env` is absent, those saved AWS settings
+act as the fallback for both Bedrock and the app's direct AWS storage flows, so
+production installs do not require editing `.env`.
 
 ## Run
 

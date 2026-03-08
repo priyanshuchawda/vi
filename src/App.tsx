@@ -77,16 +77,27 @@ function App() {
       clearPublishRequest: state.clearPublishRequest,
     })),
   );
-  const { hasCompletedOnboarding, completeOnboarding, resetOnboarding, skipOnboarding } =
-    useOnboardingStore(
-      useShallow((state) => ({
-        hasCompletedOnboarding: state.hasCompletedOnboarding,
-        completeOnboarding: state.completeOnboarding,
-        resetOnboarding: state.resetOnboarding,
-        skipOnboarding: state.skipOnboarding,
-      })),
-    );
-  const profile = useProfileStore((state) => state.profile);
+  const {
+    hasCompletedOnboarding,
+    onboardingUserId,
+    completeOnboarding,
+    resetOnboarding,
+    skipOnboarding,
+  } = useOnboardingStore(
+    useShallow((state) => ({
+      hasCompletedOnboarding: state.hasCompletedOnboarding,
+      onboardingUserId: state.userId,
+      completeOnboarding: state.completeOnboarding,
+      resetOnboarding: state.resetOnboarding,
+      skipOnboarding: state.skipOnboarding,
+    })),
+  );
+  const { profile, hydrateProfileFromCloud } = useProfileStore(
+    useShallow((state) => ({
+      profile: state.profile,
+      hydrateProfileFromCloud: state.hydrateProfileFromCloud,
+    })),
+  );
   const { undo, redo, canUndo, canRedo, hasUnsavedChanges } = useProjectStore(
     useShallow((state) => ({
       undo: state.undo,
@@ -108,6 +119,7 @@ function App() {
   );
   const [setupState, setSetupState] = useState<'checking' | 'required' | 'ready'>('checking');
   const onboardingSessionStartedRef = useRef(false);
+  const attemptedCloudProfileHydrationRef = useRef<string | null>(null);
   const timelineMaxHeight = Math.floor(window.innerHeight * (isDesktop ? 0.6 : 0.5));
   const timelineHeight = isDesktop
     ? Math.min(Math.max(desktopTimelineHeight, TIMELINE_MIN_HEIGHT), timelineMaxHeight)
@@ -162,10 +174,26 @@ function App() {
 
     const checkSetupRequirements = async () => {
       try {
+        const knownUserId = profile?.userId ?? onboardingUserId;
+        let effectiveProfile = profile;
+
+        if (
+          knownUserId &&
+          !effectiveProfile?.userName?.trim() &&
+          attemptedCloudProfileHydrationRef.current !== knownUserId
+        ) {
+          attemptedCloudProfileHydrationRef.current = knownUserId;
+          const hydrated = await hydrateProfileFromCloud(knownUserId);
+          if (!isActive) return;
+          if (hydrated) {
+            effectiveProfile = useProfileStore.getState().profile;
+          }
+        }
+
         const aiStatus = await window.electronAPI.aiConfig.getStatus();
         if (!isActive) return;
 
-        const needsSetup = requiresInitialSetup(profile, aiStatus);
+        const needsSetup = requiresInitialSetup(effectiveProfile, aiStatus);
 
         if (needsSetup) {
           onboardingSessionStartedRef.current = true;
@@ -183,8 +211,8 @@ function App() {
 
         setSetupState('ready');
 
-        if (!hasCompletedOnboarding && profile?.userId) {
-          completeOnboarding(profile.userId, profile.channelAnalysis);
+        if (!hasCompletedOnboarding && effectiveProfile?.userId) {
+          completeOnboarding(effectiveProfile.userId, effectiveProfile.channelAnalysis);
         }
       } catch (error) {
         console.warn('[App] Failed to verify setup requirements:', error);
@@ -197,7 +225,14 @@ function App() {
     return () => {
       isActive = false;
     };
-  }, [completeOnboarding, hasCompletedOnboarding, profile, resetOnboarding]);
+  }, [
+    completeOnboarding,
+    hasCompletedOnboarding,
+    hydrateProfileFromCloud,
+    onboardingUserId,
+    profile,
+    resetOnboarding,
+  ]);
 
   useEffect(() => {
     if (!isResizingSidePanel || !isDesktop) return;

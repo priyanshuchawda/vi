@@ -19,6 +19,9 @@ describe('storageApiHandler Lambda entrypoint', () => {
       rawQueryString: '',
       body: Buffer.from(JSON.stringify({ content: 'hello' }), 'utf8').toString('base64'),
       isBase64Encoded: true,
+      headers: {
+        authorization: 'Bearer test-token',
+      },
       requestContext: {
         http: {
           method: 'PUT',
@@ -31,6 +34,9 @@ describe('storageApiHandler Lambda entrypoint', () => {
       method: 'PUT',
       path: '/memory/projects%2Falpha%2Fmemory.json',
       body: JSON.stringify({ content: 'hello' }),
+      headers: {
+        authorization: 'Bearer test-token',
+      },
     });
   });
 });

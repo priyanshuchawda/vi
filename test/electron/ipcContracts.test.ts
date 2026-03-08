@@ -27,6 +27,16 @@ describe('IPC contract schemas', () => {
     expect(result.success).toBe(false);
   });
 
+  it('accepts export video payloads with an optional user id for AWS upload ownership', () => {
+    const result = exportVideoRequestSchema.safeParse({
+      clips: [],
+      outputPath: '/tmp/out.mp4',
+      format: 'mp4',
+      userId: 'user-123',
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('rejects malformed timeline clips payload', () => {
     const result = timelineClipListSchema.safeParse([
       { path: '/tmp/file.mp4', startTime: '0', duration: 5 },

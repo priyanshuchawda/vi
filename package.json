@@ -116,24 +116,7 @@
       "node_modules/vosk-koffi/**/*"
     ],
     "directories": {
-      "output": "release"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "public/logo.png",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false
-    },
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "public/logo.png"
+      "output": "D:/vi-release"
     },
     "nsis": {
       "oneClick": false,
@@ -141,25 +124,6 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
-    },
-    "linux": {
-      "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "deb",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "public/logo.png",
-      "category": "Video",
-      "executableName": "quickcut"
     },
     "deb": {
       "priority": "optional",
@@ -178,14 +142,80 @@
         "releaseType": "draft"
       }
     ],
-    "extraResources": [
-      {
-        "from": "resources",
-        "to": "resources",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ]
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/logo.png",
+      "extraResources": [
+        {
+          "from": "resources/ffmpeg-win",
+          "to": "resources/ffmpeg-win",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "resources/README.md",
+          "to": "resources/README.md"
+        }
+      ]
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "public/logo.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "extraResources": [
+        {
+          "from": "resources/ffmpeg-mac",
+          "to": "resources/ffmpeg-mac",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "resources/README.md",
+          "to": "resources/README.md"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/logo.png",
+      "category": "Video",
+      "executableName": "quickcut",
+      "extraResources": [
+        {
+          "from": "resources/ffmpeg-linux",
+          "to": "resources/ffmpeg-linux",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "resources/README.md",
+          "to": "resources/README.md"
+        }
+      ]
+    }
   }
 }

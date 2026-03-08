@@ -51,14 +51,26 @@ export function normalizeBedrockModelIdentifier(
   const trimmedExplicit = explicitInferenceProfileId?.trim();
   if (trimmedExplicit) return trimmedExplicit;
   if (!modelId) return modelId;
-  if (modelId.startsWith('arn:aws:bedrock:') || /^(us|eu|apac)\./.test(modelId)) {
-    return modelId;
+  if (modelId.startsWith('arn:aws:bedrock:')) return modelId;
+
+  // Re-prefix any cross-region Nova inference profile so a wrong-region prefix
+  // from the renderer (e.g. us.amazon.nova-lite-v1:0 sent to eu-central-1)
+  // gets corrected to the right prefix for awsRegion.
+  const crossRegionNovaMatch = modelId.match(
+    /^(?:us|eu|apac)\.(amazon\.nova-(?:micro|lite|pro|2-lite)-v1:0)$/,
+  );
+  if (crossRegionNovaMatch) {
+    const profilePrefix = inferNovaProfilePrefix(awsRegion);
+    return `${profilePrefix}.${crossRegionNovaMatch[1]}`;
   }
-  const novaMatch = modelId.match(/^amazon\.(nova-(micro|lite|pro)-v1:0)$/);
+
+  // Bare model ID with no prefix — add the regional prefix for Nova models.
+  const novaMatch = modelId.match(/^amazon\.(nova-(?:micro|lite|pro|2-lite)-v1:0)$/);
   if (novaMatch) {
     const profilePrefix = inferNovaProfilePrefix(awsRegion);
     return `${profilePrefix}.amazon.${novaMatch[1]}`;
   }
+
   return modelId;
 }
 

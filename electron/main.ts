@@ -45,6 +45,7 @@ import { setupAutoUpdates } from './services/updateService.js';
 import { captureMainException, initMainObservability } from './services/observabilityService.js';
 import { AiConfigService, normalizeBedrockModelIdentifier } from './services/aiConfigService.js';
 import { log } from './utils/logger.js';
+import { getAwsStorageService } from './services/awsStorageService.js';
 import {
   assertSecureWebPreferences,
   AuthorizedPathRegistry,
@@ -618,6 +619,18 @@ handleTrustedIpc(IPC_CHANNELS.media.exportVideo, async (event, rawPayload) => {
       subtitles as Parameters<typeof exportVideo>[5],
       subtitleStyle as Parameters<typeof exportVideo>[6],
     );
+    // Fire-and-forget S3 upload of the exported video.
+    // Uses a placeholder userId ('anonymous') when no profile is persisted.
+    void (async () => {
+      try {
+        const record = await getAwsStorageService().uploadExportedVideo(outputPath, 'anonymous');
+        if (record) {
+          log('info', '[Export] Video uploaded to S3', { s3Key: record.s3Key });
+        }
+      } catch (uploadErr) {
+        log('warn', '[Export] S3 video upload failed (non-fatal)', { uploadErr });
+      }
+    })();
     return true;
   } catch (error) {
     console.error('Export failed:', error);
@@ -690,7 +703,7 @@ handleTrustedIpc(IPC_CHANNELS.analysis.getUserAnalysis, async (_event, rawUserId
 
   try {
     const userId = nonEmptyStringSchema.parse(rawUserId);
-    const analysis = analysisService.getUserAnalysis(userId);
+    const analysis = await analysisService.getUserAnalysis(userId);
     if (analysis) {
       return { success: true, data: analysis };
     } else {
@@ -882,17 +895,21 @@ async function ensureMemoryDirs(projectId?: string) {
   await fs.mkdir(paths.analyses, { recursive: true });
 }
 
-// Save full memory state to disk
+// Save full memory state to disk + S3 backup (fire-and-forget)
 handleTrustedIpc(IPC_CHANNELS.memory.save, async (_, rawData) => {
   try {
     const data = memoryStateSchema.parse(rawData);
     const projectId = data.projectId;
     const paths = getProjectMemoryPaths(projectId);
     await ensureMemoryDirs(projectId);
-    await fs.writeFile(paths.index, JSON.stringify(data, null, 2), 'utf-8');
+    const serialized = JSON.stringify(data, null, 2);
+    await fs.writeFile(paths.index, serialized, 'utf-8');
     console.log(
       `[Memory] Saved ${data.entries?.length || 0} entries to ${paths.index} (Project: ${projectId || 'default'})`,
     );
+    // Async S3 backup — errors logged inside service, does not block the response
+    const s3Key = `${projectId ?? 'default'}/memory.json`;
+    void getAwsStorageService().uploadMemoryFile(s3Key, serialized);
     return { success: true, path: paths.index };
   } catch (error) {
     console.error('[Memory] Failed to save:', error);
@@ -900,26 +917,42 @@ handleTrustedIpc(IPC_CHANNELS.memory.save, async (_, rawData) => {
   }
 });
 
-// Load memory state from disk
+// Load memory state: local disk first, S3 fallback when file absent
 handleTrustedIpc(IPC_CHANNELS.memory.load, async (_, projectId?: string) => {
   try {
     const safeProjectId = projectId ? nonEmptyStringSchema.parse(projectId) : undefined;
     const paths = getProjectMemoryPaths(safeProjectId);
     await ensureMemoryDirs(safeProjectId);
-    const data = await fs.readFile(paths.index, 'utf-8');
-    const parsed = JSON.parse(data);
-    console.log(
-      `[Memory] Loaded ${parsed.entries?.length || 0} entries from disk (Project: ${projectId || 'default'})`,
-    );
-    return { success: true, data: parsed };
-  } catch (error: unknown) {
-    if (isErrnoException(error) && error.code === 'ENOENT') {
-      // File doesn't exist yet, that's fine
+    try {
+      const data = await fs.readFile(paths.index, 'utf-8');
+      const parsed = JSON.parse(data);
       console.log(
-        `[Memory] No existing memory file found for project ${projectId || 'default'}, starting fresh`,
+        `[Memory] Loaded ${parsed.entries?.length || 0} entries from disk (Project: ${projectId || 'default'})`,
+      );
+      return { success: true, data: parsed };
+    } catch (diskError: unknown) {
+      if (!isErrnoException(diskError) || diskError.code !== 'ENOENT') throw diskError;
+      // Local file missing — try S3 restore
+      console.log(
+        `[Memory] Local file absent for project ${projectId || 'default'}, checking S3...`,
+      );
+      const s3Key = `${safeProjectId ?? 'default'}/memory.json`;
+      const remote = await getAwsStorageService().downloadMemoryFile(s3Key);
+      if (remote) {
+        const parsed = JSON.parse(remote);
+        // Restore to disk for subsequent fast reads
+        await fs.writeFile(paths.index, remote, 'utf-8');
+        console.log(
+          `[Memory] Restored ${parsed.entries?.length || 0} entries from S3 (Project: ${projectId || 'default'})`,
+        );
+        return { success: true, data: parsed };
+      }
+      console.log(
+        `[Memory] No memory found anywhere for project ${projectId || 'default'}, starting fresh`,
       );
       return { success: true, data: { entries: [] } };
     }
+  } catch (error) {
     console.error('[Memory] Failed to load:', error);
     return ipcFailure(error, 'MEMORY_LOAD_FAILED');
   }
@@ -1019,6 +1052,9 @@ handleTrustedIpc(
 
       await fs.writeFile(mdPath, md, 'utf-8');
       console.log(`[Memory] Saved analysis markdown: ${mdPath}`);
+      // Async S3 backup of the markdown file
+      const s3Key = `${safeProjectId ?? 'default'}/analyses/${safeName}.md`;
+      void getAwsStorageService().uploadMemoryFile(s3Key, md);
       return { success: true, path: mdPath };
     } catch (error) {
       console.error('[Memory] Failed to save markdown:', error);
@@ -1064,6 +1100,108 @@ handleTrustedIpc(IPC_CHANNELS.rules.read, async () => {
     }
     console.error('[Rules] Failed to read rules.md:', error);
     return ipcFailure(error, 'RULES_READ_FAILED');
+  }
+});
+
+// ===========================
+// Cloud Storage Handlers (DynamoDB + S3)
+// ===========================
+
+// Save user profile to DynamoDB
+handleTrustedIpc(
+  IPC_CHANNELS.storage.saveProfile,
+  async (_, rawProfile: Record<string, unknown>) => {
+    try {
+      const userId = nonEmptyStringSchema.parse(rawProfile['userId']);
+      await getAwsStorageService().setUserProfile({
+        userId,
+        userName: typeof rawProfile['userName'] === 'string' ? rawProfile['userName'] : undefined,
+        email: typeof rawProfile['email'] === 'string' ? rawProfile['email'] : undefined,
+        youtubeChannelUrl:
+          typeof rawProfile['youtubeChannelUrl'] === 'string'
+            ? rawProfile['youtubeChannelUrl']
+            : undefined,
+        channelAnalysisId:
+          typeof rawProfile['channelAnalysisId'] === 'string'
+            ? rawProfile['channelAnalysisId']
+            : undefined,
+        createdAt:
+          typeof rawProfile['createdAt'] === 'number' ? rawProfile['createdAt'] : Date.now(),
+        updatedAt: Date.now(),
+      });
+      return { success: true };
+    } catch (error) {
+      log('warn', '[Storage] saveProfile failed', { error });
+      return ipcFailure(error, 'STORAGE_SAVE_PROFILE_FAILED');
+    }
+  },
+);
+
+// Load user profile from DynamoDB
+handleTrustedIpc(IPC_CHANNELS.storage.loadProfile, async (_, rawUserId: string) => {
+  try {
+    const userId = nonEmptyStringSchema.parse(rawUserId);
+    const data = await getAwsStorageService().getUserProfile(userId);
+    return { success: true, data: data as Record<string, unknown> | null };
+  } catch (error) {
+    log('warn', '[Storage] loadProfile failed', { error });
+    return ipcFailure(error, 'STORAGE_LOAD_PROFILE_FAILED');
+  }
+});
+
+// Upload an exported video to S3 (called explicitly by renderer after export)
+handleTrustedIpc(
+  IPC_CHANNELS.storage.uploadExportedVideo,
+  async (_, rawLocalPath: string, rawUserId: string) => {
+    try {
+      const localPath = authorizeFilePath(rawLocalPath);
+      const userId = nonEmptyStringSchema.parse(rawUserId);
+      const record = await getAwsStorageService().uploadExportedVideo(localPath, userId);
+      return { success: true, record };
+    } catch (error) {
+      log('warn', '[Storage] uploadExportedVideo failed', { error });
+      return ipcFailure(error, 'STORAGE_UPLOAD_VIDEO_FAILED');
+    }
+  },
+);
+
+// List exported videos for a user from S3
+handleTrustedIpc(IPC_CHANNELS.storage.listExportedVideos, async (_, rawUserId: string) => {
+  try {
+    const userId = nonEmptyStringSchema.parse(rawUserId);
+    const items = await getAwsStorageService().listExportedVideos(userId);
+    return { success: true, items };
+  } catch (error) {
+    log('warn', '[Storage] listExportedVideos failed', { error });
+    return ipcFailure(error, 'STORAGE_LIST_VIDEOS_FAILED');
+  }
+});
+
+// Backup AI context / chat history to S3
+handleTrustedIpc(
+  IPC_CHANNELS.storage.syncAiContext,
+  async (_, rawKey: string, rawContent: string) => {
+    try {
+      const key = nonEmptyStringSchema.parse(rawKey);
+      const content = nonEmptyStringSchema.parse(rawContent);
+      await getAwsStorageService().uploadAiContext(key, content, 'ai-context');
+      return { success: true };
+    } catch (error) {
+      log('warn', '[Storage] syncAiContext failed', { error });
+      return ipcFailure(error, 'STORAGE_SYNC_CONTEXT_FAILED');
+    }
+  },
+);
+
+// Restore AI context from S3
+handleTrustedIpc(IPC_CHANNELS.storage.loadAiContext, async (_, rawKey: string) => {
+  try {
+    const key = nonEmptyStringSchema.parse(rawKey);
+    const data = await getAwsStorageService().downloadAiContext(key, 'ai-context');
+    return { success: true, data };
+  } catch (error) {
+    log('warn', '[Storage] loadAiContext failed', { error });
+    return ipcFailure(error, 'STORAGE_LOAD_CONTEXT_FAILED');
   }
 });
 

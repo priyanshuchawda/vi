@@ -70,6 +70,14 @@ export const IPC_CHANNELS = {
     install: 'update:install',
     status: 'update:status',
   },
+  storage: {
+    saveProfile: 'storage:saveProfile',
+    loadProfile: 'storage:loadProfile',
+    uploadExportedVideo: 'storage:uploadExportedVideo',
+    listExportedVideos: 'storage:listExportedVideos',
+    syncAiContext: 'storage:syncAiContext',
+    loadAiContext: 'storage:loadAiContext',
+  },
 } as const;
 
 export const nonEmptyStringSchema = z.string().trim().min(1);
@@ -293,4 +301,51 @@ export type IpcInvokeContract = {
     result: { enabled: boolean; started: boolean; error?: string };
   };
   'update:install': { args: []; result: { enabled: boolean; started: boolean } };
+  // ── Cloud Storage ────────────────────────────────────────────────────────
+  'storage:saveProfile': {
+    args: [profile: Record<string, unknown>];
+    result: { success: boolean; error?: string };
+  };
+  'storage:loadProfile': {
+    args: [userId: string];
+    result: { success: boolean; data?: Record<string, unknown> | null; error?: string };
+  };
+  'storage:uploadExportedVideo': {
+    args: [localPath: string, userId: string];
+    result: {
+      success: boolean;
+      record?: {
+        s3Key: string;
+        s3Url: string;
+        fileName: string;
+        fileSizeBytes: number;
+        exportedAt: string;
+        format: string;
+      } | null;
+      error?: string;
+    };
+  };
+  'storage:listExportedVideos': {
+    args: [userId: string];
+    result: {
+      success: boolean;
+      items?: Array<{
+        s3Key: string;
+        s3Url: string;
+        fileName: string;
+        fileSizeBytes: number;
+        exportedAt: string;
+        format: string;
+      }>;
+      error?: string;
+    };
+  };
+  'storage:syncAiContext': {
+    args: [key: string, content: string];
+    result: { success: boolean; error?: string };
+  };
+  'storage:loadAiContext': {
+    args: [key: string];
+    result: { success: boolean; data?: string | null; error?: string };
+  };
 };

@@ -98,6 +98,19 @@ npm run dev
 
 This starts both renderer and Electron.
 
+## Mermaid Diagrams
+
+Render Mermaid diagrams with the local compiler:
+
+```bash
+npm run mermaid:render -- -i docs/diagram.mmd -o docs/diagram.png
+npm run mermaid:render -- -i docs/diagram.mmd -o docs/diagram.jpg
+```
+
+Native Mermaid CLI outputs (`.svg`, `.png`, `.pdf`) are supported directly, and
+the project wrapper also supports `.jpg` / `.jpeg` by rasterizing the generated
+SVG through the local Chrome install.
+
 ## Build
 
 ```bash

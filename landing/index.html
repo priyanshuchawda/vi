@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="QuickCut — AI-powered desktop video editor. Fast timeline editing, local transcription, and intelligent AI assistance. Free and open source for Windows & Linux." />
+  <meta name="keywords" content="video editor, AI video editor, desktop video editor, QuickCut, timeline editor, transcription, Electron, open source" />
+  <meta property="og:title" content="QuickCut — AI-Powered Video Editor" />
+  <meta property="og:description" content="Fast, lightweight desktop video editor with AI assistance. Edit smarter, not harder." />
+  <meta property="og:image" content="assets/logo.png" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <title>QuickCut — AI-Powered Video Editor</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ── NAVBAR ── -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-container">
+      <a href="#" class="nav-logo">
+        <img src="assets/logo.svg" alt="QuickCut Logo" class="logo-img" />
+        <span class="logo-text">QuickCut</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#download">Download</a></li>
+        <li>
+          <a href="https://github.com/priyanshuchawda/vi" target="_blank" rel="noopener" class="nav-github">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+            GitHub
+          </a>
+        </li>
+      </ul>
+      <a href="#download" class="btn btn-primary nav-cta">Download Free</a>
+      <button class="hamburger" id="hamburger" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="hero" id="hero">
+    <div class="hero-bg">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+      <div class="grid-overlay"></div>
+    </div>
+
+    <div class="hero-container">
+      <div class="hero-badge">
+        <span class="badge-dot"></span>
+        v1.1.0 — Free &amp; Open Source
+      </div>
+
+      <h1 class="hero-title">
+        Edit Videos<br />
+        <span class="gradient-text">with AI Intelligence</span>
+      </h1>
+
+      <p class="hero-subtitle">
+        QuickCut is a fast, lightweight desktop video editor powered by AI.<br />
+        Cut, trim, transcribe, and export — just describe what you want.
+      </p>
+
+      <div class="hero-actions">
+        <a href="https://github.com/priyanshuchawda/vi/releases/download/v1.1.0/QuickCut-1.1.0-win-x64.exe"
+           class="btn btn-primary btn-large" id="hero-download-win">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+          Download for Windows
+        </a>
+        <a href="https://github.com/priyanshuchawda/vi/releases"
+           target="_blank" rel="noopener"
+           class="btn btn-ghost btn-large" id="hero-download-linux">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+          All Releases
+        </a>
+      </div>
+
+      <div class="hero-meta">
+        <span class="meta-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1 5h2v6H9v-2h2V7zm0 8h2v2h-2v-2z"/></svg>
+          MIT License
+        </span>
+        <span class="meta-divider">·</span>
+        <span class="meta-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>
+          Windows · Linux
+        </span>
+        <span class="meta-divider">·</span>
+        <span class="meta-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          Electron · React · TypeScript
+        </span>
+      </div>
+
+      <!-- Mock App Screenshot -->
+      <div class="hero-screenshot">
+        <div class="screenshot-frame">
+          <div class="frame-titlebar">
+            <div class="frame-dots">
+              <span class="dot dot-red"></span>
+              <span class="dot dot-yellow"></span>
+              <span class="dot dot-green"></span>
+            </div>
+            <span class="frame-title">QuickCut — project.qcp</span>
+          </div>
+          <div class="frame-content">
+            <div class="mock-sidebar">
+              <div class="mock-sidebar-item active">
+                <span class="mock-icon">🎬</span>
+                <span>Timeline</span>
+              </div>
+              <div class="mock-sidebar-item">
+                <span class="mock-icon">🤖</span>
+                <span>AI Chat</span>
+              </div>
+              <div class="mock-sidebar-item">
+                <span class="mock-icon">📁</span>
+                <span>Files</span>
+              </div>
+              <div class="mock-sidebar-item">
+                <span class="mock-icon">⚙️</span>
+                <span>Settings</span>
+              </div>
+            </div>
+            <div class="mock-main">
+              <div class="mock-preview">
+                <div class="mock-video-player">
+                  <div class="mock-video-thumb">
+                    <div class="play-icon">▶</div>
+                    <div class="video-label">intro_final.mp4</div>
+                  </div>
+                  <div class="mock-controls">
+                    <div class="ctrl-bar">
+                      <div class="ctrl-progress">
+                        <div class="ctrl-fill" style="width: 38%"></div>
+                      </div>
+                    </div>
+                    <div class="ctrl-buttons">
+                      <span>⏮</span><span>⏸</span><span>⏭</span>
+                      <span class="ctrl-time">01:23 / 03:47</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="mock-timeline">
+                <div class="timeline-header">
+                  <span>Timeline</span>
+                  <div class="tl-tools">
+                    <span class="tl-tool">✂️</span>
+                    <span class="tl-tool">⬅️</span>
+                    <span class="tl-tool">↩️</span>
+                  </div>
+                </div>
+                <div class="timeline-tracks">
+                  <div class="track-row">
+                    <div class="track-label">Video</div>
+                    <div class="track-clips">
+                      <div class="clip clip-blue" style="width: 28%; left: 0%">Clip 1</div>
+                      <div class="clip clip-cyan" style="width: 22%; left: 30%">Clip 2</div>
+                      <div class="clip clip-purple" style="width: 35%; left: 54%">Clip 3</div>
+                    </div>
+                  </div>
+                  <div class="track-row">
+                    <div class="track-label">Audio</div>
+                    <div class="track-clips">
+                      <div class="clip clip-green" style="width: 90%; left: 0%">Background Music.mp3</div>
+                    </div>
+                  </div>
+                  <div class="track-row">
+                    <div class="track-label">Text</div>
+                    <div class="track-clips">
+                      <div class="clip clip-orange" style="width: 20%; left: 5%">Intro</div>
+                      <div class="clip clip-orange" style="width: 15%; left: 60%">Outro</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="mock-chat">
+              <div class="chat-header">AI Assistant</div>
+              <div class="chat-messages">
+                <div class="chat-msg user">Trim the first clip to 30 seconds and add a fade in</div>
+                <div class="chat-msg ai">
+                  <div class="ai-badge">AI</div>
+                  <div>Planning: trim clip_1 → 0:00–0:30, apply fade-in effect...</div>
+                </div>
+                <div class="chat-msg ai">
+                  <div class="ai-badge">✓</div>
+                  <div>Done! Clip trimmed and fade-in applied.</div>
+                </div>
+              </div>
+              <div class="chat-input">
+                <input type="text" placeholder="Describe your edit..." readonly />
+                <button>→</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── STATS STRIP ── -->
+  <section class="stats-strip">
+    <div class="stats-container">
+      <div class="stat-item">
+        <span class="stat-num">40+</span>
+        <span class="stat-label">AI Editing Tools</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-num">3</span>
+        <span class="stat-label">Platforms Supported</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-num">100%</span>
+        <span class="stat-label">Local Processing</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-num">Free</span>
+        <span class="stat-label">MIT Open Source</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FEATURES ── -->
+  <section class="features" id="features">
+    <div class="section-container">
+      <div class="section-header">
+        <div class="section-tag">Features</div>
+        <h2 class="section-title">Everything you need to edit faster</h2>
+        <p class="section-subtitle">Professional-grade tools with the power of AI — all running locally on your machine.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card feature-card-large">
+          <div class="feature-icon-wrap">
+            <div class="feature-icon">🤖</div>
+          </div>
+          <h3>AI-Powered Editing</h3>
+          <p>Describe your edits in plain English. The AI assistant understands your intent, builds a safe execution plan, validates it, and runs it — step by step.</p>
+          <div class="feature-tag-list">
+            <span class="ftag">Natural Language</span>
+            <span class="ftag">Plan & Validate</span>
+            <span class="ftag">AWS Bedrock</span>
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrap">
+            <div class="feature-icon">🎞️</div>
+          </div>
+          <h3>Multi-Track Timeline</h3>
+          <p>Full timeline editor with split, trim, move, merge, copy/paste and complete undo/redo history.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrap">
+            <div class="feature-icon">🎙️</div>
+          </div>
+          <h3>Local Transcription</h3>
+          <p>Speech-to-text powered by Vosk — fully offline, no cloud, no data sent anywhere.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrap">
+            <div class="feature-icon">💬</div>
+          </div>
+          <h3>Subtitles & Text</h3>
+          <p>Create, style, update and sync subtitles to your video timeline with ease.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrap">
+            <div class="feature-icon">📤</div>
+          </div>
+          <h3>Flexible Export</h3>
+          <p>Export in any format and resolution via a robust FFmpeg pipeline with full format control.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrap">
+            <div class="feature-icon">🔒</div>
+          </div>
+          <h3>Privacy First</h3>
+          <p>Local-first architecture. Your footage never leaves your machine unless you choose to upload.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrap">
+            <div class="feature-icon">📺</div>
+          </div>
+          <h3>YouTube Integration</h3>
+          <p>Upload directly to YouTube with Google OAuth. Analyze your channel for creator insights.</p>
+        </div>
+
+        <div class="feature-card feature-card-large feature-card-right">
+          <div class="feature-icon-wrap">
+            <div class="feature-icon">🧠</div>
+          </div>
+          <h3>AI Memory</h3>
+          <p>QuickCut remembers your editing style, preferences, and project context to give personalized suggestions every session.</p>
+          <div class="feature-tag-list">
+            <span class="ftag">Creator Presets</span>
+            <span class="ftag">Channel Insights</span>
+            <span class="ftag">Persistent Context</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── HOW IT WORKS ── -->
+  <section class="how-it-works" id="how-it-works">
+    <div class="section-container">
+      <div class="section-header">
+        <div class="section-tag">AI Workflow</div>
+        <h2 class="section-title">The AI edits like a pro editor would</h2>
+        <p class="section-subtitle">The assistant doesn't just execute commands — it thinks through each edit carefully.</p>
+      </div>
+
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">01</div>
+          <div class="step-content">
+            <h3>Understand</h3>
+            <p>The AI reads your request and the current project state to fully understand your goal and constraints.</p>
+          </div>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step-card">
+          <div class="step-number">02</div>
+          <div class="step-content">
+            <h3>Plan</h3>
+            <p>A grounded execution plan is built from your project snapshot and available editing tools.</p>
+          </div>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step-card">
+          <div class="step-number">03</div>
+          <div class="step-content">
+            <h3>Validate</h3>
+            <p>Every step of the plan is validated before anything runs — no surprises, no broken edits.</p>
+          </div>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step-card">
+          <div class="step-number">04</div>
+          <div class="step-content">
+            <h3>Execute</h3>
+            <p>Steps run sequentially with safe policy — stops immediately if anything fails, with recovery hints.</p>
+          </div>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step-card">
+          <div class="step-number">05</div>
+          <div class="step-content">
+            <h3>Report</h3>
+            <p>You get a clear status of what happened, what changed, and what to do next.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TECH STACK ── -->
+  <section class="tech-stack">
+    <div class="section-container">
+      <p class="tech-label">Built with best-in-class open source technology</p>
+      <div class="tech-logos">
+        <div class="tech-badge">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#9FEAF9"><path d="M13.176 0L6.572 6.604 3.77 3.803 0 7.573l3.77 3.77-3.77 3.77 3.77 3.77 3.77-3.77 6.634 6.634 13.23-10.77L13.176 0zm0 3.804l7.656 6.965-7.656 6.966-3.77-3.77 3.77-3.77-3.77-3.77 3.77-3.621z"/></svg>
+          Electron
+        </div>
+        <div class="tech-badge">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#61DAFB"><path d="M14.23 12.004a2.236 2.236 0 0 1-2.235 2.236 2.236 2.236 0 0 1-2.236-2.236 2.236 2.236 0 0 1 2.235-2.236 2.236 2.236 0 0 1 2.236 2.236zm2.648-10.69c-1.346 0-3.107.96-4.888 2.622-1.78-1.653-3.542-2.602-4.887-2.602-.41 0-.783.093-1.106.278-1.375.793-1.683 3.264-.973 6.365C1.98 8.917 0 10.42 0 12.004c0 1.59 1.99 3.097 5.043 4.03-.704 3.113-.39 5.588.988 6.38.32.187.69.275 1.102.275 1.345 0 3.107-.96 4.888-2.624 1.78 1.654 3.542 2.603 4.887 2.603.41 0 .783-.09 1.106-.275 1.374-.793 1.683-3.263.973-6.365C22.02 15.096 24 13.59 24 12.004c0-1.59-1.99-3.097-5.043-4.032.704-3.11.39-5.587-.988-6.38a2.167 2.167 0 0 0-1.092-.278zm-.005 1.09c.225 0 .406.044.558.127.666.382.955 1.835.73 3.704-.054.46-.142.945-.25 1.44a23.476 23.476 0 0 0-3.107-.534A23.892 23.892 0 0 0 12 9.504a23.514 23.514 0 0 0-2.677-2.719c1.38-1.216 2.71-1.88 3.893-1.88zm-8.113 1.553c.262 0 .541.06.85.198 1.134.523 2.287 1.81 3.318 3.595A23.786 23.786 0 0 0 8.17 9.29c-.09-.499-.156-.985-.19-1.443-.17-1.865.1-3.32.768-3.698a.936.936 0 0 1 .482-.14zm11.51 2.58c.482.133.957.285 1.415.46 1.877.7 3.072 1.63 3.072 2.43 0 .801-1.195 1.73-3.072 2.43-.46.17-.94.325-1.43.457a23.6 23.6 0 0 0-.938-3.002 23.61 23.61 0 0 0 .953-2.775zm-14.913.027c.318.874.605 1.807.842 2.77-.235.97-.52 1.907-.842 2.784-1.882-.7-3.076-1.63-3.076-2.43 0-.8 1.194-1.73 3.076-2.124zM12 10.855c.738 0 1.453.038 2.143.107.345.652.677 1.345.974 2.066A22.06 22.06 0 0 1 16.09 15.1a21.89 21.89 0 0 1-2.036.116 22.03 22.03 0 0 1-2.055-.116 22.19 22.19 0 0 1-.979-2.073 21.97 21.97 0 0 1-.974-2.065A22.26 22.26 0 0 1 12 10.855zm-5.113.57c.337.862.71 1.727 1.11 2.574-.4.845-.774 1.71-1.11 2.572a21.65 21.65 0 0 1-1.43-.456c-1.876-.7-3.072-1.63-3.072-2.43 0 .8 1.196 1.73 3.072 2.43zm11.51-.087a21.576 21.576 0 0 1 1.43.455c1.876.7 3.072 1.63 3.072 2.43 0-.8-1.196-1.73-3.072-2.43a21.614 21.614 0 0 1-1.43-.455z"/></svg>
+          React 19
+        </div>
+        <div class="tech-badge">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#3178C6"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"/></svg>
+          TypeScript
+        </div>
+        <div class="tech-badge">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#38BDF8"><path d="M12.001 4.8c-3.2 0-5.2 1.6-6 4.8 1.2-1.6 2.6-2.2 4.2-1.8.913.228 1.565.89 2.288 1.624C13.666 10.618 15.027 12 18.001 12c3.2 0 5.2-1.6 6-4.8-1.2 1.6-2.6 2.2-4.2 1.8-.913-.228-1.565-.89-2.288-1.624C16.337 6.182 14.976 4.8 12.001 4.8zm-6 7.2c-3.2 0-5.2 1.6-6 4.8 1.2-1.6 2.6-2.2 4.2-1.8.913.228 1.565.89 2.288 1.624 1.177 1.194 2.538 2.576 5.512 2.576 3.2 0 5.2-1.6 6-4.8-1.2 1.6-2.6 2.2-4.2 1.8-.913-.228-1.565-.89-2.288-1.624C10.337 13.382 8.976 12 6.001 12z"/></svg>
+          Tailwind CSS
+        </div>
+        <div class="tech-badge">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#FFE135"><path d="M12 0C5.373 0 0 5.372 0 12c0 6.628 5.373 12 12 12 6.628 0 12-5.372 12-12C24 5.372 18.628 0 12 0zm0 4.08l4.16 8.4H7.84L12 4.08zm-6.88 9.6h13.76L18.96 18H5.04l-.92-4.32z"/></svg>
+          FFmpeg
+        </div>
+        <div class="tech-badge">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF9900"><path d="M13.527.099C6.955-.744.942 3.9.099 10.473c-.843 6.572 3.8 12.584 10.373 13.428 6.573.843 12.587-3.801 13.428-10.374C24.744 6.955 20.101.943 13.527.099zm3.952 18.297c-.052.072-.16.107-.315.107s-.315-.035-.47-.107l-2.24-1.343c-.526-.314-1.26-.473-2.007-.473-1.258 0-2.39.578-3.233 1.63a.426.426 0 0 1-.315.14.38.38 0 0 1-.245-.088c-.176-.14-.228-.368-.14-.561l3.22-7.49a.42.42 0 0 1 .384-.245c.176 0 .333.088.42.228l3.22 7.49c.088.192.053.42-.14.561-.053.053-.14.088-.228.105l-.526.068a.508.508 0 0 0 .456.386.508.508 0 0 0 .508-.508v-6.227c0-1.26.613-2.38 1.59-3.063a.42.42 0 0 1 .526.07c.14.175.14.42-.018.578l-.439.456c.578.508.911 1.225.911 2.028v5.753a.422.422 0 0 1-.42.42z"/></svg>
+          AWS Bedrock AI
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── DOWNLOAD ── -->
+  <section class="download-section" id="download">
+    <div class="section-container">
+      <div class="download-inner">
+        <div class="section-header">
+          <div class="section-tag">Get QuickCut</div>
+          <h2 class="section-title">Download for your platform</h2>
+          <p class="section-subtitle">Free forever. No subscriptions, no tracking. Just open source video editing.</p>
+        </div>
+
+        <div class="download-cards">
+          <!-- Windows — AVAILABLE -->
+          <div class="download-card download-card-featured">
+            <div class="card-badge">Available Now</div>
+            <div class="platform-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+            </div>
+            <h3>Windows</h3>
+            <p class="platform-desc">Windows 10 / 11<br/>x64 architecture</p>
+            <div class="platform-specs">
+              <span class="spec">.exe Installer</span>
+              <span class="spec">244 MB</span>
+            </div>
+            <a href="https://github.com/priyanshuchawda/vi/releases/download/v1.1.0/QuickCut-1.1.0-win-x64.exe"
+               class="btn btn-primary btn-download" id="dl-windows">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+              Download .exe
+            </a>
+            <p class="download-note">QuickCut-1.1.0-win-x64.exe</p>
+          </div>
+
+          <!-- Linux — AVAILABLE -->
+          <div class="download-card download-card-featured">
+            <div class="card-badge">Available Now</div>
+            <div class="platform-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.480.021C7.215.28 3.79 5.131 3.83 10.58c.023 3.155 1.03 4.398 1.03 4.398s.424 1.39.948 1.83c.32.266.717.496 1.086.496.14 0 .273-.027.398-.078.82-.335 1.086-1.32.8-2.068 0 0-.07-.17-.07-.367 0-.428.35-.662.613-.662.14 0 .267.045.367.13.258.21.375.53.356.822-.034.55-.47 1.055-1.066 1.324l-.014.006c-.14.063-.29.096-.447.096a1.1 1.1 0 0 1-.32-.048l-.015-.005c.137.58.518 1.074.988 1.434.78.597 1.82.68 2.8.424.75-.2 1.5-.656 2.034-1.22.47-.49.785-1.08.872-1.7.087-.622-.045-1.268-.388-1.86l-.006-.01c-.43-.74-1.086-1.37-1.668-2.025-.555-.625-.978-1.254-1.003-2.024-.037-1.13.495-2.184 1.26-2.95.766-.766 1.77-1.233 2.78-1.37l.04-.006c.34-.047.683-.07 1.03-.07 2.19 0 4.45.906 5.998 2.45 1.43 1.42 2.187 3.338 2.107 5.34-.08 2.001-.99 3.867-2.537 5.17C17.855 21.2 16.43 22 14.915 22c-1.094 0-2.18-.376-3.083-1.066-1.103-.84-1.79-2.07-1.837-3.386-.048-1.31.547-2.6 1.566-3.532l.01-.008c.246-.22.495-.44.696-.68.396-.472.6-.968.6-1.505 0-.388-.1-.773-.3-1.12-.42-.72-1.19-1.165-2.02-1.165-.36 0-.717.09-1.038.26-.7.377-1.145 1.094-1.145 1.895 0 .49.16.958.45 1.36l.007.01c.23.313.547.565.892.766.34.2.72.34 1.09.416.367.077.726.083 1.055.018l.006-.001c-.013.115-.02.23-.02.347 0 .947.35 1.84.99 2.534.64.695 1.543 1.14 2.528 1.21 1.97.137 3.71-1.24 3.955-3.2.07-.56.02-1.135-.143-1.68-.163-.545-.45-1.06-.83-1.49l-.008-.01c-.384-.432-.86-.76-1.37-1.003-.51-.242-1.05-.38-1.62-.384z"/></svg>
+            </div>
+            <h3>Linux</h3>
+            <p class="platform-desc">Ubuntu, Fedora, Debian<br/>x64 architecture</p>
+            <div class="platform-specs">
+              <span class="spec">AppImage</span>
+              <span class="spec">.deb</span>
+              <span class="spec">~320 MB</span>
+            </div>
+            <a href="https://github.com/priyanshuchawda/vi/releases/download/v1.1.0/QuickCut-1.1.0-linux-x86_64.AppImage"
+               class="btn btn-primary btn-download" id="dl-linux-appimage">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+              Download .AppImage
+            </a>
+            <a href="https://github.com/priyanshuchawda/vi/releases/download/v1.1.0/QuickCut-1.1.0-linux-amd64.deb"
+               class="btn btn-download-alt" id="dl-linux-deb">
+              Download .deb
+            </a>
+            <p class="download-note">QuickCut-1.1.0-linux-x86_64.AppImage / QuickCut-1.1.0-linux-amd64.deb</p>
+          </div>
+
+        </div>
+
+        <div class="download-footer">
+          <p>Looking for all releases and changelogs?</p>
+          <a href="https://github.com/priyanshuchawda/vi/releases" target="_blank" rel="noopener" class="btn btn-ghost">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+            View All Releases on GitHub
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section class="faq-section">
+    <div class="section-container">
+      <div class="section-header">
+        <div class="section-tag">FAQ</div>
+        <h2 class="section-title">Common questions</h2>
+      </div>
+      <div class="faq-grid">
+        <div class="faq-item">
+          <h4>Is QuickCut really free?</h4>
+          <p>Yes — completely free and open source under the MIT license. No subscriptions, no paywalls, no hidden costs.</p>
+        </div>
+        <div class="faq-item">
+          <h4>Does the AI require internet?</h4>
+          <p>Core editing and local transcription (Vosk) work 100% offline. The AI assistant uses AWS Bedrock which requires internet and your own AWS credentials.</p>
+        </div>
+        <div class="faq-item">
+          <h4>Is my footage private?</h4>
+          <p>Yes. QuickCut is local-first. Your videos never leave your machine unless you explicitly upload to YouTube or AWS S3.</p>
+        </div>
+        <div class="faq-item">
+          <h4>What video formats are supported?</h4>
+          <p>QuickCut uses FFmpeg under the hood, so it supports virtually every video and audio format — MP4, MKV, MOV, AVI, WebM, and more.</p>
+        </div>
+        <div class="faq-item">
+          <h4>Can I contribute?</h4>
+          <p>Absolutely! QuickCut is open source. Check out CONTRIBUTING.md on GitHub to get started.</p>
+        </div>
+        <div class="faq-item">
+          <h4>What are the system requirements?</h4>
+          <p>Windows 10+ or Ubuntu 18.04+. 8GB RAM recommended for smooth editing with large video files.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FINAL CTA ── -->
+  <section class="final-cta">
+    <div class="cta-container">
+      <div class="cta-orb cta-orb-1"></div>
+      <div class="cta-orb cta-orb-2"></div>
+      <img src="assets/logo.svg" alt="QuickCut" class="cta-logo" />
+      <h2>Start editing smarter today</h2>
+      <p>Download QuickCut for free and experience AI-powered video editing on your desktop.</p>
+      <div class="cta-buttons">
+        <a href="#download" class="btn btn-primary btn-large">Get QuickCut Free →</a>
+        <a href="https://github.com/priyanshuchawda/vi" target="_blank" rel="noopener" class="btn btn-ghost btn-large">View on GitHub</a>
+      </div>
+      <p class="cta-note">v1.1.0 · MIT License · No account required</p>
+    </div>
+  </section>
+
+  <!-- ── FOOTER ── -->
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-brand">
+        <a href="#" class="nav-logo">
+          <img src="assets/logo.svg" alt="QuickCut" class="logo-img" />
+          <span class="logo-text">QuickCut</span>
+        </a>
+        <p>Fast, AI-powered desktop video editing.<br/>Free and open source.</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h5>Product</h5>
+          <a href="#features">Features</a>
+          <a href="#download">Download</a>
+          <a href="#how-it-works">How It Works</a>
+        </div>
+        <div class="footer-col">
+          <h5>Resources</h5>
+          <a href="https://github.com/priyanshuchawda/vi" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/priyanshuchawda/vi/releases" target="_blank" rel="noopener">Releases</a>
+          <a href="https://github.com/priyanshuchawda/vi/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a>
+        </div>
+        <div class="footer-col">
+          <h5>Legal</h5>
+          <a href="https://github.com/priyanshuchawda/vi/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+          <a href="https://github.com/priyanshuchawda/vi/blob/main/SECURITY.md" target="_blank" rel="noopener">Security</a>
+          <a href="https://github.com/priyanshuchawda/vi/blob/main/CODE_OF_CONDUCT.md" target="_blank" rel="noopener">Code of Conduct</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 QuickCut Team · MIT License</p>
+      <p>Built with ❤️ using Electron, React, TypeScript &amp; FFmpeg</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

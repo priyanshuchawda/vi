@@ -8,6 +8,7 @@ describe('useProjectStore', () => {
     // Reset store before each test
     useProjectStore.setState({
       clips: [],
+      mediaAssets: [],
       activeClipId: null,
       selectedClipIds: [],
       currentTime: 0,
@@ -71,6 +72,23 @@ describe('useProjectStore', () => {
       expect(state.clips).toHaveLength(2);
       expect(state.clips[0].id).not.toBe(state.clips[1].id);
     });
+
+    it('should keep a reusable media asset entry for imported source files', () => {
+      const { addClip } = useProjectStore.getState();
+
+      addClip({
+        path: '/test/video.mp4',
+        name: 'test video',
+        duration: 10,
+        sourceDuration: 10,
+        thumbnail: 'thumb.jpg',
+      });
+
+      const state = useProjectStore.getState();
+      expect(state.mediaAssets).toHaveLength(1);
+      expect(state.mediaAssets[0].path).toBe('/test/video.mp4');
+      expect(state.mediaAssets[0].thumbnail).toBe('thumb.jpg');
+    });
   });
 
   describe('removeClip', () => {
@@ -107,6 +125,25 @@ describe('useProjectStore', () => {
 
       removeClip(clipId);
       expect(useProjectStore.getState().activeClipId).toBeNull();
+    });
+
+    it('should keep imported media assets available after removing a timeline clip', () => {
+      const { addClip, removeClip } = useProjectStore.getState();
+
+      addClip({
+        path: '/test/video.mp4',
+        name: 'test video',
+        duration: 10,
+        sourceDuration: 10,
+      });
+
+      const clipId = useProjectStore.getState().clips[0].id;
+      removeClip(clipId);
+
+      const state = useProjectStore.getState();
+      expect(state.clips).toHaveLength(0);
+      expect(state.mediaAssets).toHaveLength(1);
+      expect(state.mediaAssets[0].path).toBe('/test/video.mp4');
     });
   });
 

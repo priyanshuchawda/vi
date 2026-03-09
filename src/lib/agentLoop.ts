@@ -118,6 +118,7 @@ For YouTube Shorts, Reels, hackathon win stories, or social-first edits:
 6. For exact target-duration requests, empty timeline gaps do NOT count as usable duration
 7. Never satisfy a duration target by only moving clips later on the timeline
 8. Prefer, in order: restore source bounds, extend still images, slow clips moderately, duplicate clips, then reposition
+9. NEVER call delete_clips unless the user explicitly asked to delete/remove footage. For ordinary Shorts edits, keep all imported source media available.
 </short-form-storytelling>
 
 <error-recovery>
@@ -206,6 +207,17 @@ function getTargetDurationSeconds(
   const value = Number(match[1]);
   if (!Number.isFinite(value) || value <= 0) return undefined;
   return match[2].toLowerCase().startsWith('min') ? value * 60 : value;
+}
+
+function hasExplicitDeleteIntent(
+  userMessage: string,
+  normalizedIntent?: AgentLoopInput['normalizedIntent'],
+): boolean {
+  return (
+    /\b(delete|remove|cut out|discard|erase|drop|clear all)\b/i.test(String(userMessage || '')) ||
+    normalizedIntent?.mode === 'delete' ||
+    normalizedIntent?.operationHint === 'delete'
+  );
 }
 
 function buildSignalTextForClip(clip: { id: string; name: string; path?: string }): string {
@@ -504,6 +516,7 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
   });
   const toolSet = selectedToolSet.tools;
   const toolNames = selectedToolSet.toolNames;
+  const explicitDeleteIntent = hasExplicitDeleteIntent(input.userMessage, input.normalizedIntent);
 
   const { snapshot: aliasedSnapshot, aliasMap } = buildAliasedSnapshotForPlanning(toolNames);
 
@@ -674,23 +687,32 @@ When the goal is fully achieved, respond with a summary (no tool calls).
         // Execute the tool
         let toolResult: AgentToolResult;
         try {
-          const executionResult = await ToolExecutor.executeToolCallWithLifecycle(
-            { name: resolvedCall.name, args: resolvedCall.args } as FunctionCall,
-            0,
-            1,
-          );
+          if (resolvedCall.name === 'delete_clips' && !explicitDeleteIntent) {
+            toolResult = {
+              success: false,
+              output: '',
+              error:
+                'delete_clips is blocked unless the user explicitly asks to remove footage. Use trims, speed changes, still-image extension, duplication, or reordering instead.',
+            };
+          } else {
+            const executionResult = await ToolExecutor.executeToolCallWithLifecycle(
+              { name: resolvedCall.name, args: resolvedCall.args } as FunctionCall,
+              0,
+              1,
+            );
 
-          toolResult = {
-            success: executionResult.result.success,
-            output:
-              typeof executionResult.result.message === 'string'
-                ? executionResult.result.message
-                : JSON.stringify(executionResult.result),
-            error: executionResult.result.success
-              ? undefined
-              : String(executionResult.result.error || ''),
-            adjustments: executionResult.result.adjustments,
-          };
+            toolResult = {
+              success: executionResult.result.success,
+              output:
+                typeof executionResult.result.message === 'string'
+                  ? executionResult.result.message
+                  : JSON.stringify(executionResult.result),
+              error: executionResult.result.success
+                ? undefined
+                : String(executionResult.result.error || ''),
+              adjustments: executionResult.result.adjustments,
+            };
+          }
         } catch (err) {
           toolResult = {
             success: false,

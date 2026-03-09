@@ -1041,6 +1041,8 @@ export class ToolExecutor {
     const max = isExtendableStill
       ? Math.max(Number(clip.sourceDuration), 300)
       : Number(clip.sourceDuration);
+    const epsilon = max > 0 ? Math.min(0.1, max) : 0.1;
+    const clampToRange = (value: number) => Math.min(max, Math.max(0, value));
 
     if (!Number.isFinite(start) || !Number.isFinite(end)) {
       return {
@@ -1073,24 +1075,65 @@ export class ToolExecutor {
 
     // Ensure strictly positive duration after clamping.
     if (start >= end) {
-      const epsilon = 0.1;
-      if (newStart !== undefined && newEnd === undefined) {
+      if (newStart !== undefined && newEnd !== undefined) {
+        const requestedStart = Number(newStart);
+        const requestedEnd = Number(newEnd);
+
+        if (requestedStart > requestedEnd) {
+          const swappedStart = clampToRange(requestedEnd);
+          const swappedEnd = clampToRange(requestedStart);
+          if (swappedStart < swappedEnd) {
+            start = swappedStart;
+            end = swappedEnd;
+            notes.push(
+              `new_start/new_end were reversed and swapped to ${start.toFixed(1)}s-${end.toFixed(1)}s`,
+            );
+          }
+        }
+
+        if (start >= end) {
+          const requestedSpan = Math.abs(requestedEnd - requestedStart);
+          const fallbackSpan = Math.max(epsilon, Math.min(max, requestedSpan || epsilon));
+
+          if (end <= 0) {
+            start = 0;
+            end = Math.min(max, fallbackSpan);
+          } else if (start >= max) {
+            end = max;
+            start = Math.max(0, max - fallbackSpan);
+          } else {
+            end = Math.min(max, Math.max(end, epsilon));
+            start = Math.max(0, end - fallbackSpan);
+
+            if (start >= end) {
+              start = Math.max(0, Math.min(start, max - epsilon));
+              end = Math.min(max, start + epsilon);
+            }
+          }
+
+          notes.push(
+            `new_start/new_end auto-shifted to ${start.toFixed(1)}s-${end.toFixed(1)}s to keep positive duration`,
+          );
+        }
+      } else if (newStart !== undefined && newEnd === undefined) {
         end = Math.min(max, start + epsilon);
         notes.push(`new_end auto-adjusted to ${end.toFixed(1)}s to keep positive duration`);
       } else if (newEnd !== undefined && newStart === undefined) {
         start = Math.max(0, end - epsilon);
         notes.push(`new_start auto-adjusted to ${start.toFixed(1)}s to keep positive duration`);
-      } else {
-        return {
-          valid: false,
-          error:
-            'Resulting clip bounds are invalid after normalization (start must be less than end)',
-          start,
-          end,
-          adjusted: notes.length > 0,
-          adjustmentNotes: notes,
-        };
       }
+    }
+
+    if (start >= end) {
+      return {
+        valid: false,
+        error:
+          'Resulting clip bounds are invalid after normalization (start must be less than end)',
+        start,
+        end,
+        adjusted: notes.length > 0,
+        adjustmentNotes: notes,
+      };
     }
 
     return {

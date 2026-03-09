@@ -50,6 +50,44 @@ describe('ToolExecutor planning guard + policy execution', () => {
     expect(preflight.corrections.length).toBeGreaterThan(0);
   });
 
+  it('preflight repairs reversed clip-bound ranges', () => {
+    const preflight = ToolExecutor.preflightPlan([
+      {
+        name: 'update_clip_bounds',
+        args: {
+          clip_id: 'clip-1',
+          new_start: 8,
+          new_end: 2,
+        },
+      },
+    ]);
+
+    expect(preflight.valid).toBe(true);
+    expect(preflight.normalizedCalls[0].args.new_start).toBe(2);
+    expect(preflight.normalizedCalls[0].args.new_end).toBe(8);
+    expect(preflight.corrections.some((entry) => entry.includes('reversed and swapped'))).toBe(
+      true,
+    );
+  });
+
+  it('preflight repairs ranges that collapse at the source boundary', () => {
+    const preflight = ToolExecutor.preflightPlan([
+      {
+        name: 'update_clip_bounds',
+        args: {
+          clip_id: 'clip-1',
+          new_start: 12,
+          new_end: 13,
+        },
+      },
+    ]);
+
+    expect(preflight.valid).toBe(true);
+    expect(preflight.normalizedCalls[0].args.new_start).toBe(9);
+    expect(preflight.normalizedCalls[0].args.new_end).toBe(10);
+    expect(preflight.corrections.some((entry) => entry.includes('auto-shifted'))).toBe(true);
+  });
+
   it('allows still-image clips to extend beyond their current visible duration', () => {
     useProjectStore.setState({
       clips: [
@@ -170,6 +208,24 @@ describe('ToolExecutor planning guard + policy execution', () => {
     expect(results).toHaveLength(1);
     expect(results[0].result.success).toBe(false);
     expect(results[0].result.errorType).toBe('validation_error');
+  });
+
+  it('executes repaired clip-bound updates instead of failing on collapsed ranges', async () => {
+    const results = await ToolExecutor.executeWithPolicy(
+      [{ name: 'update_clip_bounds', args: { clip_id: 'clip-1', new_start: 12, new_end: 13 } }],
+      {
+        mode: 'strict_sequential',
+        stopOnFailure: true,
+      },
+    );
+
+    const clip = useProjectStore.getState().clips[0];
+    expect(results).toHaveLength(1);
+    expect(results[0].result.success).toBe(true);
+    expect(clip.start).toBe(9);
+    expect(clip.end).toBe(10);
+    expect(clip.duration).toBe(1);
+    expect(results[0].result.message).toContain('Updated bounds for "Clip 1"');
   });
 
   it('delete_clips reports deleted and missing IDs at execution time', async () => {

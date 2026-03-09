@@ -404,6 +404,44 @@ describe('agentLoop integration', () => {
     expect(bedrockToolNames.length).toBeLessThanOrEqual(12);
     expect(toolNames).toEqual(expect.arrayContaining(bedrockToolNames));
     expect(bedrockToolNames.length).toBeLessThan(toolNames.length);
+    expect(toolNames).not.toContain('delete_clips');
+    expect(bedrockToolNames).not.toContain('delete_clips');
+  });
+
+  it('blocks delete_clips during non-destructive shorts edits even if the model asks for it', async () => {
+    const { runAgentLoop } = await import('../../src/lib/agentLoop');
+    const callbacks = createMockCallbacks();
+
+    mockedConverse
+      .mockResolvedValueOnce(
+        bedrockToolResponse(
+          'delete_clips',
+          { clip_ids: ['clip_1'] },
+          'tu-no-delete',
+          'Deleting the weakest clip to hit 30 seconds.',
+        ),
+      )
+      .mockResolvedValueOnce(
+        bedrockEndResponse(' Completed: Kept the footage and prepared the short safely. Timeline: 30s, 3 clips.'),
+      );
+
+    await runAgentLoop({
+      userMessage: 'make a 30 second youtube short with proper script and editing',
+      history: [],
+      callbacks,
+      normalizedIntent: {
+        mode: 'modify',
+        goals: ['platform_optimized_output', 'script_generation'],
+        constraints: { target_duration: 30, platform: 'youtube_shorts' },
+        operationHint: 'script_outline',
+        confidence: 0.92,
+      },
+    });
+
+    expect(mockedExecute).not.toHaveBeenCalled();
+    expect(callbacks.steps[0]?.toolCall?.name).toBe('delete_clips');
+    expect(callbacks.steps[0]?.result?.success).toBe(false);
+    expect(callbacks.steps[0]?.result?.error).toContain('blocked unless the user explicitly asks');
   });
 
   it('starts complex agentic turns with a read-focused tool subset', async () => {

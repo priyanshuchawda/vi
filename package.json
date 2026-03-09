@@ -38,6 +38,7 @@
     "test:memory": "vitest run test/integration/ai-memory.test.ts",
     "typecheck:backend": "tsc -p tsconfig.backend.json --pretty false --noEmit",
     "aws:build:cloud-backend": "node scripts/aws/build-cloud-backend.mjs",
+    "aws:check:account": "node scripts/aws/check-account.mjs",
     "aws:deploy:cloud-backend": "node scripts/aws/deploy-cloud-backend.mjs",
     "aws:delete:cloud-backend": "node scripts/aws/delete-cloud-backend.mjs",
     "aws:deploy:landing": "node scripts/aws/deploy-landing.mjs",

@@ -13,7 +13,8 @@ This runbook assumes:
 
 - Ensure AWS credentials are valid: `aws sts get-caller-identity`
 - Confirm the repo is on the intended commit from `main`
-- Confirm `.env` points at the intended AWS dev environment
+- Confirm `.env` or `AWS_ENV_FILE` points at the intended AWS environment
+- Run `npm run aws:check:account` before environment-changing deploys
 - For packaged installers, confirm `npm run build:runtime-config` will emit the
   intended backend settings. By default the generated runtime config prefers
   `apigw` when `AWS_BACKEND_URL` is set; use `AWS_RUNTIME_*` overrides in `.env`
@@ -92,5 +93,7 @@ If a landing deploy is bad:
 - Keep DynamoDB on `PAY_PER_REQUEST`.
 - Keep uploads direct to S3 through presigned URLs.
 - Keep log retention short unless compliance requires more.
+- Use `npm run aws:check:account` to confirm budgets/anomaly-monitor access and
+  dev/prod stack separation.
 - Delay CloudFront, ACM, Route53, Cognito, WAF, and heavier AWS services until
   they are actually needed.

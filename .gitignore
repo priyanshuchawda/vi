@@ -51,6 +51,8 @@ __pycache__/
 vosk-model-*/
 electron/vosk-model-*/
 .env
+.env.aws.*
+!.env.aws.*.example
 youtube-credentials.json
 
 # FFmpeg binaries (large - download during build)

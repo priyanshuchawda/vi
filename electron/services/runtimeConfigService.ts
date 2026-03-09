@@ -18,6 +18,7 @@ export const runtimeConfigSchema = z.object({
       backendMode: z.enum(['direct', 'apigw']).optional(),
       backendUrl: z.string().url().optional(),
       backendAuthToken: z.string().trim().min(1).optional(),
+      linuxReleaseBaseUrl: z.string().url().optional(),
     })
     .default({}),
 });
@@ -72,6 +73,10 @@ export function applyRuntimeConfigEnvFallback(
 
   if (!env.AWS_BACKEND_AUTH_TOKEN?.trim() && aws.backendAuthToken) {
     env.AWS_BACKEND_AUTH_TOKEN = aws.backendAuthToken;
+  }
+
+  if (!env.AWS_LINUX_RELEASE_BASE_URL?.trim() && aws.linuxReleaseBaseUrl) {
+    env.AWS_LINUX_RELEASE_BASE_URL = aws.linuxReleaseBaseUrl;
   }
 }
 

@@ -21,6 +21,9 @@ This runbook assumes:
   if packaged defaults must differ from local dev settings. The packaged build
   will not include `AWS_BACKEND_AUTH_TOKEN` unless
   `AWS_RUNTIME_BACKEND_AUTH_TOKEN` is explicitly set.
+- For Linux packaged installers, confirm either `AWS_RELEASE_BUCKET` is set or
+  `AWS_RUNTIME_LINUX_RELEASE_BASE_URL` is explicitly configured so the updater
+  feed points at AWS instead of GitHub.
 - Verify the local build/test baseline:
   - `npm run test -- test/electron/presignedHttpUpload.test.ts test/electron/cloudBackendApi.test.ts test/electron/cloudBackendService.test.ts test/backend/storageApiHandler.test.ts`
   - `npm run typecheck`
@@ -71,7 +74,24 @@ Verify:
 npm run aws:verify:baseline
 ```
 
-## 5. Rollback
+## 5. Linux Release Upload
+
+Build the Linux artifacts:
+
+```bash
+npm run dist:linux
+```
+
+Upload `latest-linux.yml`, `.AppImage`, and `.deb` to S3:
+
+```bash
+npm run aws:upload:release-assets -- --platform linux
+```
+
+If the release bucket is not set explicitly, the upload script falls back to the
+landing bucket and stores Linux files under `releases/linux/`.
+
+## 6. Rollback
 
 If a backend deploy is bad:
 
@@ -87,7 +107,13 @@ If a landing deploy is bad:
 2. Re-run `npm run aws:deploy:landing`.
 3. Re-run `npm run aws:verify:baseline`.
 
-## 6. Cost Notes
+If a Linux release upload is bad:
+
+1. Re-upload the previous known-good `latest-linux.yml` and Linux artifacts.
+2. Re-run `window.electronAPI.updates.check()` from an older installed build.
+3. Re-verify the public S3 URLs directly.
+
+## 7. Cost Notes
 
 - Keep Lambda outside a VPC.
 - Keep DynamoDB on `PAY_PER_REQUEST`.

@@ -36,6 +36,7 @@ describe('runtimeConfigService', () => {
         backendMode: 'apigw',
         backendUrl: 'https://example.execute-api.eu-central-1.amazonaws.com',
         backendAuthToken: 'generated-token',
+        linuxReleaseBaseUrl: 'https://downloads.example.com/releases/linux',
       },
     });
 
@@ -47,6 +48,7 @@ describe('runtimeConfigService', () => {
       AWS_BACKEND_MODE: '',
       AWS_BACKEND_URL: '',
       AWS_BACKEND_AUTH_TOKEN: '',
+      AWS_LINUX_RELEASE_BASE_URL: '',
     };
 
     applyRuntimeConfigEnvFallback(env, runtimeConfig);
@@ -55,6 +57,7 @@ describe('runtimeConfigService', () => {
     expect(env.AWS_BACKEND_MODE).toBe('apigw');
     expect(env.AWS_BACKEND_URL).toBe('https://example.execute-api.eu-central-1.amazonaws.com');
     expect(env.AWS_BACKEND_AUTH_TOKEN).toBe('generated-token');
+    expect(env.AWS_LINUX_RELEASE_BASE_URL).toBe('https://downloads.example.com/releases/linux');
   });
 
   it('reports missing API Gateway fields for packaged apigw runtime config', async () => {

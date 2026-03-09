@@ -21,18 +21,18 @@ QUICKCUT_DISABLE_AUTO_UPDATE=1
   - `window.electronAPI.updates.download()`
   - `window.electronAPI.updates.install()`
   - `window.electronAPI.updates.onStatus(cb)`
+- On Linux, the updater switches to an AWS-hosted generic feed when
+  `AWS_LINUX_RELEASE_BASE_URL` is present in the packaged runtime config or
+  environment.
 
 ## Publish Pipeline
-
-`electron-builder` is configured to publish to GitHub Releases for
-`priyanshuchawda/vi`.
 
 Release commands:
 
 ```bash
 npm run dist:win
 npm run dist:linux
-npm run dist:publish
+npm run aws:upload:release-assets -- --platform linux
 ```
 
 Default artifact contract:
@@ -48,13 +48,22 @@ Practical build guidance:
   `--publish never`, so they are safe for local packaging checks.
 - Packaging now runs `scripts/build/check-release-assets.mjs` first so missing
   bundled binaries such as `ffprobe.exe` fail before release generation.
-- Use `npm run dist:publish` only in the tagged release pipeline.
+- Upload Linux artifacts plus `latest-linux.yml` to AWS S3 with
+  `npm run aws:upload:release-assets -- --platform linux`.
+- The packaged Linux updater feed can be derived automatically from
+  `AWS_RELEASE_BUCKET` and `AWS_RELEASE_S3_PREFIX`, or overridden explicitly
+  with `AWS_RUNTIME_LINUX_RELEASE_BASE_URL`.
 
 ## Required Secrets and Environment
 
 ### Release upload
 
-- `GH_TOKEN`: token with repo release write access
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION`
+- `AWS_RELEASE_BUCKET` or `AWS_LANDING_BUCKET`
+- Optional: `AWS_RELEASE_S3_PREFIX`
+- Optional: `AWS_RUNTIME_LINUX_RELEASE_BASE_URL`
 
 ### macOS signing/notarization placeholders
 
@@ -76,7 +85,7 @@ files.
 ## Staging Update Test Plan
 
 1. Cut a prerelease tag like `v1.2.3-rc.1`.
-2. Build and publish artifacts/metadata to GitHub Releases.
+2. Build Linux artifacts and upload them plus `latest-linux.yml` to AWS S3.
 3. Install previous packaged app version.
 4. Start app and run `window.electronAPI.updates.check()` via renderer flow.
 5. Verify `update:status` transition sequence (`checking` -> `available` ->

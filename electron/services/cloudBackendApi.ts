@@ -1,6 +1,11 @@
 import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
-import { type UserProfile, getAwsStorageService } from './awsStorageService.js';
+import {
+  type PresignedVideoUploadPlan,
+  type UserProfile,
+  type VideoExportRecord,
+  getAwsStorageService,
+} from './awsStorageService.js';
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' } as const;
 
@@ -26,6 +31,13 @@ const textObjectWriteSchema = z.object({
   content: z.string(),
 });
 
+const videoUploadPresignSchema = z.object({
+  userId: z.string().trim().min(1),
+  fileName: z.string().trim().min(1),
+  fileSizeBytes: z.number().int().positive(),
+  contentType: z.string().trim().min(1).optional(),
+});
+
 export interface CloudBackendApiStorage {
   getUserProfile(userId: string): Promise<UserProfile | null>;
   setUserProfile(profile: UserProfile): Promise<void>;
@@ -33,6 +45,13 @@ export interface CloudBackendApiStorage {
   setChannelAnalysis(channelId: string, data: unknown): Promise<void>;
   getUserLink(userId: string): Promise<string | null>;
   setUserLink(userId: string, channelId: string): Promise<void>;
+  createPresignedVideoUploadPlan(
+    userId: string,
+    fileName: string,
+    fileSizeBytes: number,
+    contentType?: string,
+  ): Promise<PresignedVideoUploadPlan | null>;
+  listExportedVideos(userId: string): Promise<VideoExportRecord[]>;
   uploadAiContext(
     relativeKey: string,
     content: string,
@@ -177,6 +196,29 @@ export async function handleCloudBackendApiRequest(
         const payload = userLinkWriteSchema.parse(parseRequestBody(request.body));
         await storage.setUserLink(userId, payload.channelId);
         return noContentResponse();
+      }
+    }
+
+    if (segments[0] === 'videos' && segments[1] === 'users' && segments.length === 3) {
+      const userId = z.string().trim().min(1).parse(segments[2]);
+      if (method === 'GET') {
+        return jsonResponse(200, { items: await storage.listExportedVideos(userId) });
+      }
+    }
+
+    if (segments[0] === 'videos' && segments[1] === 'uploads' && segments[2] === 'presign') {
+      if (method === 'POST') {
+        const payload = videoUploadPresignSchema.parse(parseRequestBody(request.body));
+        const plan = await storage.createPresignedVideoUploadPlan(
+          payload.userId,
+          payload.fileName,
+          payload.fileSizeBytes,
+          payload.contentType,
+        );
+        if (!plan) {
+          return jsonResponse(503, { error: 'Video upload plan could not be created.' });
+        }
+        return jsonResponse(200, plan);
       }
     }
 

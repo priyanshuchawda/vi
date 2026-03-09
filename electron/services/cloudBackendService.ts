@@ -1,9 +1,13 @@
 import {
+  type PresignedVideoUploadPlan,
   type UserProfile,
   type VideoExportRecord,
   getAwsStorageService,
   resetAwsStorageService,
 } from './awsStorageService.js';
+import { uploadFileToPresignedUrl } from './presignedHttpUpload.js';
+import path from 'node:path';
+import { stat } from 'node:fs/promises';
 import { log } from '../utils/logger.js';
 
 export type CloudBackendMode = 'direct' | 'apigw';
@@ -60,6 +64,11 @@ type DirectStorageAdapter = {
 interface CloudBackendServiceOptions {
   env?: NodeJS.ProcessEnv;
   storage?: DirectStorageAdapter;
+}
+
+function inferVideoContentType(localPath: string): string {
+  const ext = path.extname(localPath).replace('.', '') || 'mp4';
+  return `video/${ext}`;
 }
 
 function resolveCloudBackendMode(env: NodeJS.ProcessEnv): CloudBackendMode {
@@ -152,18 +161,6 @@ class ApiGatewayCloudBackendService implements CloudBackendService {
     this.authToken = authToken;
   }
 
-  private unsupported(methodName: string): Promise<never> {
-    const configuredBaseUrl = this.baseUrl?.trim();
-    const suffix = configuredBaseUrl
-      ? ` Configured base URL: ${configuredBaseUrl}`
-      : ' Set AWS_BACKEND_URL before enabling AWS_BACKEND_MODE=apigw.';
-    return Promise.reject(
-      new Error(
-        `Cloud backend API Gateway mode is not implemented for ${methodName} yet.${suffix}`,
-      ),
-    );
-  }
-
   private getConfiguredBaseUrl(): string {
     const baseUrl = this.baseUrl?.trim();
     if (!baseUrl) {
@@ -184,7 +181,7 @@ class ApiGatewayCloudBackendService implements CloudBackendService {
   }
 
   private async request<T>(
-    method: 'GET' | 'PUT' | 'DELETE',
+    method: 'GET' | 'PUT' | 'DELETE' | 'POST',
     routePath: string,
     body?: unknown,
   ): Promise<T> {
@@ -255,15 +252,28 @@ class ApiGatewayCloudBackendService implements CloudBackendService {
     userId: string,
     onProgress?: (percent: number) => void,
   ): Promise<VideoExportRecord | null> {
-    void localPath;
-    void userId;
-    void onProgress;
-    return this.unsupported('uploadExportedVideo');
+    return (async () => {
+      const fileName = path.basename(localPath);
+      const fileStats = await stat(localPath);
+      const plan = await this.request<PresignedVideoUploadPlan>('POST', '/videos/uploads/presign', {
+        userId,
+        fileName,
+        fileSizeBytes: fileStats.size,
+        contentType: inferVideoContentType(localPath),
+      });
+
+      await uploadFileToPresignedUrl(localPath, plan.uploadUrl, plan.requiredHeaders, onProgress);
+
+      return plan.record;
+    })();
   }
 
-  listExportedVideos(userId: string): Promise<VideoExportRecord[]> {
-    void userId;
-    return this.unsupported('listExportedVideos');
+  async listExportedVideos(userId: string): Promise<VideoExportRecord[]> {
+    const response = await this.request<{ items: VideoExportRecord[] }>(
+      'GET',
+      `/videos/users/${encodeURIComponent(userId)}`,
+    );
+    return response.items ?? [];
   }
 
   async uploadAiContext(

@@ -12,6 +12,8 @@ describe('handleCloudBackendApiRequest', () => {
       setChannelAnalysis: vi.fn().mockResolvedValue(undefined),
       getUserLink: vi.fn().mockResolvedValue('channel-1'),
       setUserLink: vi.fn().mockResolvedValue(undefined),
+      createPresignedVideoUploadPlan: vi.fn(),
+      listExportedVideos: vi.fn().mockResolvedValue([]),
       uploadAiContext: vi.fn().mockResolvedValue(undefined),
       downloadAiContext: vi.fn().mockResolvedValue('{"hello":"world"}'),
       uploadMemoryFile: vi.fn().mockResolvedValue(undefined),
@@ -68,6 +70,8 @@ describe('handleCloudBackendApiRequest', () => {
       setChannelAnalysis: vi.fn(),
       getUserLink: vi.fn(),
       setUserLink: vi.fn(),
+      createPresignedVideoUploadPlan: vi.fn(),
+      listExportedVideos: vi.fn().mockResolvedValue([]),
       uploadAiContext: vi.fn().mockResolvedValue(undefined),
       downloadAiContext: vi.fn().mockResolvedValue('context-body'),
       uploadMemoryFile: vi.fn().mockResolvedValue(undefined),
@@ -111,6 +115,91 @@ describe('handleCloudBackendApiRequest', () => {
     expect(storage.deleteMemoryFile).toHaveBeenCalledWith('projects/alpha/memory.json');
   });
 
+  it('supports presigned video upload planning and listing routes', async () => {
+    const storage = {
+      getUserProfile: vi.fn(),
+      setUserProfile: vi.fn(),
+      getChannelAnalysis: vi.fn(),
+      setChannelAnalysis: vi.fn(),
+      getUserLink: vi.fn(),
+      setUserLink: vi.fn(),
+      createPresignedVideoUploadPlan: vi.fn().mockResolvedValue({
+        uploadUrl: 'https://example-bucket.s3.eu-central-1.amazonaws.com/upload',
+        record: {
+          s3Key: 'videos/user-1/demo.mp4',
+          s3Url: 'https://example-bucket.s3.eu-central-1.amazonaws.com/videos/user-1/demo.mp4',
+          fileName: 'demo.mp4',
+          fileSizeBytes: 1024,
+          exportedAt: '2026-03-09T10:00:00.000Z',
+          format: 'mp4',
+        },
+        requiredHeaders: {
+          'content-type': 'video/mp4',
+        },
+        expiresAt: '2026-03-09T10:15:00.000Z',
+      }),
+      listExportedVideos: vi.fn().mockResolvedValue([
+        {
+          s3Key: 'videos/user-1/demo.mp4',
+          s3Url: 'https://example-bucket.s3.eu-central-1.amazonaws.com/videos/user-1/demo.mp4',
+          fileName: 'demo.mp4',
+          fileSizeBytes: 1024,
+          exportedAt: '2026-03-09T10:00:00.000Z',
+          format: 'mp4',
+        },
+      ]),
+      uploadAiContext: vi.fn(),
+      downloadAiContext: vi.fn(),
+      uploadMemoryFile: vi.fn(),
+      downloadMemoryFile: vi.fn(),
+      deleteMemoryFile: vi.fn(),
+    };
+
+    const presignResponse = await handleCloudBackendApiRequest(
+      {
+        method: 'POST',
+        path: '/videos/uploads/presign',
+        body: JSON.stringify({
+          userId: 'user-1',
+          fileName: 'demo.mp4',
+          fileSizeBytes: 1024,
+          contentType: 'video/mp4',
+        }),
+      },
+      storage,
+    );
+
+    expect(presignResponse.statusCode).toBe(200);
+    expect(storage.createPresignedVideoUploadPlan).toHaveBeenCalledWith(
+      'user-1',
+      'demo.mp4',
+      1024,
+      'video/mp4',
+    );
+
+    const listResponse = await handleCloudBackendApiRequest(
+      {
+        method: 'GET',
+        path: '/videos/users/user-1',
+      },
+      storage,
+    );
+
+    expect(listResponse.statusCode).toBe(200);
+    expect(JSON.parse(listResponse.body)).toEqual({
+      items: [
+        {
+          s3Key: 'videos/user-1/demo.mp4',
+          s3Url: 'https://example-bucket.s3.eu-central-1.amazonaws.com/videos/user-1/demo.mp4',
+          fileName: 'demo.mp4',
+          fileSizeBytes: 1024,
+          exportedAt: '2026-03-09T10:00:00.000Z',
+          format: 'mp4',
+        },
+      ],
+    });
+  });
+
   it('returns 400 for malformed bodies', async () => {
     const storage = {
       getUserProfile: vi.fn(),
@@ -119,6 +208,8 @@ describe('handleCloudBackendApiRequest', () => {
       setChannelAnalysis: vi.fn(),
       getUserLink: vi.fn(),
       setUserLink: vi.fn(),
+      createPresignedVideoUploadPlan: vi.fn(),
+      listExportedVideos: vi.fn(),
       uploadAiContext: vi.fn(),
       downloadAiContext: vi.fn(),
       uploadMemoryFile: vi.fn(),
@@ -149,6 +240,8 @@ describe('handleCloudBackendApiRequest', () => {
       setChannelAnalysis: vi.fn(),
       getUserLink: vi.fn(),
       setUserLink: vi.fn(),
+      createPresignedVideoUploadPlan: vi.fn(),
+      listExportedVideos: vi.fn(),
       uploadAiContext: vi.fn(),
       downloadAiContext: vi.fn(),
       uploadMemoryFile: vi.fn(),
@@ -177,6 +270,8 @@ describe('handleCloudBackendApiRequest', () => {
       setChannelAnalysis: vi.fn(),
       getUserLink: vi.fn(),
       setUserLink: vi.fn(),
+      createPresignedVideoUploadPlan: vi.fn(),
+      listExportedVideos: vi.fn(),
       uploadAiContext: vi.fn(),
       downloadAiContext: vi.fn(),
       uploadMemoryFile: vi.fn(),

@@ -28,6 +28,7 @@ import {
   ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createReadStream } from 'fs';
 import { stat } from 'fs/promises';
 import path from 'path';
@@ -61,6 +62,39 @@ export interface VideoExportRecord {
   fileSizeBytes: number;
   exportedAt: string;
   format: string;
+}
+
+export interface PresignedVideoUploadPlan {
+  uploadUrl: string;
+  record: VideoExportRecord;
+  requiredHeaders: Record<string, string>;
+  expiresAt: string;
+}
+
+function getVideoFormat(fileName: string): string {
+  return path.extname(fileName).replace('.', '') || 'mp4';
+}
+
+function getVideoContentType(fileName: string, explicitContentType?: string): string {
+  return explicitContentType?.trim() || `video/${getVideoFormat(fileName)}`;
+}
+
+function buildVideoExportRecord(
+  bucket: string,
+  region: string,
+  s3Key: string,
+  fileName: string,
+  fileSizeBytes: number,
+  exportedAt: string,
+): VideoExportRecord {
+  return {
+    s3Key,
+    s3Url: `https://${bucket}.s3.${region}.amazonaws.com/${s3Key}`,
+    fileName,
+    fileSizeBytes,
+    exportedAt,
+    format: getVideoFormat(fileName),
+  };
 }
 
 // ── Service class ────────────────────────────────────────────────────────────
@@ -209,8 +243,8 @@ export class AwsStorageService {
     if (!this.s3Bucket) return null;
     try {
       const fileName = path.basename(localPath);
-      const ext = path.extname(fileName).replace('.', '') || 'mp4';
-      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      const exportedAt = new Date().toISOString();
+      const ts = exportedAt.replace(/[:.]/g, '-');
       const s3Key = `${S3_VIDEOS_PREFIX}/${userId}/${ts}-${fileName}`;
       const { size } = await stat(localPath);
 
@@ -220,13 +254,13 @@ export class AwsStorageService {
           Bucket: this.s3Bucket,
           Key: s3Key,
           Body: createReadStream(localPath),
-          ContentType: `video/${ext}`,
+          ContentType: getVideoContentType(fileName),
           // Videos stay STANDARD (frequent access for recent exports)
           // Lifecycle rules will transition to IA after 30 days automatically
           StorageClass: 'STANDARD',
           Metadata: {
             userId,
-            exportedAt: new Date().toISOString(),
+            exportedAt,
             originalName: fileName,
           },
         },
@@ -244,19 +278,69 @@ export class AwsStorageService {
       }
 
       await upload.done();
-      const s3Url = `https://${this.s3Bucket}.s3.${this.region}.amazonaws.com/${s3Key}`;
-      const record: VideoExportRecord = {
+      const record = buildVideoExportRecord(
+        this.s3Bucket,
+        this.region,
         s3Key,
-        s3Url,
         fileName,
-        fileSizeBytes: size,
-        exportedAt: new Date().toISOString(),
-        format: ext,
-      };
+        size,
+        exportedAt,
+      );
       log('info', '[AWS:S3] Uploaded exported video', { s3Key, size });
       return record;
     } catch (err) {
       log('warn', '[AWS:S3] uploadExportedVideo failed', { localPath, err });
+      return null;
+    }
+  }
+
+  async createPresignedVideoUploadPlan(
+    userId: string,
+    fileName: string,
+    fileSizeBytes: number,
+    contentType?: string,
+  ): Promise<PresignedVideoUploadPlan | null> {
+    if (!this.s3Bucket) return null;
+    try {
+      const sanitizedFileName = path.basename(fileName);
+      const exportedAt = new Date().toISOString();
+      const ts = exportedAt.replace(/[:.]/g, '-');
+      const s3Key = `${S3_VIDEOS_PREFIX}/${userId}/${ts}-${sanitizedFileName}`;
+      const resolvedContentType = getVideoContentType(sanitizedFileName, contentType);
+      const uploadUrl = await getSignedUrl(
+        this.s3,
+        new PutObjectCommand({
+          Bucket: this.s3Bucket,
+          Key: s3Key,
+          ContentType: resolvedContentType,
+        }),
+        {
+          expiresIn: 900,
+          signableHeaders: new Set(['content-type']),
+        },
+      );
+
+      return {
+        uploadUrl,
+        record: buildVideoExportRecord(
+          this.s3Bucket,
+          this.region,
+          s3Key,
+          sanitizedFileName,
+          fileSizeBytes,
+          exportedAt,
+        ),
+        requiredHeaders: {
+          'content-type': resolvedContentType,
+        },
+        expiresAt: new Date(Date.now() + 900_000).toISOString(),
+      };
+    } catch (err) {
+      log('warn', '[AWS:S3] createPresignedVideoUploadPlan failed', {
+        userId,
+        fileName,
+        err,
+      });
       return null;
     }
   }
@@ -281,15 +365,14 @@ export class AwsStorageService {
         .map((o) => {
           const key = o.Key!;
           const fileName = path.basename(key);
-          const ext = path.extname(fileName).replace('.', '') || 'mp4';
-          return {
-            s3Key: key,
-            s3Url: `https://${this.s3Bucket}.s3.${this.region}.amazonaws.com/${key}`,
+          return buildVideoExportRecord(
+            this.s3Bucket,
+            this.region,
+            key,
             fileName,
-            fileSizeBytes: o.Size ?? 0,
-            exportedAt: o.LastModified?.toISOString() ?? '',
-            format: ext,
-          } satisfies VideoExportRecord;
+            o.Size ?? 0,
+            o.LastModified?.toISOString() ?? '',
+          );
         });
       return items;
     } catch (err) {

@@ -165,12 +165,29 @@ Preview the S3 sync operations without uploading:
 npm run aws:deploy:landing:dryrun
 ```
 
+Verify the current AWS baseline after a backend or landing deploy:
+
+```bash
+npm run aws:verify:baseline
+```
+
 The landing deploy script reads:
 
 - `AWS_REGION`
 - `AWS_LANDING_BUCKET`
 - Optional: `AWS_LANDING_S3_PREFIX`
 - Optional: `AWS_LANDING_DIR` (defaults to `landing`)
+
+The AWS baseline verification script checks:
+
+- CloudFormation stack status and outputs
+- required API Gateway routes
+- alarm presence
+- API Gateway and Lambda log retention
+- a live profile-read API smoke request
+- the landing website endpoint
+
+For the deploy/rollback sequence, see `docs/aws-deploy-runbook.md`.
 
 ## Test
 

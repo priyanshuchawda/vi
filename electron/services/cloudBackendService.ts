@@ -5,6 +5,11 @@ import {
   getAwsStorageService,
   resetAwsStorageService,
 } from './awsStorageService.js';
+import {
+  createInstallationHeadersProvider,
+  type CloudBackendAuthHeadersProvider,
+  type CloudBackendInstallationCredentialStore,
+} from './cloudBackendInstallationAuth.js';
 import { uploadFileToPresignedUrl } from './presignedHttpUpload.js';
 import path from 'node:path';
 import { stat } from 'node:fs/promises';
@@ -64,6 +69,8 @@ type DirectStorageAdapter = {
 interface CloudBackendServiceOptions {
   env?: NodeJS.ProcessEnv;
   storage?: DirectStorageAdapter;
+  authHeadersProvider?: CloudBackendAuthHeadersProvider;
+  installationCredentialStore?: CloudBackendInstallationCredentialStore;
 }
 
 function inferVideoContentType(localPath: string): string {
@@ -155,10 +162,16 @@ class ApiGatewayCloudBackendService implements CloudBackendService {
   readonly mode = 'apigw' as const;
   private readonly baseUrl: string | undefined;
   private readonly authToken: string | undefined;
+  private readonly authHeadersProvider: CloudBackendAuthHeadersProvider | undefined;
 
-  constructor(baseUrl: string | undefined, authToken?: string) {
+  constructor(
+    baseUrl: string | undefined,
+    authToken?: string,
+    authHeadersProvider?: CloudBackendAuthHeadersProvider,
+  ) {
     this.baseUrl = baseUrl;
     this.authToken = authToken;
+    this.authHeadersProvider = authHeadersProvider;
   }
 
   private getConfiguredBaseUrl(): string {
@@ -169,13 +182,20 @@ class ApiGatewayCloudBackendService implements CloudBackendService {
     return baseUrl;
   }
 
-  private createHeaders(hasBody: boolean): Record<string, string> {
+  private async createHeaders(hasBody: boolean): Promise<Record<string, string>> {
     const headers: Record<string, string> = {};
     if (hasBody) {
       headers['content-type'] = 'application/json; charset=utf-8';
     }
     if (this.authToken?.trim()) {
       headers.authorization = `Bearer ${this.authToken.trim()}`;
+      return headers;
+    }
+    if (this.authHeadersProvider) {
+      Object.assign(
+        headers,
+        await this.authHeadersProvider.getHeaders(this.getConfiguredBaseUrl()),
+      );
     }
     return headers;
   }
@@ -188,9 +208,10 @@ class ApiGatewayCloudBackendService implements CloudBackendService {
     const baseUrl = this.getConfiguredBaseUrl();
     const url = new URL(routePath.replace(/^\//, ''), `${baseUrl.replace(/\/+$/, '')}/`);
     const hasBody = body !== undefined;
+    const headers = await this.createHeaders(hasBody);
     const response = await fetch(url, {
       method,
-      headers: this.createHeaders(hasBody),
+      headers,
       body: hasBody ? JSON.stringify(body) : undefined,
     });
     const text = await response.text();
@@ -312,20 +333,44 @@ class ApiGatewayCloudBackendService implements CloudBackendService {
 export function createCloudBackendService(
   options: CloudBackendServiceOptions = {},
 ): CloudBackendService {
-  const env = options.env ?? process.env;
+  const resolvedOptions = { ...configuredCloudBackendServiceOptions, ...options };
+  const env = resolvedOptions.env ?? process.env;
   const mode = resolveCloudBackendMode(env);
 
   if (mode === 'apigw') {
     log('info', '[CloudBackend] API Gateway mode enabled', {
       baseUrl: env.AWS_BACKEND_URL ? '[configured]' : '[missing]',
     });
-    return new ApiGatewayCloudBackendService(env.AWS_BACKEND_URL, env.AWS_BACKEND_AUTH_TOKEN);
+    const authHeadersProvider =
+      resolvedOptions.authHeadersProvider ??
+      (env.AWS_BACKEND_AUTH_TOKEN?.trim()
+        ? undefined
+        : createInstallationHeadersProvider(resolvedOptions.installationCredentialStore));
+    return new ApiGatewayCloudBackendService(
+      env.AWS_BACKEND_URL,
+      env.AWS_BACKEND_AUTH_TOKEN,
+      authHeadersProvider,
+    );
   }
 
-  return new DirectCloudBackendService(options.storage);
+  return new DirectCloudBackendService(resolvedOptions.storage);
 }
 
 let _instance: CloudBackendService | null = null;
+let configuredCloudBackendServiceOptions: Pick<
+  CloudBackendServiceOptions,
+  'authHeadersProvider' | 'installationCredentialStore'
+> = {};
+
+export function configureCloudBackendService(
+  options: Pick<CloudBackendServiceOptions, 'authHeadersProvider' | 'installationCredentialStore'>,
+): void {
+  configuredCloudBackendServiceOptions = {
+    ...configuredCloudBackendServiceOptions,
+    ...options,
+  };
+  _instance = null;
+}
 
 export function getCloudBackendService(): CloudBackendService {
   if (!_instance) {

@@ -185,6 +185,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }
     },
   },
+  identity: {
+    getInstallationId: () => invokeIpc(IPC_CHANNELS.identity.getInstallationId),
+  },
   updates: {
     check: () => invokeIpc(IPC_CHANNELS.update.check),
     download: () => invokeIpc(IPC_CHANNELS.update.download),

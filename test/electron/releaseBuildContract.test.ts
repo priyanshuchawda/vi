@@ -35,6 +35,9 @@ describe('release build contract', () => {
         asar?: boolean;
         asarUnpack?: string[];
         files?: string[];
+        mac?: {
+          extraResources?: Array<{ from?: string; to?: string }>;
+        };
         win?: {
           target?: Array<{ target?: string; arch?: string[] }>;
           extraResources?: Array<{ from?: string; to?: string }>;
@@ -55,9 +58,11 @@ describe('release build contract', () => {
     const distWinScript = packageJson.scripts?.['dist:win'] || '';
     const distLinuxScript = packageJson.scripts?.['dist:linux'] || '';
     const distCheckAssetsScript = packageJson.scripts?.['dist:check:assets'] || '';
+    const buildScript = packageJson.scripts?.build || '';
     const artifactName = packageJson.build?.artifactName;
     const asar = packageJson.build?.asar;
     const asarUnpack = packageJson.build?.asarUnpack || [];
+    const macExtraResources = packageJson.build?.mac?.extraResources || [];
     const winTargets = packageJson.build?.win?.target || [];
     const linuxTargets = packageJson.build?.linux?.target || [];
     const files = packageJson.build?.files || [];
@@ -67,6 +72,7 @@ describe('release build contract', () => {
 
     expect(packageJson.dependencies?.['electron-updater']).toBeTruthy();
     expect(packageJson.devDependencies?.['electron-updater']).toBeUndefined();
+    expect(buildScript).toContain('npm run build:runtime-config');
     expect(distCheckAssetsScript).toBe('node scripts/build/check-release-assets.mjs');
     expect(distWinScript).toContain('npm run dist:check:assets -- win');
     expect(distWinScript).toContain('--win nsis --x64 --publish never');
@@ -89,16 +95,32 @@ describe('release build contract', () => {
       createDesktopShortcut: true,
     });
     expect(files).toEqual(expect.arrayContaining(['dist-electron/**/*', 'dist/**/*']));
+    expect(macExtraResources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          from: 'resources/generated/runtime-config.json',
+          to: 'runtime/runtime-config.json',
+        }),
+      ]),
+    );
     expect(winExtraResources).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ from: 'resources/ffmpeg-win', to: 'resources/ffmpeg-win' }),
         expect.objectContaining({ from: 'resources/README.md', to: 'resources/README.md' }),
+        expect.objectContaining({
+          from: 'resources/generated/runtime-config.json',
+          to: 'runtime/runtime-config.json',
+        }),
       ]),
     );
     expect(linuxExtraResources).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ from: 'resources/ffmpeg-linux', to: 'resources/ffmpeg-linux' }),
         expect.objectContaining({ from: 'resources/README.md', to: 'resources/README.md' }),
+        expect.objectContaining({
+          from: 'resources/generated/runtime-config.json',
+          to: 'runtime/runtime-config.json',
+        }),
       ]),
     );
   });

@@ -41,6 +41,9 @@ const mockElectronAPI: ElectronAPI = {
     logout: vi.fn().mockResolvedValue(true),
     uploadVideo: vi.fn().mockResolvedValue({ success: false, error: 'Not configured' }),
   },
+  identity: {
+    getInstallationId: vi.fn().mockResolvedValue('installation-user-1'),
+  },
   updates: {
     check: vi.fn().mockResolvedValue({ enabled: false, started: false }),
     download: vi.fn().mockResolvedValue({ enabled: false, started: false }),

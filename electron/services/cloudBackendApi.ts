@@ -1,11 +1,16 @@
 import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import {
+  type InstallationRegistration,
   type PresignedVideoUploadPlan,
   type UserProfile,
   type VideoExportRecord,
   getAwsStorageService,
 } from './awsStorageService.js';
+import {
+  CLOUD_BACKEND_INSTALLATION_ID_HEADER,
+  CLOUD_BACKEND_INSTALLATION_SECRET_HEADER,
+} from './cloudBackendInstallationAuth.js';
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' } as const;
 
@@ -45,6 +50,11 @@ export interface CloudBackendApiStorage {
   setChannelAnalysis(channelId: string, data: unknown): Promise<void>;
   getUserLink(userId: string): Promise<string | null>;
   setUserLink(userId: string, channelId: string): Promise<void>;
+  registerInstallation(): Promise<InstallationRegistration | null>;
+  validateInstallationCredentials(
+    installationId: string,
+    installationSecret: string,
+  ): Promise<boolean>;
   createPresignedVideoUploadPlan(
     userId: string,
     fileName: string,
@@ -118,14 +128,32 @@ function getConfiguredApiAuthToken(env: NodeJS.ProcessEnv): string | null {
   return configured ? configured : null;
 }
 
+function requiresInstallationAuth(env: NodeJS.ProcessEnv): boolean {
+  return env.AWS_BACKEND_REQUIRE_INSTALLATION_AUTH?.trim() === '1';
+}
+
+function getHeaderValue(request: CloudBackendApiRequest, headerName: string): string | null {
+  const expectedName = headerName.toLowerCase();
+  for (const [key, value] of Object.entries(request.headers ?? {})) {
+    if (key.toLowerCase() === expectedName && typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed ? trimmed : null;
+    }
+  }
+  return null;
+}
+
 function isBearerTokenAuthorized(request: CloudBackendApiRequest, env: NodeJS.ProcessEnv): boolean {
   const configuredToken = getConfiguredApiAuthToken(env);
   if (!configuredToken) {
-    return true;
+    return false;
   }
 
   const authorizationHeader =
-    request.headers?.authorization ?? request.headers?.Authorization ?? '';
+    getHeaderValue(request, 'authorization') ??
+    request.headers?.authorization ??
+    request.headers?.Authorization ??
+    '';
   const match = authorizationHeader.match(/^Bearer\s+(.+)$/i);
   if (!match) {
     return false;
@@ -142,18 +170,49 @@ function isBearerTokenAuthorized(request: CloudBackendApiRequest, env: NodeJS.Pr
   return timingSafeEqual(expectedBuffer, receivedBuffer);
 }
 
+async function isInstallationAuthorized(
+  request: CloudBackendApiRequest,
+  storage: CloudBackendApiStorage,
+): Promise<boolean> {
+  const installationId = getHeaderValue(request, CLOUD_BACKEND_INSTALLATION_ID_HEADER);
+  const installationSecret = getHeaderValue(request, CLOUD_BACKEND_INSTALLATION_SECRET_HEADER);
+  if (!installationId || !installationSecret) {
+    return false;
+  }
+
+  return storage.validateInstallationCredentials(installationId, installationSecret);
+}
+
 export async function handleCloudBackendApiRequest(
   request: CloudBackendApiRequest,
   storage: CloudBackendApiStorage = getAwsStorageService(),
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<CloudBackendApiResponse> {
   try {
-    if (!isBearerTokenAuthorized(request, env)) {
+    const method = request.method.toUpperCase();
+    const segments = splitPath(request.path);
+    const isInstallationRegistrationRoute =
+      method === 'POST' &&
+      segments[0] === 'auth' &&
+      segments[1] === 'installations' &&
+      segments[2] === 'register' &&
+      segments.length === 3;
+
+    const isAuthorized =
+      isBearerTokenAuthorized(request, env) || (await isInstallationAuthorized(request, storage));
+    const authIsRequired = requiresInstallationAuth(env) || Boolean(getConfiguredApiAuthToken(env));
+
+    if (!isInstallationRegistrationRoute && !isAuthorized && authIsRequired) {
       return jsonResponse(401, { error: 'Unauthorized' });
     }
 
-    const method = request.method.toUpperCase();
-    const segments = splitPath(request.path);
+    if (isInstallationRegistrationRoute) {
+      const credentials = await storage.registerInstallation();
+      if (!credentials) {
+        return jsonResponse(503, { error: 'Installation registration is unavailable.' });
+      }
+      return jsonResponse(200, credentials);
+    }
 
     if (segments[0] === 'profiles' && segments.length === 2) {
       const userId = z.string().trim().min(1).parse(segments[1]);

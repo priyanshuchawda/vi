@@ -23,6 +23,10 @@ const storageBucketName = readEnv('AWS_S3_BUCKET', 'quickcut-279158981022-storag
 const profilesTableName = readEnv('AWS_DYNAMODB_PROFILES_TABLE', 'quickcut-user-profiles');
 const analysisTableName = readEnv('AWS_DYNAMODB_ANALYSIS_TABLE', 'quickcut-channel-analysis');
 const userLinksTableName = readEnv('AWS_DYNAMODB_USER_LINKS_TABLE', 'quickcut-user-links');
+const installationsTableName = readEnv(
+  'AWS_DYNAMODB_INSTALLATIONS_TABLE',
+  'quickcut-client-installations',
+);
 const backendAuthToken = readEnv('AWS_BACKEND_AUTH_TOKEN', '');
 const apiAccessLogRetentionDays = readEnv('AWS_CLOUDBACKEND_API_ACCESS_LOG_RETENTION_DAYS', '14');
 const lambdaLogRetentionDays = readEnv('AWS_CLOUDBACKEND_LAMBDA_LOG_RETENTION_DAYS', '14');
@@ -88,6 +92,7 @@ await execFileAsync(
     `ProfilesTableName=${profilesTableName}`,
     `AnalysisTableName=${analysisTableName}`,
     `UserLinksTableName=${userLinksTableName}`,
+    `InstallationsTableName=${installationsTableName}`,
     `ApiAccessLogRetentionDays=${apiAccessLogRetentionDays}`,
     `LambdaErrorAlarmThreshold=${lambdaErrorAlarmThreshold}`,
     `LambdaThrottleAlarmThreshold=${lambdaThrottleAlarmThreshold}`,

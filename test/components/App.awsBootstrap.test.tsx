@@ -57,4 +57,32 @@ describe('App AWS bootstrap', () => {
       });
     });
   });
+
+  it('falls back to the installation id when local onboarding state has no user id', async () => {
+    useOnboardingStore.setState({
+      hasCompletedOnboarding: true,
+      userId: null,
+      analysisData: null,
+    });
+    vi.mocked(window.electronAPI.identity.getInstallationId).mockResolvedValue('install-user-2');
+    vi.mocked(window.electronAPI.storage.loadProfile).mockResolvedValue({
+      success: true,
+      data: {
+        userId: 'install-user-2',
+        userName: 'Installed User',
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(window.electronAPI.identity.getInstallationId).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(window.electronAPI.storage.loadProfile).toHaveBeenCalledWith('install-user-2');
+    });
+  });
 });

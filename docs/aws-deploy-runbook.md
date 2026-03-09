@@ -14,6 +14,12 @@ This runbook assumes:
 - Ensure AWS credentials are valid: `aws sts get-caller-identity`
 - Confirm the repo is on the intended commit from `main`
 - Confirm `.env` points at the intended AWS dev environment
+- For packaged installers, confirm `npm run build:runtime-config` will emit the
+  intended backend settings. By default the generated runtime config prefers
+  `apigw` when `AWS_BACKEND_URL` is set; use `AWS_RUNTIME_*` overrides in `.env`
+  if packaged defaults must differ from local dev settings. The packaged build
+  will not include `AWS_BACKEND_AUTH_TOKEN` unless
+  `AWS_RUNTIME_BACKEND_AUTH_TOKEN` is explicitly set.
 - Verify the local build/test baseline:
   - `npm run test -- test/electron/presignedHttpUpload.test.ts test/electron/cloudBackendApi.test.ts test/electron/cloudBackendService.test.ts test/backend/storageApiHandler.test.ts`
   - `npm run typecheck`

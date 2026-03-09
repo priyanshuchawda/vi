@@ -98,9 +98,13 @@ describe('OnboardingWizard', () => {
     });
     fireEvent.click(screen.getByText('Save Profile'));
 
-    expect(useProfileStore.getState().profile?.youtubeChannelUrl).toBe(
-      'https://www.youtube.com/@quickcut',
-    );
+    await waitFor(() => {
+      expect(window.electronAPI.identity.getInstallationId).toHaveBeenCalled();
+      expect(useProfileStore.getState().profile).toMatchObject({
+        userId: 'installation-user-1',
+        youtubeChannelUrl: 'https://www.youtube.com/@quickcut',
+      });
+    });
   });
 
   it('loads saved AI settings into the second step', async () => {

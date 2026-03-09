@@ -73,7 +73,7 @@ export const GEMINI_AI_CONFIG_FIELDS: AiConfigFieldDefinition[] = [
   {
     key: 'geminiModelId',
     envName: 'GEMINI_MODEL_ID',
-    placeholder: 'gemini-2.0-flash',
+    placeholder: 'gemini-2.5-flash-lite',
     optional: true,
     helperText: 'Optional Gemini model override for the fallback provider.',
   },

@@ -35,7 +35,7 @@ export interface AiConfigStatus {
 
 const DEFAULT_REGION = 'us-east-1';
 const DEFAULT_MODEL_ID = 'amazon.nova-lite-v1:0';
-const DEFAULT_GEMINI_MODEL_ID = 'gemini-2.0-flash';
+const DEFAULT_GEMINI_MODEL_ID = 'gemini-2.5-flash-lite';
 const SETTINGS_FILE_NAME = 'ai-settings.json';
 
 interface AiConfigServiceOptions {

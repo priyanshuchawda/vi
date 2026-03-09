@@ -26,7 +26,7 @@ const blankAiSettings: AiConfigSettings = {
   bedrockInferenceProfileId: '',
   bedrockModelId: 'amazon.nova-lite-v1:0',
   geminiApiKey: '',
-  geminiModelId: 'gemini-2.0-flash',
+  geminiModelId: 'gemini-2.5-flash-lite',
   youtubeOAuthClientId: '',
   youtubeOAuthClientSecret: '',
   youtubeOAuthRedirectUri: '',

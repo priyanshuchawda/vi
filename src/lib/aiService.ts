@@ -30,7 +30,6 @@ import { buildSemanticCacheKey, getCached, hashString, setCached } from './reque
 import { estimateBedrockRequestTokens, evaluateTokenGuard } from './bedrockTokenEstimator';
 import { maskToolOutputsInHistory } from './toolOutputMaskingService';
 import { recordRoutingModelOutcome, routeBedrockModel } from './modelRoutingPolicy';
-import { recordAssistantResponse, recordContextLimitApplied } from './aiTelemetry';
 import { capAttachments, getContextBudgetProfile } from './contextBudgetPolicy';
 import {
   buildAIProjectSnapshot,
@@ -527,11 +526,6 @@ function buildDynamicContextWithOptions(
             query: userMessage,
             entries: useAiMemoryStore.getState().getCompletedEntries(),
             intent: options?.intent ?? 'chat',
-            onLimitsApplied: (metrics) => {
-              recordContextLimitApplied({
-                droppedItems: metrics.droppedEntries + metrics.droppedScenes,
-              });
-            },
           }),
           userMessage,
           Math.min(1400, Math.floor(maxChars * 0.45)),
@@ -592,14 +586,8 @@ export async function sendMessageWithHistory(
   let boundedAttachments: MediaAttachment[] | undefined;
   try {
     const chatProfile = getContextBudgetProfile('chat');
-    const { selected, dropped: droppedAttachments } = capAttachments(
-      attachments,
-      chatProfile.maxAttachments,
-    );
+    const { selected } = capAttachments(attachments, chatProfile.maxAttachments);
     boundedAttachments = selected;
-    if (droppedAttachments > 0) {
-      recordContextLimitApplied({ droppedItems: droppedAttachments });
-    }
     // Run full context optimization pipeline
     const { optimized: initialOptimizedHistory, metrics: optimizationMetrics } =
       await runContextOptimization(history);
@@ -839,14 +827,8 @@ export async function* sendMessageWithHistoryStream(
 
   let boundedAttachments: MediaAttachment[] | undefined;
   try {
-    const { selected, dropped: droppedAttachments } = capAttachments(
-      attachments,
-      streamProfile.maxAttachments,
-    );
+    const { selected } = capAttachments(attachments, streamProfile.maxAttachments);
     boundedAttachments = selected;
-    if (droppedAttachments > 0) {
-      recordContextLimitApplied({ droppedItems: droppedAttachments });
-    }
     throwIfAborted(abortSignal);
     // Run full context optimization pipeline
     const { optimized: initialOptimizedHistory, metrics: optimizationMetrics } =
@@ -938,7 +920,6 @@ export async function* sendMessageWithHistoryStream(
     if (cacheableChat) {
       const cached = getCached<CachedChatResponse>(streamCacheKey);
       if (cached) {
-        recordAssistantResponse(cached.text);
         yield { type: 'text', text: cached.text };
         return;
       }
@@ -1050,7 +1031,6 @@ export async function* sendMessageWithHistoryStream(
     // No function calls — yield text response
     const textContent = (response.output?.message?.content || []).find((c: any) => c.text);
     if (textContent?.text) {
-      recordAssistantResponse(textContent.text);
       if (cacheableChat) {
         setCached<CachedChatResponse>(
           streamCacheKey,
@@ -1252,7 +1232,6 @@ export async function* sendToolResultsToAI(
     // Yield text response
     const textContent = (response.output?.message?.content || []).find((c: any) => c.text);
     if (textContent?.text) {
-      recordAssistantResponse(textContent.text);
       yield { type: 'text', text: textContent.text };
     }
 

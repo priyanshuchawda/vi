@@ -17,7 +17,6 @@ import {
   type StreamOptions,
 } from '../../lib/aiService';
 import type { ExecutionPlan } from '../../lib/aiPlanningService';
-import { getTelemetryRates, recordTurnRetry, resetTelemetry } from '../../lib/aiTelemetry';
 import { classifyTransientError, getRetryDelayMs } from '../../lib/retryClassifier';
 import { buildAIProjectSnapshot, type AIProjectSnapshot } from '../../lib/aiProjectSnapshot';
 import { createChatRequestQueue } from '../../lib/chatRequestQueue';
@@ -135,17 +134,9 @@ const ChatPanel = () => {
   const [hasActiveAbortableRequest, setHasActiveAbortableRequest] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [showLogs, setShowLogs] = useState(false);
-  const [showTelemetry, setShowTelemetry] = useState(false);
   const [showBudgetControls, setShowBudgetControls] = useState(false);
   const [budgetDraft, setBudgetDraft] = useState<BudgetPolicy>(() => getBudgetPolicy());
   const [auditTurnId, setAuditTurnId] = useState<string | null>(null);
-  const [telemetryRates, setTelemetryRates] = useState<{
-    plan_compile_fail_rate: number;
-    fallback_rate: number;
-    execution_validation_fail_rate: number;
-    repeat_response_rate: number;
-    turn_retry_rate: number;
-  } | null>(null);
   const [sessionLogs, setSessionLogs] = useState<SessionLogEntry[]>([]);
   const hasInitializedLogsRef = useRef(false);
   const seenLogIdsRef = useRef(new Set<string>());
@@ -157,15 +148,28 @@ const ChatPanel = () => {
     modelContent: StreamChunk['modelContent'];
     history: AIChatMessage[];
   } | null>(null);
-  const [pendingClarification, setPendingClarification] = useState<{
-    question: string;
-    options: string[];
-    context?: string;
-    functionCall: ToolCallLike;
-    modelContent: StreamChunk['modelContent'];
-    history: AIChatMessage[];
-    turnId: string | null;
-  } | null>(null);
+  const [pendingClarification, setPendingClarification] = useState<
+    | {
+        source: 'tool';
+        question: string;
+        options: string[];
+        context?: string;
+        functionCall: ToolCallLike;
+        modelContent: StreamChunk['modelContent'];
+        history: AIChatMessage[];
+        turnId: string | null;
+      }
+    | {
+        source: 'agentic';
+        question: string;
+        options: string[];
+        context?: string;
+        plannerInput: string;
+        normalizedIntent?: NormalizedIntent;
+        turnId: string | null;
+      }
+    | null
+  >(null);
   const [isExecutingTools, setIsExecutingTools] = useState(false);
   const [toolExecutionProgress, setToolExecutionProgress] = useState<{
     current: number;
@@ -218,15 +222,6 @@ const ChatPanel = () => {
       return next.slice(-200);
     });
   }, [messages]);
-
-  useEffect(() => {
-    if (!showTelemetry) return;
-    try {
-      setTelemetryRates(getTelemetryRates());
-    } catch {
-      setTelemetryRates(null);
-    }
-  }, [showTelemetry, messages.length]);
 
   // Update context when clips or time changes
   useEffect(() => {
@@ -306,7 +301,6 @@ const ChatPanel = () => {
 
         const delayMs = getRetryDelayMs(attempt);
         const nextAt = Date.now() + delayMs;
-        recordTurnRetry();
         options.onRetryStatus(attempt, nextAt, classification.reason);
         if (options.turnId) {
           setTurnStatus(options.turnId, 'retry', {
@@ -339,6 +333,7 @@ const ChatPanel = () => {
 
     setPendingToolCalls(null);
     setPendingClarification({
+      source: 'tool',
       question,
       options,
       context,
@@ -474,6 +469,137 @@ const ChatPanel = () => {
       setIsGeneratingMeta(false); // always reset, even on success
       setIsTyping(false);
     }
+  };
+
+  const executeAgenticRun = async (params: {
+    plannerInput: string;
+    history: AIChatMessage[];
+    turnId: string | null;
+    normalizedIntent?: NormalizedIntent;
+  }) => {
+    const { runAgentLoop } = await import('../../lib/agentLoop');
+    const requestAbortController = activeAbortControllerRef.current;
+    const agentTurnId = params.turnId;
+
+    const agentResult = await runAgentLoop({
+      userMessage: params.plannerInput,
+      history: params.history,
+      callbacks: {
+        onStepStart: (step) => {
+          if (agentTurnId) {
+            setTurnStatus(agentTurnId, 'agentic_step');
+            appendTurnPart(agentTurnId, {
+              type: 'agent_step',
+              stepNumber: step.stepNumber,
+              status: step.status,
+              thought: step.thought,
+              toolName: step.toolCall?.name || null,
+              toolArgs: step.toolCall?.args || null,
+              success: null,
+              resultSummary: '',
+              costUsd: step.costUsd,
+              durationMs: step.durationMs,
+              timestamp: Date.now(),
+            });
+          }
+          if (step.toolCall) {
+            updateLastMessage(` Step ${step.stepNumber}: Executing ${step.toolCall.name}...`);
+          } else {
+            addMessage('assistant', ` Step ${step.stepNumber}: Thinking...`);
+          }
+        },
+        onStepComplete: (step) => {
+          if (agentTurnId) {
+            appendTurnPart(agentTurnId, {
+              type: 'agent_step',
+              stepNumber: step.stepNumber,
+              status: step.status,
+              thought: step.thought,
+              toolName: step.toolCall?.name || null,
+              toolArgs: step.toolCall?.args || null,
+              success: step.result?.success ?? null,
+              resultSummary: step.result?.output?.slice(0, 200) || '',
+              costUsd: step.costUsd,
+              durationMs: step.durationMs,
+              timestamp: Date.now(),
+            });
+          }
+          updateLastMessage(
+            ` Step ${step.stepNumber}: ${step.toolCall?.name || 'thinking'} — ${step.result?.success ? 'success' : step.result?.error || 'done'}`,
+          );
+        },
+        onLoopComplete: (loopState) => {
+          if (agentTurnId) {
+            appendTurnPart(agentTurnId, {
+              type: 'agent_complete',
+              totalSteps: loopState.steps.length,
+              totalCostUsd: loopState.totalCostUsd,
+              totalDurationMs: loopState.totalDurationMs,
+              success: loopState.status === 'completed',
+              summary: loopState.finalSummary || '',
+              timestamp: Date.now(),
+            });
+          }
+        },
+        onLoopError: (errorMsg) => {
+          if (agentTurnId) {
+            appendTurnPart(agentTurnId, {
+              type: 'error',
+              message: errorMsg,
+              timestamp: Date.now(),
+            });
+          }
+        },
+        onCostUpdate: () => {
+          // Could update a cost badge in UI here
+        },
+      },
+      abortSignal: requestAbortController?.signal,
+      normalizedIntent: params.normalizedIntent
+        ? {
+            mode: params.normalizedIntent.mode,
+            goals: params.normalizedIntent.goals,
+            constraints: params.normalizedIntent.constraints as Record<string, string | number>,
+            operationHint: params.normalizedIntent.operationHint,
+            confidence: params.normalizedIntent.confidence,
+          }
+        : undefined,
+    });
+
+    if (agentResult.state.status === 'paused' && agentResult.clarificationRequest) {
+      const currentMessages = useChatStore.getState().messages;
+      useChatStore.setState({
+        messages: currentMessages.slice(0, -1),
+      });
+      setPendingClarification({
+        source: 'agentic',
+        question: agentResult.clarificationRequest.question,
+        options: agentResult.clarificationRequest.options,
+        context: agentResult.clarificationRequest.context,
+        plannerInput: params.plannerInput,
+        normalizedIntent: params.normalizedIntent,
+        turnId: agentTurnId,
+      });
+      if (agentTurnId) {
+        setTurnStatus(agentTurnId, 'awaiting_approval');
+      }
+      return { agentResult, pausedForClarification: true };
+    }
+
+    const currentMessages = useChatStore.getState().messages;
+    useChatStore.setState({
+      messages: currentMessages.slice(0, -1),
+    });
+
+    const costInfo = `\n\n_Cost: $${agentResult.totalCostUsd.toFixed(4)} | ${agentResult.totalSteps} steps | ${(agentResult.state.totalDurationMs / 1000).toFixed(1)}s_`;
+    addMessage('assistant', agentResult.finalSummary + costInfo);
+
+    if (agentTurnId) {
+      closeTurn(agentTurnId, agentResult.success ? 'agentic_done' : 'error');
+    }
+    clearExecutionContext();
+
+    return { agentResult, pausedForClarification: false };
   };
 
   const processSendMessage = async (content: string, attachments?: MediaAttachment[]) => {
@@ -660,118 +786,13 @@ const ChatPanel = () => {
           setIsTyping(true);
 
           try {
-            const { runAgentLoop } = await import('../../lib/agentLoop');
-            const agentTurnId = turnId;
-            const requestAbortController = activeAbortControllerRef.current;
-
-            const agentResult = await runAgentLoop({
-              userMessage: plannerInput,
+            await executeAgenticRun({
+              plannerInput,
               history: aiHistory,
-              callbacks: {
-                onStepStart: (step) => {
-                  if (agentTurnId) {
-                    setTurnStatus(agentTurnId, 'agentic_step');
-                    appendTurnPart(agentTurnId, {
-                      type: 'agent_step',
-                      stepNumber: step.stepNumber,
-                      status: step.status,
-                      thought: step.thought,
-                      toolName: step.toolCall?.name || null,
-                      toolArgs: step.toolCall?.args || null,
-                      success: null,
-                      resultSummary: '',
-                      costUsd: step.costUsd,
-                      durationMs: step.durationMs,
-                      timestamp: Date.now(),
-                    });
-                  }
-                  // agentLoop calls onStepStart twice per step: once with no toolCall
-                  // ("Thinking...") and again after tool selection ("Executing...").
-                  // On the second call we update in-place so we don't accumulate
-                  // orphaned "Thinking..." messages in the chat.
-                  if (step.toolCall) {
-                    updateLastMessage(
-                      ` Step ${step.stepNumber}: Executing ${step.toolCall.name}...`,
-                    );
-                  } else {
-                    assistantMessage(` Step ${step.stepNumber}: Thinking...`);
-                  }
-                },
-                onStepComplete: (step) => {
-                  if (agentTurnId) {
-                    appendTurnPart(agentTurnId, {
-                      type: 'agent_step',
-                      stepNumber: step.stepNumber,
-                      status: step.status,
-                      thought: step.thought,
-                      toolName: step.toolCall?.name || null,
-                      toolArgs: step.toolCall?.args || null,
-                      success: step.result?.success ?? null,
-                      resultSummary: step.result?.output?.slice(0, 200) || '',
-                      costUsd: step.costUsd,
-                      durationMs: step.durationMs,
-                      timestamp: Date.now(),
-                    });
-                  }
-                  // Update the last message with step result
-                  const statusIcon =
-                    step.status === 'completed' ? '' : step.status === 'failed' ? '' : '';
-                  updateLastMessage(
-                    `${statusIcon} Step ${step.stepNumber}: ${step.toolCall?.name || 'thinking'} — ${step.result?.success ? 'success' : step.result?.error || 'done'}`,
-                  );
-                },
-                onLoopComplete: (loopState) => {
-                  if (agentTurnId) {
-                    appendTurnPart(agentTurnId, {
-                      type: 'agent_complete',
-                      totalSteps: loopState.steps.length,
-                      totalCostUsd: loopState.totalCostUsd,
-                      totalDurationMs: loopState.totalDurationMs,
-                      success: loopState.status === 'completed',
-                      summary: loopState.finalSummary || '',
-                      timestamp: Date.now(),
-                    });
-                  }
-                },
-                onLoopError: (errorMsg) => {
-                  if (agentTurnId) {
-                    appendTurnPart(agentTurnId, {
-                      type: 'error',
-                      message: errorMsg,
-                      timestamp: Date.now(),
-                    });
-                  }
-                },
-                onCostUpdate: () => {
-                  // Could update a cost badge in UI here
-                },
-              },
-              abortSignal: requestAbortController?.signal,
-              normalizedIntent: normalizedIntent
-                ? {
-                    mode: normalizedIntent.mode,
-                    goals: normalizedIntent.goals,
-                    constraints: normalizedIntent.constraints as Record<string, string | number>,
-                    operationHint: normalizedIntent.operationHint,
-                    confidence: normalizedIntent.confidence,
-                  }
-                : undefined,
+              turnId,
+              normalizedIntent,
             });
-
-            // Replace the step-by-step messages with the final summary
-            const currentMessages = useChatStore.getState().messages;
-            useChatStore.setState({
-              messages: currentMessages.slice(0, -1),
-            });
-
-            const costInfo = `\n\n_Cost: $${agentResult.totalCostUsd.toFixed(4)} | ${agentResult.totalSteps} steps | ${(agentResult.state.totalDurationMs / 1000).toFixed(1)}s_`;
-            addMessage('assistant', agentResult.finalSummary + costInfo);
-
-            if (agentTurnId) {
-              closeTurn(agentTurnId, agentResult.success ? 'agentic_done' : 'error');
-              turnClosed = true; // prevent outer finally from overwriting the turn status
-            }
-            clearExecutionContext();
+            turnClosed = true; // agentic flow now handles completion or intentionally keeps the turn open
           } catch (error) {
             console.error('Agentic loop error:', error);
             const errorMessage =
@@ -1415,11 +1436,6 @@ const ChatPanel = () => {
     setSessionLogs([]);
   };
 
-  const handleResetTelemetry = async () => {
-    resetTelemetry();
-    setTelemetryRates(getTelemetryRates());
-  };
-
   const handleCopyExecutionPlan = async () => {
     if (!executionPlan) return;
 
@@ -1650,7 +1666,10 @@ const ChatPanel = () => {
     let messageCoalescer: ReturnType<typeof createStreamCoalescer> | null = null;
 
     if (clarification.turnId) {
-      setTurnStatus(clarification.turnId, 'executing');
+      setTurnStatus(
+        clarification.turnId,
+        clarification.source === 'agentic' ? 'agentic_running' : 'executing',
+      );
       appendTurnPart(clarification.turnId, {
         type: 'text',
         role: 'user',
@@ -1667,6 +1686,22 @@ const ChatPanel = () => {
     }
 
     try {
+      if (clarification.source === 'agentic') {
+        const resumePrompt = `${clarification.plannerInput}\n\nClarification: ${answer}`;
+        const resumeHistory = convertToAIHistory(
+          messages.filter((message) => message.role !== 'system'),
+          { mediaMode: 'descriptor_only' },
+        );
+
+        await executeAgenticRun({
+          plannerInput: resumePrompt,
+          history: resumeHistory,
+          turnId: clarification.turnId,
+          normalizedIntent: clarification.normalizedIntent,
+        });
+        return;
+      }
+
       const toolResults = [
         {
           name: 'ask_clarification',
@@ -2138,20 +2173,6 @@ const ChatPanel = () => {
             </svg>
           </button>
           <button
-            onClick={() => setShowTelemetry((v) => !v)}
-            className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-md transition-all duration-200 hover:scale-110 active:scale-95 ${showTelemetry ? 'text-cyan-300 bg-cyan-500/10' : 'text-text-muted hover:text-text-primary hover:bg-white/5'}`}
-            title="AI reliability telemetry"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M7 12l3-3 2 2 5-5M5 19h14"
-              />
-            </svg>
-          </button>
-          <button
             onClick={handleCompactContext}
             className="w-7 h-7 shrink-0 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/5 rounded-md transition-all duration-200 hover:scale-110 active:scale-95"
             title="Compact context"
@@ -2376,48 +2397,6 @@ const ChatPanel = () => {
                   </div>
                 ))
             )}
-          </div>
-        </div>
-      )}
-
-      {showTelemetry && (
-        <div className="border-b border-border-primary bg-cyan-500/5">
-          <div className="px-4 py-2 flex items-center justify-between">
-            <div className="text-xs text-cyan-200">AI Reliability Telemetry</div>
-            <button
-              onClick={handleResetTelemetry}
-              className="text-[11px] px-2 py-1 rounded bg-bg-elevated border border-border-primary hover:bg-bg-surface text-text-secondary"
-            >
-              Reset
-            </button>
-          </div>
-          <div className="px-4 pb-3 grid grid-cols-1 gap-1.5 text-[11px]">
-            <div className="text-text-secondary">
-              plan_compile_fail_rate:{' '}
-              <span className="text-cyan-200">
-                {formatRate(telemetryRates?.plan_compile_fail_rate)}
-              </span>
-            </div>
-            <div className="text-text-secondary">
-              fallback_rate:{' '}
-              <span className="text-cyan-200">{formatRate(telemetryRates?.fallback_rate)}</span>
-            </div>
-            <div className="text-text-secondary">
-              execution_validation_fail_rate:{' '}
-              <span className="text-cyan-200">
-                {formatRate(telemetryRates?.execution_validation_fail_rate)}
-              </span>
-            </div>
-            <div className="text-text-secondary">
-              turn_retry_rate:{' '}
-              <span className="text-cyan-200">{formatRate(telemetryRates?.turn_retry_rate)}</span>
-            </div>
-            <div className="text-text-secondary">
-              repeat_response_rate:{' '}
-              <span className="text-cyan-200">
-                {formatRate(telemetryRates?.repeat_response_rate)}
-              </span>
-            </div>
           </div>
         </div>
       )}
@@ -3025,9 +3004,4 @@ function formatOperationName(name: string): string {
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
-}
-
-function formatRate(value?: number): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '0.0%';
-  return `${(value * 100).toFixed(1)}%`;
 }

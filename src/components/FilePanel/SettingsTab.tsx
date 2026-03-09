@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
 import { useAiConfigStore } from '../../stores/useAiConfigStore';
 import type { AiConfigSettings } from '../../types/electron';
-import { AI_PROVIDER_FIELD_GROUPS } from '../../lib/aiConfigFields';
+import { AI_PROVIDER_FIELD_GROUPS, normalizeYouTubeUploadSettings } from '../../lib/aiConfigFields';
 
 const SettingsTab = () => {
   const {
@@ -60,7 +60,9 @@ const SettingsTab = () => {
   };
 
   const handleSaveAiSettings = async () => {
-    const nextSettings = hasAiDraftChanges ? draftAiSettings : aiSettings;
+    const nextSettings = normalizeYouTubeUploadSettings(
+      hasAiDraftChanges ? draftAiSettings : aiSettings,
+    );
     const result = await saveAiConfig(nextSettings);
     if (result.success) {
       setHasAiDraftChanges(false);

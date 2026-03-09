@@ -271,6 +271,52 @@ describe('agentLoop integration', () => {
     expect(mockedExecute.mock.calls.length).toBeGreaterThanOrEqual(3);
   });
 
+  it('pauses and returns clarification details when the agent requests clarification', async () => {
+    const { runAgentLoop } = await import('../../src/lib/agentLoop');
+    const callbacks = createMockCallbacks();
+
+    mockedExecute.mockResolvedValueOnce({
+      result: {
+        success: true,
+        message: 'Clarification requested',
+        data: {
+          question: 'Which clip should get the text overlay?',
+          options: ['Clip 1', 'Clip 2'],
+          context: 'I found two likely candidates.',
+        },
+      },
+    } as any);
+
+    mockedConverse.mockResolvedValueOnce(
+      bedrockToolResponse(
+        'ask_clarification',
+        {
+          question: 'Which clip should get the text overlay?',
+          options: ['Clip 1', 'Clip 2'],
+          context: 'I found two likely candidates.',
+        },
+        'tu-clarify',
+        'I need one detail before I continue.',
+      ),
+    );
+
+    const result = await runAgentLoop({
+      userMessage: 'add a text overlay',
+      history: [],
+      callbacks,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.state.status).toBe('paused');
+    expect(result.totalSteps).toBe(1);
+    expect(result.clarificationRequest).toEqual({
+      question: 'Which clip should get the text overlay?',
+      options: ['Clip 1', 'Clip 2'],
+      context: 'I found two likely candidates.',
+    });
+    expect(mockedConverse).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps only the executed toolUse block in agent history when Bedrock returns multiple tool uses', async () => {
     const { runAgentLoop } = await import('../../src/lib/agentLoop');
     const callbacks = createMockCallbacks();

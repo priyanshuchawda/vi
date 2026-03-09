@@ -734,6 +734,25 @@ When the goal is fully achieved, respond with a summary (no tool calls).
         loopState.steps.push(step);
         input.callbacks.onStepComplete(step, loopState);
 
+        if (toolCall.name === 'ask_clarification' && toolResult.success) {
+          const question = String(resolvedCall.args?.question || 'Need clarification');
+          const options = Array.isArray(resolvedCall.args?.options)
+            ? resolvedCall.args.options
+                .map((option: unknown) => String(option))
+                .filter((option: string) => option.trim().length > 0)
+            : [];
+          const context =
+            typeof resolvedCall.args?.context === 'string' ? resolvedCall.args.context : undefined;
+
+          loopState.status = 'paused';
+          loopState.clarificationRequest = {
+            question,
+            options,
+            context,
+          };
+          break;
+        }
+
         // Add assistant response to conversation history
         messages.push({
           role: 'assistant',
@@ -832,6 +851,7 @@ When the goal is fully achieved, respond with a summary (no tool calls).
     totalCostUsd: loopState.totalCostUsd,
     totalSteps: loopState.steps.length,
     success: loopState.status === 'completed',
+    clarificationRequest: loopState.clarificationRequest,
   };
 }
 
@@ -847,6 +867,8 @@ function generateFallbackSummary(state: AgentLoopState): string {
 
   if (state.status === 'completed') {
     parts.push(` Task completed in ${completedSteps.length} step(s).`);
+  } else if (state.status === 'paused') {
+    parts.push(' Clarification required before continuing.');
   } else if (state.status === 'cost_limit') {
     parts.push(`️ Stopped: cost budget reached ($${state.totalCostUsd.toFixed(4)}).`);
     parts.push(`Completed ${completedSteps.length} of ${state.steps.length} steps.`);

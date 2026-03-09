@@ -37,6 +37,12 @@ export interface AgentToolResult {
   adjustments?: string[];
 }
 
+export interface AgentClarificationRequest {
+  question: string;
+  options: string[];
+  context?: string;
+}
+
 export interface AgentStep {
   stepNumber: number;
   status: AgentStepStatus;
@@ -105,6 +111,7 @@ export interface AgentLoopState {
   completedAt?: number;
   finalSummary?: string;
   error?: string;
+  clarificationRequest?: AgentClarificationRequest;
   config: AgentLoopConfig;
   goalDescription: string;
 }
@@ -143,6 +150,7 @@ export interface AgentLoopResult {
   totalCostUsd: number;
   totalSteps: number;
   success: boolean;
+  clarificationRequest?: AgentClarificationRequest;
 }
 
 /**

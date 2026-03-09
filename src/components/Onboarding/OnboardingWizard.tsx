@@ -8,6 +8,7 @@ import {
   getMissingBedrockFieldNames,
   getMissingGeminiFieldNames,
   isAnyAiProviderConfigured,
+  normalizeYouTubeUploadSettings,
 } from '../../lib/aiConfigFields';
 
 type OnboardingStep = 'profile' | 'ai' | 'finalizing';
@@ -151,7 +152,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const handleAiContinue = async () => {
     setStepError(null);
     const userId = await persistProfileDraft();
-    const result = await saveAiConfig(draftAiSettings);
+    const nextSettings = normalizeYouTubeUploadSettings(draftAiSettings);
+    const result = await saveAiConfig(nextSettings);
 
     if (!result.success) {
       setStepError(result.error || 'Failed to save AI credentials.');
@@ -334,7 +336,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
               These are the same values your project supports in `.env`. QuickCut keeps Bedrock as
-              the primary provider and can use Gemini as fallback when configured.
+              the primary provider and asks for the Gemini fallback key on this same screen when you
+              want backup coverage.
             </p>
           </div>
         </div>
@@ -343,11 +346,31 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
       <div className="grid flex-1 gap-8 overflow-y-auto px-8 py-8 lg:grid-cols-[1.1fr_0.9fr] lg:px-10">
         <div className="space-y-4">
           {AI_PROVIDER_FIELD_GROUPS.map((group) => (
-            <div key={group.id} className="rounded-[24px] border border-white/8 bg-black/25 p-5">
-              <div className="mb-4">
-                <h2 className="text-sm font-semibold text-white">{group.title}</h2>
-                <p className="mt-1 text-xs leading-5 text-slate-500">{group.description}</p>
+            <div
+              key={group.id}
+              className={`rounded-[24px] border p-5 ${
+                group.id === 'gemini'
+                  ? 'border-cyan-400/18 bg-cyan-400/[0.04]'
+                  : 'border-white/8 bg-black/25'
+              }`}
+            >
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-white">{group.title}</h2>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{group.description}</p>
+                </div>
+                {group.id === 'gemini' ? (
+                  <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                    Optional fallback
+                  </span>
+                ) : null}
               </div>
+              {group.id === 'gemini' ? (
+                <div className="mb-4 rounded-2xl border border-cyan-300/15 bg-black/20 px-4 py-3 text-xs leading-5 text-cyan-100/90">
+                  Add <span className="font-semibold text-white">GEMINI_API_KEY</span> here if you
+                  want QuickCut to keep responding automatically when Bedrock is unavailable.
+                </div>
+              ) : null}
               <div className="grid gap-5 sm:grid-cols-2">{group.fields.map(renderField)}</div>
             </div>
           ))}

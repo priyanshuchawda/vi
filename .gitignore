@@ -6,7 +6,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
+.agent/
+.agent
+/gemini_docs/
+/D:/
 node_modules
 dist
 dist-ssr

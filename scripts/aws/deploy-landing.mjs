@@ -2,11 +2,11 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { config as loadEnv } from 'dotenv';
+import { loadAwsEnv } from './env-loader.mjs';
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(new URL('../../', import.meta.url).pathname);
-loadEnv({ path: path.join(repoRoot, '.env') });
+const { remainingArgs } = loadAwsEnv(repoRoot);
 
 function readEnv(name, fallback = '') {
   const value = process.env[name]?.trim();
@@ -45,7 +45,7 @@ const region = readEnv('AWS_REGION', 'eu-central-1');
 const landingDir = path.resolve(repoRoot, readEnv('AWS_LANDING_DIR', 'landing'));
 const landingPrefix = readEnv('AWS_LANDING_S3_PREFIX', '').replace(/^\/+|\/+$/g, '');
 const landingBucket = await resolveLandingBucket();
-const extraArgs = process.argv.slice(2);
+const extraArgs = remainingArgs;
 const destination = landingPrefix
   ? `s3://${landingBucket}/${landingPrefix}/`
   : `s3://${landingBucket}/`;

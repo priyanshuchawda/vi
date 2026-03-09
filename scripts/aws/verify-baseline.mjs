@@ -1,11 +1,11 @@
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { config as loadEnv } from 'dotenv';
+import { loadAwsEnv } from './env-loader.mjs';
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(new URL('../../', import.meta.url).pathname);
-loadEnv({ path: path.join(repoRoot, '.env') });
+loadAwsEnv(repoRoot);
 
 const REQUIRED_ROUTES = [
   'POST /auth/installations/register',

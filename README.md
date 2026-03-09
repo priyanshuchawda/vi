@@ -98,6 +98,14 @@ Packaged app users can also configure AI keys inside
 act as the fallback for both Bedrock and the app's direct AWS storage flows, so
 production installs do not require editing `.env`.
 
+For cleaner AWS environment separation, the repo also includes:
+
+- `.env.aws.dev.example`
+- `.env.aws.prod.example`
+
+All AWS helper scripts support either `AWS_ENV_FILE=.env.aws.dev ...` or
+`--env-file .env.aws.prod`.
+
 ## Run
 
 ```bash
@@ -171,6 +179,13 @@ Verify the current AWS baseline after a backend or landing deploy:
 npm run aws:verify:baseline
 ```
 
+Audit the current AWS account/resource state:
+
+```bash
+npm run aws:check:account
+AWS_ENV_FILE=.env.aws.prod npm run aws:check:account
+```
+
 The landing deploy script reads:
 
 - `AWS_REGION`
@@ -187,7 +202,9 @@ The AWS baseline verification script checks:
 - a live profile-read API smoke request
 - the landing website endpoint
 
-For the deploy/rollback sequence, see `docs/aws-deploy-runbook.md`.
+For the deploy/rollback sequence, see `docs/aws-deploy-runbook.md`. For
+production hygiene and dev/prod separation guidance, see
+`docs/aws-production-hygiene.md`.
 
 ## Test
 

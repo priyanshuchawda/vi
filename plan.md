@@ -5,6 +5,26 @@
 Finish the AWS-backed production path without adding high-cost services and
 without breaking the current direct AWS workflow during rollout.
 
+## Status Snapshot
+
+Completed in repo/AWS now:
+
+- managed backend parity for API Gateway mode
+- backend deploy automation
+- landing deploy automation
+- baseline alarms, logs, and verification
+- packaged installer runtime config
+- installation-based API Gateway credentials for installed apps
+
+Still remaining beyond the current dev/live setup:
+
+- account-level budgets
+- anomaly detection where account policy allows it
+- dedicated prod bucket/table/resource names and first prod rollout
+- full user auth
+- custom domain / CDN / TLS
+- CI/CD
+
 This plan reflects the current decisions:
 
 - use AWS-managed endpoints for now
@@ -152,12 +172,15 @@ Add the minimum operational safety needed for a small production system.
 - add budget and anomaly-detection setup instructions
 - separate `dev` and future `prod` environment values more clearly
 - identify which AWS resources still need full IaC ownership
+- add an AWS account audit script so the current account state is checkable from
+  the repo
 
 ### Exit Criteria
 
 - deployment steps are documented
 - rollback path is clear
 - cost monitoring setup is defined
+- current AWS account state can be audited from the repo
 
 ## Phase 5 - Deferred Hardening
 

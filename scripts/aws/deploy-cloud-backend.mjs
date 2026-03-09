@@ -3,11 +3,11 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { config as loadEnv } from 'dotenv';
+import { loadAwsEnv } from './env-loader.mjs';
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(new URL('../../', import.meta.url).pathname);
-loadEnv({ path: path.join(repoRoot, '.env') });
+loadAwsEnv(repoRoot);
 
 function readEnv(name, fallback) {
   const value = process.env[name]?.trim();

@@ -10,7 +10,8 @@ const MediaTab = ({
 }: {
   filterType?: 'all' | 'video' | 'audio' | 'image' | 'text';
 }) => {
-  const { clips, addClip, setActiveClip, activeClipId, defaultImageDuration } = useProjectStore();
+  const { clips, mediaAssets, addClip, setActiveClip, activeClipId, defaultImageDuration } =
+    useProjectStore();
   const { isAnalyzing, analyzingCount } = useAiMemoryStore();
   const [isImporting, setIsImporting] = useState(false);
   const [importStatus, setImportStatus] = useState<string>('');
@@ -187,17 +188,8 @@ const MediaTab = ({
     }
   };
 
-  const sourceAssets = Array.from(
-    clips.reduce((map, clip) => {
-      if (!map.has(clip.path)) {
-        map.set(clip.path, clip);
-      }
-      return map;
-    }, new Map<string, (typeof clips)[number]>()),
-  ).map(([, clip]) => clip);
-
-  const filteredClips = sourceAssets.filter(
-    (clip) => filterType === 'all' || clip.mediaType === filterType,
+  const filteredAssets = mediaAssets.filter(
+    (asset) => filterType === 'all' || asset.mediaType === filterType,
   );
 
   return (
@@ -242,7 +234,7 @@ const MediaTab = ({
       </div>
 
       {/* Filter Tabs */}
-      {clips.length > 0 && (
+      {mediaAssets.length > 0 && (
         <div className="px-3 pb-2 border-b border-white/5">
           <div className="flex gap-1 flex-wrap">
             {(['all', 'video', 'audio', 'image'] as const).map((type) => (
@@ -265,71 +257,100 @@ const MediaTab = ({
 
       {/* Media Grid */}
       <div className="flex-1 overflow-y-auto p-2">
-        {filteredClips.length === 0 && clips.length > 0 ? (
+        {filteredAssets.length === 0 && mediaAssets.length > 0 ? (
           <div className="text-center text-text-muted text-sm mt-10">
             <p className="text-xs opacity-60">
               No {filterType === 'all' ? 'files' : filterType + ' files'} found
             </p>
           </div>
-        ) : clips.length === 0 ? null : (
+        ) : mediaAssets.length === 0 ? null : (
           <div className="grid grid-cols-2 gap-1.5">
-            {filteredClips.map((clip) => (
-              <button
-                type="button"
-                key={clip.id}
-                onClick={() => setActiveClip(clip.id)}
-                className={clsx(
-                  'relative aspect-video bg-bg-elevated rounded-lg overflow-hidden cursor-pointer border-2 transition-all group text-left',
-                  activeClipId === clip.id
-                    ? 'border-blue-500'
-                    : 'border-transparent hover:border-white/20',
-                )}
-                title={clip.name}
-              >
-                {clip.thumbnail ? (
-                  <img
-                    src={clip.thumbnail}
-                    alt={clip.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-text-muted/40">
-                    {clip.mediaType === 'audio' && (
-                      <svg
-                        className="w-6 h-6"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
-                        />
-                      </svg>
-                    )}
-                    {clip.mediaType !== 'audio' && (
-                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                    )}
+            {filteredAssets.map((asset) => {
+              const timelineClip = clips.find((clip) => clip.path === asset.path);
+              const isActive =
+                clips.find((clip) => clip.id === activeClipId)?.path === asset.path ||
+                activeClipId === timelineClip?.id;
+
+              return (
+                <button
+                  type="button"
+                  key={asset.id}
+                  onClick={() => {
+                    if (timelineClip) {
+                      setActiveClip(timelineClip.id);
+                      return;
+                    }
+
+                    const beforeIds = new Set(clips.map((clip) => clip.id));
+                    addClip({
+                      path: asset.path,
+                      name: asset.name,
+                      duration: asset.assetDuration ?? asset.duration,
+                      assetDuration: asset.assetDuration ?? asset.duration,
+                      sourceDuration: asset.sourceDuration,
+                      thumbnail: asset.thumbnail,
+                      waveform: asset.waveform,
+                      mediaType: asset.mediaType,
+                    });
+
+                    const insertedClip = useProjectStore
+                      .getState()
+                      .clips.find((clip) => !beforeIds.has(clip.id) && clip.path === asset.path);
+                    if (insertedClip) {
+                      setActiveClip(insertedClip.id);
+                    }
+                  }}
+                  className={clsx(
+                    'relative aspect-video bg-bg-elevated rounded-lg overflow-hidden cursor-pointer border-2 transition-all group text-left',
+                    isActive ? 'border-blue-500' : 'border-transparent hover:border-white/20',
+                  )}
+                  title={asset.name}
+                >
+                  {asset.thumbnail ? (
+                    <img
+                      src={asset.thumbnail}
+                      alt={asset.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-text-muted/40">
+                      {asset.mediaType === 'audio' && (
+                        <svg
+                          className="w-6 h-6"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+                          />
+                        </svg>
+                      )}
+                      {asset.mediaType !== 'audio' && (
+                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      )}
+                    </div>
+                  )}
+                  {/* Duration badge */}
+                  <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/70 rounded text-[9px] text-white font-medium">
+                    {(typeof asset.assetDuration === 'number'
+                      ? asset.assetDuration
+                      : typeof asset.sourceDuration === 'number'
+                        ? asset.sourceDuration
+                        : asset.duration
+                    ).toFixed(0)}
+                    s
                   </div>
-                )}
-                {/* Duration badge */}
-                <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/70 rounded text-[9px] text-white font-medium">
-                  {(typeof clip.assetDuration === 'number'
-                    ? clip.assetDuration
-                    : typeof clip.sourceDuration === 'number'
-                      ? clip.sourceDuration
-                      : clip.duration
-                  ).toFixed(0)}
-                  s
-                </div>
-                {/* Hover overlay */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all" />
-              </button>
-            ))}
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all" />
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

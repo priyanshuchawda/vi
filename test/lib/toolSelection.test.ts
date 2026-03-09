@@ -30,6 +30,7 @@ describe('toolSelection', () => {
     );
     expect(result.toolNames).not.toContain('add_subtitle');
     expect(result.toolNames).not.toContain('update_subtitle');
+    expect(result.toolNames).not.toContain('delete_clips');
   });
 
   it('keeps economy mode narrow and avoids unrelated heavy tools', () => {
@@ -90,5 +91,20 @@ describe('toolSelection', () => {
     });
 
     expect(result.toolNames).not.toContain('update_subtitle');
+  });
+
+  it('keeps delete_clips available only for explicit delete requests', () => {
+    const result = selectToolsForRequest({
+      message: 'delete the first clip from timeline',
+      mode: 'agentic',
+      normalizedIntent: {
+        goals: [],
+        requestedOutputs: ['edit_plan'],
+        constraints: {},
+        operationHint: 'delete',
+      },
+    });
+
+    expect(result.toolNames).toContain('delete_clips');
   });
 });

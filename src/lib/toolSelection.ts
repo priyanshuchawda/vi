@@ -58,7 +58,6 @@ const BASE_EDIT_TOOLS = [
   'update_clip_bounds',
   'move_clip',
   'split_clip',
-  'delete_clips',
   'merge_clips',
   'undo_action',
   'redo_action',
@@ -165,12 +164,7 @@ const GOAL_TOOLS: Record<string, string[]> = {
   smooth_transitions: ['move_clip', 'merge_clips', 'set_clip_speed'],
   style_enhancement: ['apply_clip_effect', 'generate_chapters', 'find_highlights'],
   combine_sources: ['copy_clips', 'paste_clips', 'merge_clips', 'move_clip'],
-  remove_low_value_segments: [
-    'get_all_media_analysis',
-    'update_clip_bounds',
-    'split_clip',
-    'delete_clips',
-  ],
+  remove_low_value_segments: ['get_all_media_analysis', 'update_clip_bounds', 'split_clip'],
 };
 
 const OPERATION_HINT_TOOLS: Record<string, string[]> = {
@@ -266,6 +260,13 @@ function getSeedTools(mode: ToolSelectionMode, message: string): string[] {
   return Array.from(seeds);
 }
 
+function hasExplicitDeleteIntent(message: string, intent?: NormalizedIntentLike): boolean {
+  return (
+    /\b(delete|remove|cut out|discard|erase|drop|clear all)\b/i.test(message) ||
+    intent?.operationHint === 'delete'
+  );
+}
+
 export function selectToolsForRequest(options: ToolSelectionOptions): ToolSelectionResult {
   const mode = options.mode || 'standard';
   const message = options.message.trim();
@@ -359,13 +360,15 @@ export function selectToolsForRequest(options: ToolSelectionOptions): ToolSelect
   }
 
   const limit = getToolLimit(mode);
+  const explicitDeleteIntent = hasExplicitDeleteIntent(lower, intent);
   const selectedNames = Array.from(scores.entries())
     .sort((a, b) => {
       if (b[1] !== a[1]) return b[1] - a[1];
       return a[0].localeCompare(b[0]);
     })
     .slice(0, limit)
-    .map(([name]) => name);
+    .map(([name]) => name)
+    .filter((name) => explicitDeleteIntent || name !== 'delete_clips');
 
   const selected = new Set(selectedNames);
   const tools = TOOL_DECLARATIONS.filter((tool) => selected.has(tool?.toolSpec?.name || ''));

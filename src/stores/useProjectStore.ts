@@ -64,6 +64,18 @@ export interface Clip {
   };
 }
 
+export interface MediaAsset {
+  id: string;
+  path: string;
+  name: string;
+  duration: number;
+  assetDuration?: number;
+  sourceDuration: number;
+  thumbnail?: string;
+  waveform?: string;
+  mediaType?: Clip['mediaType'];
+}
+
 export interface Notification {
   type: 'success' | 'error' | 'warning' | 'info';
   message: string;
@@ -112,9 +124,14 @@ interface HistoryState {
   timelineVersion: number;
 }
 
+type NewClipInput = Omit<Clip, 'id' | 'duration' | 'start' | 'end' | 'startTime'> & {
+  duration: number;
+};
+
 type LoadedProjectData = {
   projectId?: string;
   clips?: Clip[];
+  mediaAssets?: MediaAsset[];
   activeClipId?: string | null;
   selectedClipIds?: string[];
   currentTime?: number;
@@ -136,6 +153,7 @@ type LoadedProjectData = {
 
 interface ProjectState {
   clips: Clip[];
+  mediaAssets: MediaAsset[];
   activeClipId: string | null;
   selectedClipIds: string[];
   currentTime: number;
@@ -181,9 +199,7 @@ interface ProjectState {
   captionsEnabled: boolean;
   defaultImageDuration: number; // Default duration for imported images in seconds
   exportedVideoPath: string | null; // Path to the last exported video
-  addClip: (
-    clip: Omit<Clip, 'id' | 'duration' | 'start' | 'end' | 'startTime'> & { duration: number },
-  ) => void;
+  addClip: (clip: NewClipInput) => void;
   removeClip: (id: string) => boolean;
   setActiveClip: (id: string | null) => void;
   setCurrentTime: (time: number) => void;
@@ -283,6 +299,47 @@ const getElectronApi = () => {
   return window.electronAPI;
 };
 
+const buildMediaAssetFromClip = (
+  clip: Pick<
+    Clip,
+    'path' | 'name' | 'thumbnail' | 'waveform' | 'mediaType' | 'assetDuration' | 'sourceDuration'
+  > & { duration: number },
+): MediaAsset => ({
+  id: uuidv4(),
+  path: clip.path,
+  name: clip.name,
+  duration: clip.duration,
+  assetDuration: clip.assetDuration ?? clip.duration,
+  sourceDuration: clip.sourceDuration,
+  thumbnail: clip.thumbnail,
+  waveform: clip.waveform,
+  mediaType: clip.mediaType,
+});
+
+const deriveMediaAssetsFromClips = (clips: Clip[]): MediaAsset[] =>
+  Array.from(
+    clips.reduce((map, clip) => {
+      if (!clip.path || clip.mediaType === 'text' || map.has(clip.path)) {
+        return map;
+      }
+
+      map.set(
+        clip.path,
+        buildMediaAssetFromClip({
+          path: clip.path,
+          name: clip.name,
+          duration: clip.assetDuration ?? clip.sourceDuration ?? clip.duration,
+          assetDuration: clip.assetDuration ?? clip.duration,
+          sourceDuration: clip.sourceDuration,
+          thumbnail: clip.thumbnail,
+          waveform: clip.waveform,
+          mediaType: clip.mediaType,
+        }),
+      );
+      return map;
+    }, new Map<string, MediaAsset>()),
+  ).map(([, asset]) => asset);
+
 const buildProjectDataForPersistence = (state: ProjectState) => {
   const projectId = state.projectId || uuidv4();
   const memoryStore = useAiMemoryStore.getState();
@@ -297,6 +354,7 @@ const buildProjectDataForPersistence = (state: ProjectState) => {
       projectId,
       timelineVersion: state.timelineVersion,
       clips: state.clips,
+      mediaAssets: state.mediaAssets,
       activeClipId: state.activeClipId,
       selectedClipIds: state.selectedClipIds,
       currentTime: state.currentTime,
@@ -353,6 +411,7 @@ const loadProjectInBrowser = async (): Promise<{ filePath: string; data: unknown
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
   clips: [],
+  mediaAssets: [],
   activeClipId: null,
   selectedClipIds: [],
   currentTime: 0,
@@ -421,24 +480,49 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         clip.mediaType === 'image' || clip.mediaType === 'text'
           ? Math.max(clip.sourceDuration ?? clip.duration, clip.duration, 300)
           : (clip.sourceDuration ?? clip.duration);
+      const newClip: Clip = {
+        ...clip,
+        id: uuidv4(),
+        assetDuration,
+        sourceDuration,
+        start: 0,
+        end: clip.duration,
+        startTime,
+        volume: 1,
+        muted: false,
+        trackIndex,
+      };
 
       const newState = {
-        clips: [
-          ...state.clips,
-          {
-            ...clip,
-            id: uuidv4(),
-            assetDuration,
-            sourceDuration,
-            start: 0,
-            end: clip.duration,
-            startTime,
-            volume: 1,
-            muted: false,
-            trackIndex,
-          },
-        ],
+        mediaAssets:
+          clip.path &&
+          clip.mediaType !== 'text' &&
+          !state.mediaAssets.some((asset) => asset.path === clip.path)
+            ? [
+                ...state.mediaAssets,
+                buildMediaAssetFromClip({
+                  path: clip.path,
+                  name: clip.name,
+                  duration: assetDuration,
+                  assetDuration,
+                  sourceDuration,
+                  thumbnail: clip.thumbnail,
+                  waveform: clip.waveform,
+                  mediaType: clip.mediaType,
+                }),
+              ]
+            : state.mediaAssets,
+        clips: [...state.clips, newClip],
       };
+
+      if (newClip.path) {
+        const memoryStore = useAiMemoryStore.getState();
+        const entry = memoryStore.getEntryByFilePath(newClip.path);
+        if (entry && entry.clipId !== newClip.id) {
+          memoryStore.linkClipId(entry.id, newClip.id);
+        }
+      }
+
       return { ...newState, ...saveToHistory({ ...state, ...newState }) };
     }),
   removeClip: (id) => {
@@ -470,10 +554,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         clips: newClips,
         activeClipId: state.activeClipId === id ? null : state.activeClipId,
       };
-
-      // Sync memory with updated project state
-      const clipIds = newState.clips.map((c) => c.id);
-      useAiMemoryStore.getState().syncWithProject(clipIds);
 
       return { ...newState, ...saveToHistory({ ...state, ...newState }) };
     });
@@ -808,9 +888,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const projectData = loaded.data as LoadedProjectData;
         // If old project doesn't have projectId, generate one
         const projectId = projectData.projectId || uuidv4();
+        const loadedClips = projectData.clips || [];
 
         set({
-          clips: projectData.clips || [],
+          clips: loadedClips,
+          mediaAssets: projectData.mediaAssets || deriveMediaAssetsFromClips(loadedClips),
           activeClipId: projectData.activeClipId || null,
           selectedClipIds: projectData.selectedClipIds || [],
           currentTime: projectData.currentTime || 0,
@@ -866,6 +948,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     // Clear current project state
     set({
       clips: [],
+      mediaAssets: [],
       activeClipId: null,
       selectedClipIds: [],
       currentTime: 0,

@@ -174,16 +174,22 @@ export const aiConfigSettingsSchema = z.object({
   awsSessionToken: z.string().optional().default(''),
   bedrockInferenceProfileId: z.string().optional().default(''),
   bedrockModelId: z.string().optional().default(''),
+  geminiApiKey: z.string().optional().default(''),
+  geminiModelId: z.string().optional().default(''),
   youtubeOAuthClientId: z.string().optional().default(''),
   youtubeOAuthClientSecret: z.string().optional().default(''),
   youtubeOAuthRedirectUri: z.string().optional().default(''),
 });
 export const aiConfigStatusSchema = z.object({
+  aiReady: z.boolean(),
   bedrockReady: z.boolean(),
+  geminiReady: z.boolean(),
+  preferredProvider: z.enum(['bedrock', 'gemini', 'none']),
   youtubeReady: z.boolean(),
   usingSavedSettings: z.boolean(),
   usingEnvFallback: z.boolean(),
   missingBedrockFields: z.array(z.string()),
+  missingGeminiFields: z.array(z.string()),
   missingYouTubeFields: z.array(z.string()),
 });
 export const ipcErrorEnvelopeSchema = z.object({

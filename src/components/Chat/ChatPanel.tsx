@@ -36,6 +36,7 @@ import {
   resolveConversationLane,
 } from '../../lib/conversationLane';
 import { optimizePromptForLane } from '../../lib/promptOptimizer';
+import type { AiConfigStatus } from '../../types/electron';
 
 interface SessionLogEntry {
   id: string;
@@ -55,9 +56,17 @@ type ToolCallLike = {
 const STREAM_FLUSH_INTERVAL_MS = 32;
 const STREAM_MAX_BUFFERED_CHARS = 160;
 
-function formatMissingAiConfigMessage(missingFields: string[]): string {
-  const fieldList = missingFields.length > 0 ? missingFields.join(', ') : 'AWS credentials';
-  return `AI setup is incomplete. Fill ${fieldList} in Settings before using the AI editor. I opened the Settings tab for you.`;
+function formatMissingAiConfigMessage(
+  status: Pick<AiConfigStatus, 'missingBedrockFields' | 'missingGeminiFields'>,
+): string {
+  const bedrockText =
+    status.missingBedrockFields.length > 0
+      ? `Bedrock: ${status.missingBedrockFields.join(', ')}`
+      : '';
+  const geminiText =
+    status.missingGeminiFields.length > 0 ? `Gemini: ${status.missingGeminiFields.join(', ')}` : '';
+  const detail = [bedrockText, geminiText].filter(Boolean).join(' | ');
+  return `AI setup is incomplete. Configure either Bedrock or Gemini in Settings before using the AI editor.${detail ? ` Missing: ${detail}.` : ''} I opened the Settings tab for you.`;
 }
 
 function isActionableUserMessage(message: string): boolean {
@@ -510,13 +519,14 @@ const ChatPanel = () => {
 
     try {
       const aiStatus = await window.electronAPI.aiConfig.getStatus();
-      if (!aiStatus.bedrockReady) {
+      if (!aiStatus.aiReady) {
         setActiveSidebarTab('settings');
         setNotification({
           type: 'warning',
-          message: 'AI settings are incomplete. Open Settings and fill your AWS credentials.',
+          message:
+            'AI settings are incomplete. Open Settings and configure Bedrock or Gemini credentials.',
         });
-        assistantMessage(formatMissingAiConfigMessage(aiStatus.missingBedrockFields), {
+        assistantMessage(formatMissingAiConfigMessage(aiStatus), {
           error: true,
         });
         setIsTyping(false);
@@ -525,7 +535,7 @@ const ChatPanel = () => {
       }
     } catch {
       assistantMessage(
-        'I could not verify your AI configuration. Open Settings and check your Bedrock credentials before retrying.',
+        'I could not verify your AI configuration. Open Settings and check your Bedrock or Gemini credentials before retrying.',
         { error: true },
       );
       setIsTyping(false);
@@ -1341,7 +1351,6 @@ const ChatPanel = () => {
       label,
     });
     // sendQueueRef and processSendMessageRef are stable refs — no deps needed.
-     
   }, []);
 
   const handleClearChat = () => {

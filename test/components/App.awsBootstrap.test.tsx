@@ -20,11 +20,15 @@ describe('App AWS bootstrap', () => {
     });
 
     vi.mocked(window.electronAPI.aiConfig.getStatus).mockResolvedValue({
+      aiReady: true,
       bedrockReady: true,
+      geminiReady: false,
+      preferredProvider: 'bedrock',
       youtubeReady: true,
       usingSavedSettings: true,
       usingEnvFallback: false,
       missingBedrockFields: [],
+      missingGeminiFields: ['Gemini API Key'],
       missingYouTubeFields: [],
     });
     vi.mocked(window.electronAPI.storage.loadProfile).mockResolvedValue({

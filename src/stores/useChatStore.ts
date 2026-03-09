@@ -143,7 +143,7 @@ export const useChatStore = create<ChatStore>()(
           id: uuidv4(),
           role: 'system',
           content:
-            'Welcome to QuickCut AI Assistant powered by Amazon Bedrock. Ask about video editing, or attach images, videos, audio, and PDFs for AI analysis.',
+            'Welcome to QuickCut AI Assistant. Bedrock stays primary, and Gemini can act as fallback when configured. Ask about video editing, or attach images, videos, audio, and PDFs for AI analysis.',
           timestamp: Date.now(),
         },
       ],
@@ -319,7 +319,7 @@ export const useChatStore = create<ChatStore>()(
               id: uuidv4(),
               role: 'system',
               content:
-                'Welcome to QuickCut AI Assistant powered by Amazon Bedrock. Ask about video editing, or attach images, videos, audio, and PDFs for AI analysis.',
+                'Welcome to QuickCut AI Assistant. Bedrock stays primary, and Gemini can act as fallback when configured. Ask about video editing, or attach images, videos, audio, and PDFs for AI analysis.',
               timestamp: Date.now(),
             },
           ],

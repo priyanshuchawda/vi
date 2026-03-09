@@ -63,17 +63,23 @@ export interface AiConfigSettings {
   awsSessionToken: string;
   bedrockInferenceProfileId: string;
   bedrockModelId: string;
+  geminiApiKey: string;
+  geminiModelId: string;
   youtubeOAuthClientId: string;
   youtubeOAuthClientSecret: string;
   youtubeOAuthRedirectUri: string;
 }
 
 export interface AiConfigStatus {
+  aiReady: boolean;
   bedrockReady: boolean;
+  geminiReady: boolean;
+  preferredProvider: 'bedrock' | 'gemini' | 'none';
   youtubeReady: boolean;
   usingSavedSettings: boolean;
   usingEnvFallback: boolean;
   missingBedrockFields: string[];
+  missingGeminiFields: string[];
   missingYouTubeFields: string[];
 }
 

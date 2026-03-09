@@ -44,7 +44,10 @@ describe('AiConfigService', () => {
 
     expect(service.getSettings().awsAccessKeyId).toBe('env-key-1');
     expect(service.getStatus()).toMatchObject({
+      aiReady: true,
       bedrockReady: true,
+      geminiReady: false,
+      preferredProvider: 'bedrock',
       usingSavedSettings: false,
       usingEnvFallback: true,
     });
@@ -85,6 +88,8 @@ describe('AiConfigService', () => {
       awsSessionToken: '',
       bedrockInferenceProfileId: '',
       bedrockModelId: 'amazon.nova-lite-v1:0',
+      geminiApiKey: '',
+      geminiModelId: 'gemini-2.0-flash',
       youtubeOAuthClientId: '',
       youtubeOAuthClientSecret: '',
       youtubeOAuthRedirectUri: '',
@@ -101,6 +106,7 @@ describe('AiConfigService', () => {
       awsSecretAccessKey: 'saved-secret',
     });
     expect(service.getStatus()).toMatchObject({
+      aiReady: true,
       usingSavedSettings: false,
       usingEnvFallback: true,
     });
@@ -124,6 +130,8 @@ describe('AiConfigService', () => {
       awsSessionToken: 'saved-session',
       bedrockInferenceProfileId: '',
       bedrockModelId: 'amazon.nova-lite-v1:0',
+      geminiApiKey: '',
+      geminiModelId: 'gemini-2.0-flash',
       youtubeOAuthClientId: '',
       youtubeOAuthClientSecret: '',
       youtubeOAuthRedirectUri: '',
@@ -153,5 +161,32 @@ describe('AiConfigService', () => {
       AWS_SECRET_ACCESS_KEY: 'env-secret',
     });
     expect(targetEnv.AWS_SESSION_TOKEN).toBeUndefined();
+  });
+
+  it('marks AI as ready when only Gemini fallback is configured', () => {
+    const tempDir = makeTempDir();
+    const envFilePath = path.join(tempDir, '.env');
+    const userDataPath = path.join(tempDir, 'user-data');
+
+    writeEnvFile(envFilePath, {
+      GEMINI_API_KEY: 'gemini-key',
+    });
+
+    const service = new AiConfigService(userDataPath, {
+      env: {},
+      envFilePath,
+    });
+
+    expect(service.getSettings()).toMatchObject({
+      geminiApiKey: 'gemini-key',
+    });
+    expect(service.getStatus()).toMatchObject({
+      aiReady: true,
+      bedrockReady: false,
+      geminiReady: true,
+      preferredProvider: 'gemini',
+      missingBedrockFields: ['AWS Access Key ID', 'AWS Secret Access Key'],
+      missingGeminiFields: [],
+    });
   });
 });

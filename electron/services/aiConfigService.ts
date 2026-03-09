@@ -13,22 +13,29 @@ export interface AiConfigSettings {
   awsSessionToken: string;
   bedrockInferenceProfileId: string;
   bedrockModelId: string;
+  geminiApiKey: string;
+  geminiModelId: string;
   youtubeOAuthClientId: string;
   youtubeOAuthClientSecret: string;
   youtubeOAuthRedirectUri: string;
 }
 
 export interface AiConfigStatus {
+  aiReady: boolean;
   bedrockReady: boolean;
+  geminiReady: boolean;
+  preferredProvider: 'bedrock' | 'gemini' | 'none';
   youtubeReady: boolean;
   usingSavedSettings: boolean;
   usingEnvFallback: boolean;
   missingBedrockFields: string[];
+  missingGeminiFields: string[];
   missingYouTubeFields: string[];
 }
 
 const DEFAULT_REGION = 'us-east-1';
 const DEFAULT_MODEL_ID = 'amazon.nova-lite-v1:0';
+const DEFAULT_GEMINI_MODEL_ID = 'gemini-2.0-flash';
 const SETTINGS_FILE_NAME = 'ai-settings.json';
 
 interface AiConfigServiceOptions {
@@ -83,6 +90,8 @@ function emptySettings(): AiConfigSettings {
     awsSessionToken: '',
     bedrockInferenceProfileId: '',
     bedrockModelId: DEFAULT_MODEL_ID,
+    geminiApiKey: '',
+    geminiModelId: DEFAULT_GEMINI_MODEL_ID,
     youtubeOAuthClientId: '',
     youtubeOAuthClientSecret: '',
     youtubeOAuthRedirectUri: '',
@@ -98,6 +107,8 @@ function blankSettings(): AiConfigSettings {
     awsSessionToken: '',
     bedrockInferenceProfileId: '',
     bedrockModelId: '',
+    geminiApiKey: '',
+    geminiModelId: '',
     youtubeOAuthClientId: '',
     youtubeOAuthClientSecret: '',
     youtubeOAuthRedirectUri: '',
@@ -107,12 +118,14 @@ function blankSettings(): AiConfigSettings {
 function hasMeaningfulSettings(settings: AiConfigSettings): boolean {
   return (
     settings.youtubeApiKey.length > 0 ||
+    (settings.awsRegion.length > 0 && settings.awsRegion !== DEFAULT_REGION) ||
     settings.awsAccessKeyId.length > 0 ||
     settings.awsSecretAccessKey.length > 0 ||
     settings.awsSessionToken.length > 0 ||
     settings.bedrockInferenceProfileId.length > 0 ||
-    settings.awsRegion !== DEFAULT_REGION ||
-    settings.bedrockModelId !== DEFAULT_MODEL_ID
+    settings.geminiApiKey.length > 0 ||
+    (settings.bedrockModelId.length > 0 && settings.bedrockModelId !== DEFAULT_MODEL_ID) ||
+    (settings.geminiModelId.length > 0 && settings.geminiModelId !== DEFAULT_GEMINI_MODEL_ID)
   );
 }
 
@@ -133,6 +146,10 @@ function normalizeSettings(
     bedrockModelId:
       String(raw?.bedrockModelId ?? fallback.bedrockModelId ?? DEFAULT_MODEL_ID).trim() ||
       DEFAULT_MODEL_ID,
+    geminiApiKey: String(raw?.geminiApiKey ?? fallback.geminiApiKey ?? '').trim(),
+    geminiModelId:
+      String(raw?.geminiModelId ?? fallback.geminiModelId ?? DEFAULT_GEMINI_MODEL_ID).trim() ||
+      DEFAULT_GEMINI_MODEL_ID,
     youtubeOAuthClientId: String(
       raw?.youtubeOAuthClientId ?? fallback.youtubeOAuthClientId ?? '',
     ).trim(),
@@ -154,6 +171,8 @@ function normalizeEnvSettings(raw: Partial<AiConfigSettings> | undefined): AiCon
     awsSessionToken: String(raw?.awsSessionToken ?? '').trim(),
     bedrockInferenceProfileId: String(raw?.bedrockInferenceProfileId ?? '').trim(),
     bedrockModelId: String(raw?.bedrockModelId ?? '').trim(),
+    geminiApiKey: String(raw?.geminiApiKey ?? '').trim(),
+    geminiModelId: String(raw?.geminiModelId ?? '').trim(),
     youtubeOAuthClientId: String(raw?.youtubeOAuthClientId ?? '').trim(),
     youtubeOAuthClientSecret: String(raw?.youtubeOAuthClientSecret ?? '').trim(),
     youtubeOAuthRedirectUri: String(raw?.youtubeOAuthRedirectUri ?? '').trim(),
@@ -215,6 +234,8 @@ export class AiConfigService {
       bedrockInferenceProfileId:
         fileEnv.BEDROCK_INFERENCE_PROFILE_ID ?? this.baseEnv.BEDROCK_INFERENCE_PROFILE_ID,
       bedrockModelId: fileEnv.BEDROCK_MODEL_ID ?? this.baseEnv.BEDROCK_MODEL_ID,
+      geminiApiKey: fileEnv.GEMINI_API_KEY ?? this.baseEnv.GEMINI_API_KEY,
+      geminiModelId: fileEnv.GEMINI_MODEL_ID ?? this.baseEnv.GEMINI_MODEL_ID,
       youtubeOAuthClientId: fileEnv.YOUTUBE_OAUTH_CLIENT_ID ?? this.baseEnv.YOUTUBE_OAUTH_CLIENT_ID,
       youtubeOAuthClientSecret:
         fileEnv.YOUTUBE_OAUTH_CLIENT_SECRET ?? this.baseEnv.YOUTUBE_OAUTH_CLIENT_SECRET,
@@ -260,6 +281,8 @@ export class AiConfigService {
       bedrockInferenceProfileId:
         envSettings.bedrockInferenceProfileId || savedSettings.bedrockInferenceProfileId,
       bedrockModelId: envSettings.bedrockModelId || savedSettings.bedrockModelId,
+      geminiApiKey: envSettings.geminiApiKey || savedSettings.geminiApiKey,
+      geminiModelId: envSettings.geminiModelId || savedSettings.geminiModelId,
       youtubeOAuthClientId: envSettings.youtubeOAuthClientId || savedSettings.youtubeOAuthClientId,
       youtubeOAuthClientSecret:
         envSettings.youtubeOAuthClientSecret || savedSettings.youtubeOAuthClientSecret,
@@ -377,16 +400,25 @@ export class AiConfigService {
     if (!this.effectiveSettings.awsRegion) bedrockMissing.push('AWS Region');
     if (!this.effectiveSettings.awsAccessKeyId) bedrockMissing.push('AWS Access Key ID');
     if (!this.effectiveSettings.awsSecretAccessKey) bedrockMissing.push('AWS Secret Access Key');
+    const geminiMissing: string[] = [];
+    if (!this.effectiveSettings.geminiApiKey) geminiMissing.push('Gemini API Key');
 
     const youtubeMissing: string[] = [];
     if (!this.effectiveSettings.youtubeApiKey) youtubeMissing.push('YouTube API Key');
 
+    const bedrockReady = bedrockMissing.length === 0;
+    const geminiReady = geminiMissing.length === 0;
+
     return {
-      bedrockReady: bedrockMissing.length === 0,
+      aiReady: bedrockReady || geminiReady,
+      bedrockReady,
+      geminiReady,
+      preferredProvider: bedrockReady ? 'bedrock' : geminiReady ? 'gemini' : 'none',
       youtubeReady: youtubeMissing.length === 0,
       usingSavedSettings,
       usingEnvFallback,
       missingBedrockFields: bedrockMissing,
+      missingGeminiFields: geminiMissing,
       missingYouTubeFields: youtubeMissing,
     };
   }

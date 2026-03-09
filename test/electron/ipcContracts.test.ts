@@ -90,13 +90,18 @@ describe('IPC contract schemas', () => {
       awsRegion: 'eu-central-1',
       awsAccessKeyId: 'key',
       awsSecretAccessKey: 'secret',
+      geminiApiKey: 'gem-key',
     });
     const status = aiConfigStatusSchema.safeParse({
+      aiReady: true,
       bedrockReady: false,
+      geminiReady: true,
+      preferredProvider: 'gemini',
       youtubeReady: true,
       usingSavedSettings: true,
       usingEnvFallback: false,
       missingBedrockFields: ['AWS Region'],
+      missingGeminiFields: [],
       missingYouTubeFields: [],
     });
 

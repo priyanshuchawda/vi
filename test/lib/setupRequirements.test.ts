@@ -5,7 +5,7 @@ describe('requiresInitialSetup', () => {
   it('requires setup when the profile is missing', () => {
     expect(
       requiresInitialSetup(null, {
-        bedrockReady: true,
+        aiReady: true,
         usingSavedSettings: true,
         usingEnvFallback: false,
       }),
@@ -19,19 +19,19 @@ describe('requiresInitialSetup', () => {
           userId: 'user-1',
           userName: '   ',
         },
-        { bedrockReady: true, usingSavedSettings: true, usingEnvFallback: false },
+        { aiReady: true, usingSavedSettings: true, usingEnvFallback: false },
       ),
     ).toBe(true);
   });
 
-  it('requires setup when bedrock credentials are not ready', () => {
+  it('requires setup when no AI provider is ready', () => {
     expect(
       requiresInitialSetup(
         {
           userId: 'user-1',
           userName: 'Priyanshu',
         },
-        { bedrockReady: false, usingSavedSettings: false, usingEnvFallback: false },
+        { aiReady: false, usingSavedSettings: false, usingEnvFallback: false },
       ),
     ).toBe(true);
   });
@@ -43,19 +43,19 @@ describe('requiresInitialSetup', () => {
           userId: 'user-1',
           userName: 'Priyanshu',
         },
-        { bedrockReady: true, usingSavedSettings: false, usingEnvFallback: true },
+        { aiReady: true, usingSavedSettings: false, usingEnvFallback: true },
       ),
     ).toBe(false);
   });
 
-  it('does not require setup when profile and bedrock are both ready', () => {
+  it('does not require setup when profile and AI provider are both ready', () => {
     expect(
       requiresInitialSetup(
         {
           userId: 'user-1',
           userName: 'Priyanshu',
         },
-        { bedrockReady: true, usingSavedSettings: true, usingEnvFallback: false },
+        { aiReady: true, usingSavedSettings: true, usingEnvFallback: false },
       ),
     ).toBe(false);
   });

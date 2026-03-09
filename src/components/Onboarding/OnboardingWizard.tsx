@@ -3,7 +3,12 @@ import { useAiConfigStore } from '../../stores/useAiConfigStore';
 import { useProfileStore } from '../../stores/useProfileStore';
 import type { AiConfigSettings, ChannelAnalysisData } from '../../types/electron';
 import { AppLogo } from '../ui/AppLogo';
-import { AI_CONFIG_FIELDS, getMissingBedrockFieldNames } from '../../lib/aiConfigFields';
+import {
+  AI_PROVIDER_FIELD_GROUPS,
+  getMissingBedrockFieldNames,
+  getMissingGeminiFieldNames,
+  isAnyAiProviderConfigured,
+} from '../../lib/aiConfigFields';
 
 type OnboardingStep = 'profile' | 'ai' | 'finalizing';
 
@@ -20,6 +25,8 @@ const blankAiSettings: AiConfigSettings = {
   awsSessionToken: '',
   bedrockInferenceProfileId: '',
   bedrockModelId: 'amazon.nova-lite-v1:0',
+  geminiApiKey: '',
+  geminiModelId: 'gemini-2.0-flash',
   youtubeOAuthClientId: '',
   youtubeOAuthClientSecret: '',
   youtubeOAuthRedirectUri: '',
@@ -71,11 +78,24 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
     setDraftAiSettings(aiSettings);
   }, [aiSettings, hasEditedAiSettings, isAiConfigLoading]);
 
-  const missingDraftFields = useMemo(
+  const missingBedrockFields = useMemo(
     () => getMissingBedrockFieldNames(draftAiSettings),
     [draftAiSettings],
   );
-  const isDraftBedrockReady = missingDraftFields.length === 0;
+  const missingGeminiFields = useMemo(
+    () => getMissingGeminiFieldNames(draftAiSettings),
+    [draftAiSettings],
+  );
+  const isDraftAiReady = useMemo(
+    () => isAnyAiProviderConfigured(draftAiSettings),
+    [draftAiSettings],
+  );
+  const missingProviderSummary = [
+    missingBedrockFields.length > 0 ? `Bedrock: ${missingBedrockFields.join(', ')}` : '',
+    missingGeminiFields.length > 0 ? `Gemini: ${missingGeminiFields.join(', ')}` : '',
+  ]
+    .filter(Boolean)
+    .join(' | ');
 
   const handleAiFieldChange = (field: keyof AiConfigSettings, value: string) => {
     setHasEditedAiSettings(true);
@@ -138,9 +158,9 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
       return;
     }
 
-    if (!isDraftBedrockReady) {
+    if (!isDraftAiReady) {
       setStepError(
-        `Fill these required fields before continuing: ${missingDraftFields.join(', ')}`,
+        `Configure either Bedrock or Gemini before continuing. Missing: ${missingProviderSummary}`,
       );
       return;
     }
@@ -167,7 +187,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
     }
   };
 
-  const renderField = (field: (typeof AI_CONFIG_FIELDS)[number]) => (
+  const renderField = (field: (typeof AI_PROVIDER_FIELD_GROUPS)[number]['fields'][number]) => (
     <div
       key={field.key}
       className={field.key === 'youtubeApiKey' || field.key === 'awsRegion' ? 'sm:col-span-2' : ''}
@@ -222,7 +242,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                   Save your profile basics.
                 </div>
                 <div className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3">
-                  Save `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and related AI settings.
+                  Save Bedrock credentials and optionally a Gemini fallback key.
                 </div>
                 <div className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3">
                   If you add a YouTube URL now, QuickCut analyzes it after AI setup finishes.
@@ -313,8 +333,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
               Save the AI credentials your workflow uses
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-              These are the same values your project supports in `.env`, but onboarding saves them
-              directly into QuickCut so the AI editor and agent loop are ready from the first run.
+              These are the same values your project supports in `.env`. QuickCut keeps Bedrock as
+              the primary provider and can use Gemini as fallback when configured.
             </p>
           </div>
         </div>
@@ -322,7 +342,15 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
 
       <div className="grid flex-1 gap-8 overflow-y-auto px-8 py-8 lg:grid-cols-[1.1fr_0.9fr] lg:px-10">
         <div className="space-y-4">
-          <div className="grid gap-5 sm:grid-cols-2">{AI_CONFIG_FIELDS.map(renderField)}</div>
+          {AI_PROVIDER_FIELD_GROUPS.map((group) => (
+            <div key={group.id} className="rounded-[24px] border border-white/8 bg-black/25 p-5">
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold text-white">{group.title}</h2>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{group.description}</p>
+              </div>
+              <div className="grid gap-5 sm:grid-cols-2">{group.fields.map(renderField)}</div>
+            </div>
+          ))}
         </div>
 
         <div className="space-y-4">
@@ -330,28 +358,27 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-white">
-                  {isDraftBedrockReady
+                  {isDraftAiReady
                     ? 'Saved setup is ready to launch AI'
-                    : 'Saved Bedrock fields still missing'}
+                    : 'AI provider setup is still missing'}
                 </p>
                 <p className="mt-1 text-xs leading-5 text-slate-400">
-                  Onboarding completes only after the required Bedrock keys are saved inside
-                  QuickCut.
+                  Onboarding completes once either Bedrock or Gemini is configured inside QuickCut.
                 </p>
               </div>
               <span
                 className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  isDraftBedrockReady
+                  isDraftAiReady
                     ? 'bg-emerald-400/12 text-emerald-300'
                     : 'bg-amber-400/12 text-amber-200'
                 }`}
               >
-                {isDraftBedrockReady ? 'Ready' : 'Setup needed'}
+                {isDraftAiReady ? 'Ready' : 'Setup needed'}
               </span>
             </div>
-            {!isDraftBedrockReady ? (
+            {!isDraftAiReady ? (
               <p className="mt-4 text-xs leading-5 text-amber-200">
-                Fill: {missingDraftFields.join(', ')}
+                Fill either provider: {missingProviderSummary}
               </p>
             ) : null}
           </div>
@@ -367,8 +394,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     : 'No existing AI credentials were detected yet.'}
               </p>
               <p className="text-xs leading-5 text-slate-500">
-                `.env` values take priority when present. Saved settings are kept as fallback for
-                this desktop app.
+                `.env` values take priority when present. Saved settings remain fallback for this
+                desktop app.
               </p>
             </div>
           </div>

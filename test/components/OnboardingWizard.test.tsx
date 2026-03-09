@@ -13,17 +13,23 @@ const loadedAiSettings: AiConfigSettings = {
   awsSessionToken: 'loaded-session-token',
   bedrockInferenceProfileId: 'us.amazon.nova-lite-v1:0',
   bedrockModelId: 'amazon.nova-lite-v1:0',
+  geminiApiKey: '',
+  geminiModelId: 'gemini-2.0-flash',
   youtubeOAuthClientId: '',
   youtubeOAuthClientSecret: '',
   youtubeOAuthRedirectUri: '',
 };
 
 const loadedAiStatus: AiConfigStatus = {
+  aiReady: true,
   bedrockReady: true,
+  geminiReady: false,
+  preferredProvider: 'bedrock',
   youtubeReady: true,
   usingSavedSettings: true,
   usingEnvFallback: false,
   missingBedrockFields: [],
+  missingGeminiFields: ['Gemini API Key'],
   missingYouTubeFields: [],
 };
 
@@ -55,6 +61,8 @@ describe('OnboardingWizard', () => {
         awsSessionToken: '',
         bedrockInferenceProfileId: '',
         bedrockModelId: 'amazon.nova-lite-v1:0',
+        geminiApiKey: '',
+        geminiModelId: 'gemini-2.0-flash',
         youtubeOAuthClientId: '',
         youtubeOAuthClientSecret: '',
         youtubeOAuthRedirectUri: '',

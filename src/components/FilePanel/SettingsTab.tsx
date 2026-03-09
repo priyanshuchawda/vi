@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
 import { useAiConfigStore } from '../../stores/useAiConfigStore';
 import type { AiConfigSettings } from '../../types/electron';
-import { AI_CONFIG_FIELDS } from '../../lib/aiConfigFields';
+import { AI_PROVIDER_FIELD_GROUPS } from '../../lib/aiConfigFields';
 
 const SettingsTab = () => {
   const {
@@ -73,6 +73,23 @@ const SettingsTab = () => {
   };
 
   const displayedAiSettings = hasAiDraftChanges ? draftAiSettings : aiSettings;
+  const providerStatusText = aiStatus?.bedrockReady
+    ? aiStatus.geminiReady
+      ? 'Bedrock is ready as the primary provider and Gemini fallback is also configured.'
+      : 'Bedrock is ready as the primary provider. Gemini fallback is optional.'
+    : aiStatus?.geminiReady
+      ? 'Gemini fallback is ready. Bedrock is still recommended as the primary provider.'
+      : 'No AI provider credentials detected yet.';
+  const missingProviderText = [
+    aiStatus?.missingBedrockFields?.length
+      ? `Bedrock: ${aiStatus.missingBedrockFields.join(', ')}`
+      : '',
+    aiStatus?.missingGeminiFields?.length
+      ? `Gemini: ${aiStatus.missingGeminiFields.join(', ')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' | ');
 
   const autoSaveIntervalOptions = [
     { value: 30, label: '30 seconds' },
@@ -113,51 +130,68 @@ const SettingsTab = () => {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-medium text-text-primary">
-                    {aiStatus?.bedrockReady ? 'AI editor is ready' : 'AI editor setup required'}
+                    {aiStatus?.aiReady ? 'AI editor is ready' : 'AI editor setup required'}
                   </p>
                   <p className="mt-1 text-[10px] text-text-muted">
                     {aiStatus?.usingEnvFallback
                       ? 'Using credentials from your .env file.'
                       : aiStatus?.usingSavedSettings
                         ? 'Using credentials saved in QuickCut settings.'
-                        : 'No Bedrock credentials detected yet.'}
+                        : providerStatusText}
                   </p>
                 </div>
                 <span
                   className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
-                    aiStatus?.bedrockReady
+                    aiStatus?.aiReady
                       ? 'bg-green-500/10 text-green-400'
                       : 'bg-amber-500/10 text-amber-300'
                   }`}
                 >
-                  {aiStatus?.bedrockReady ? 'Ready' : 'Missing'}
+                  {aiStatus?.aiReady ? 'Ready' : 'Missing'}
                 </span>
               </div>
-              {aiStatus && !aiStatus.bedrockReady && (
+              {aiStatus && !aiStatus.aiReady && (
                 <p className="mt-3 text-[10px] text-amber-200">
-                  Fill: {aiStatus.missingBedrockFields.join(', ')}
+                  Fill either provider: {missingProviderText}
                 </p>
               )}
             </div>
 
-            {AI_CONFIG_FIELDS.map((field) => (
-              <div key={field.key}>
-                <label
-                  htmlFor={`settings-${field.key}`}
-                  className="mb-1 block text-xs text-text-primary"
-                >
-                  {field.envName}{' '}
-                  {field.optional ? <span className="text-text-muted">(optional)</span> : null}
-                </label>
-                <input
-                  id={`settings-${field.key}`}
-                  type={field.secret ? 'password' : 'text'}
-                  value={displayedAiSettings[field.key]}
-                  onChange={(e) => handleAiFieldChange(field.key, e.target.value)}
-                  placeholder={field.placeholder}
-                  className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
-                />
-                <p className="mt-1 text-[10px] leading-4 text-text-muted">{field.helperText}</p>
+            {AI_PROVIDER_FIELD_GROUPS.map((group) => (
+              <div
+                key={group.id}
+                className="rounded border border-border-primary bg-bg-elevated/40 p-3"
+              >
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-text-primary">{group.title}</p>
+                  <p className="mt-1 text-[10px] leading-4 text-text-muted">{group.description}</p>
+                </div>
+                <div className="space-y-3">
+                  {group.fields.map((field) => (
+                    <div key={field.key}>
+                      <label
+                        htmlFor={`settings-${field.key}`}
+                        className="mb-1 block text-xs text-text-primary"
+                      >
+                        {field.envName}{' '}
+                        {field.optional ? (
+                          <span className="text-text-muted">(optional)</span>
+                        ) : null}
+                      </label>
+                      <input
+                        id={`settings-${field.key}`}
+                        type={field.secret ? 'password' : 'text'}
+                        value={displayedAiSettings[field.key]}
+                        onChange={(e) => handleAiFieldChange(field.key, e.target.value)}
+                        placeholder={field.placeholder}
+                        className="w-full rounded border border-border-primary bg-bg-elevated px-3 py-2 text-xs text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+                      />
+                      <p className="mt-1 text-[10px] leading-4 text-text-muted">
+                        {field.helperText}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
 

@@ -9,6 +9,8 @@ const DEFAULT_SETTINGS: AiConfigSettings = {
   awsSessionToken: '',
   bedrockInferenceProfileId: '',
   bedrockModelId: 'amazon.nova-lite-v1:0',
+  geminiApiKey: '',
+  geminiModelId: 'gemini-2.0-flash',
   youtubeOAuthClientId: '',
   youtubeOAuthClientSecret: '',
   youtubeOAuthRedirectUri: '',

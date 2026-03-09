@@ -56,4 +56,19 @@ describe('useChatStore turn lifecycle', () => {
     expect(turn?.status).toBe('completed');
     expect(turn?.parts.some((part) => part.type === 'text')).toBe(false);
   });
+
+  it('allows agentic turns to pause for clarification and resume', () => {
+    const turnId = useChatStore.getState().startTurn('user-msg-1', 'ask');
+
+    useChatStore.getState().setTurnStatus(turnId, 'agentic_running');
+    useChatStore.getState().setTurnStatus(turnId, 'agentic_step');
+    useChatStore.getState().setTurnStatus(turnId, 'awaiting_approval');
+    useChatStore.getState().setTurnStatus(turnId, 'agentic_running');
+
+    const turn = useChatStore.getState().turns.find((entry) => entry.id === turnId);
+    expect(turn?.status).toBe('agentic_running');
+
+    const statusParts = turn?.parts.filter((part) => part.type === 'status') ?? [];
+    expect(statusParts).toHaveLength(4);
+  });
 });

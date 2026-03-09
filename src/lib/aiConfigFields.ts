@@ -18,6 +18,8 @@ export interface AiConfigFieldGroup {
   fields: AiConfigFieldDefinition[];
 }
 
+export const DEFAULT_YOUTUBE_OAUTH_REDIRECT_URI = 'http://localhost';
+
 export const BEDROCK_AI_CONFIG_FIELDS: AiConfigFieldDefinition[] = [
   {
     key: 'awsRegion',
@@ -106,9 +108,10 @@ export const YOUTUBE_AI_CONFIG_FIELDS: AiConfigFieldDefinition[] = [
   {
     key: 'youtubeOAuthRedirectUri',
     envName: 'YOUTUBE_OAUTH_REDIRECT_URI',
-    placeholder: 'http://localhost',
+    placeholder: DEFAULT_YOUTUBE_OAUTH_REDIRECT_URI,
     optional: true,
-    helperText: 'Redirect URI configured in Google Cloud Console.',
+    helperText:
+      'Redirect URI configured in Google Cloud Console. Leave blank to use http://localhost.',
   },
 ];
 
@@ -122,7 +125,8 @@ export const AI_PROVIDER_FIELD_GROUPS: AiConfigFieldGroup[] = [
   {
     id: 'gemini',
     title: 'Gemini (Fallback)',
-    description: 'Optional backup path used when Bedrock credentials or requests fail.',
+    description:
+      'Optional but recommended backup path used when Bedrock credentials or requests fail.',
     fields: GEMINI_AI_CONFIG_FIELDS,
   },
   {
@@ -143,6 +147,10 @@ const REQUIRED_BEDROCK_FIELDS: AiConfigFieldKey[] = [
   'awsSecretAccessKey',
 ];
 const REQUIRED_GEMINI_FIELDS: AiConfigFieldKey[] = ['geminiApiKey'];
+const REQUIRED_YOUTUBE_UPLOAD_FIELDS: AiConfigFieldKey[] = [
+  'youtubeOAuthClientId',
+  'youtubeOAuthClientSecret',
+];
 
 export function getMissingBedrockFieldNames(settings: AiConfigSettings): string[] {
   return REQUIRED_BEDROCK_FIELDS.flatMap((key) => {
@@ -164,6 +172,47 @@ export function getMissingGeminiFieldNames(settings: AiConfigSettings): string[]
     }
     return [field.envName];
   });
+}
+
+export function normalizeYouTubeUploadSettings(settings: AiConfigSettings): AiConfigSettings {
+  const hasAnyOAuthValue =
+    settings.youtubeOAuthClientId.trim().length > 0 ||
+    settings.youtubeOAuthClientSecret.trim().length > 0 ||
+    settings.youtubeOAuthRedirectUri.trim().length > 0;
+
+  if (!hasAnyOAuthValue || settings.youtubeOAuthRedirectUri.trim().length > 0) {
+    return settings;
+  }
+
+  return {
+    ...settings,
+    youtubeOAuthRedirectUri: DEFAULT_YOUTUBE_OAUTH_REDIRECT_URI,
+  };
+}
+
+export function getMissingYouTubeUploadFieldNames(settings: AiConfigSettings): string[] {
+  const normalized = normalizeYouTubeUploadSettings(settings);
+  return REQUIRED_YOUTUBE_UPLOAD_FIELDS.flatMap((key) => {
+    const value = normalized[key];
+    const field = AI_CONFIG_FIELDS.find((candidate) => candidate.key === key);
+    if (!field || value.trim()) {
+      return [];
+    }
+    return [field.envName];
+  });
+}
+
+export function shouldPromptForYouTubeUploadCredentials(settings: AiConfigSettings): boolean {
+  if (getMissingYouTubeUploadFieldNames(settings).length > 0) {
+    return true;
+  }
+
+  const hasAnyOAuthValue =
+    settings.youtubeOAuthClientId.trim().length > 0 ||
+    settings.youtubeOAuthClientSecret.trim().length > 0 ||
+    settings.youtubeOAuthRedirectUri.trim().length > 0;
+
+  return hasAnyOAuthValue && settings.youtubeOAuthRedirectUri.trim().length === 0;
 }
 
 export function isAnyAiProviderConfigured(settings: AiConfigSettings): boolean {

@@ -123,4 +123,17 @@ describe('OnboardingWizard', () => {
       expect(screen.getByDisplayValue('loaded-session-token')).toBeInTheDocument();
     });
   });
+
+  it('shows the Gemini fallback field on the AI setup step', async () => {
+    await renderWizard();
+
+    fireEvent.change(screen.getByPlaceholderText('Enter your name'), {
+      target: { value: 'Priyanshu' },
+    });
+    fireEvent.click(screen.getByText('Save Profile'));
+
+    expect(await screen.findByText('Gemini (Fallback)')).toBeInTheDocument();
+    expect(screen.getByLabelText(/GEMINI_API_KEY/i)).toBeInTheDocument();
+    expect(screen.getByText(/Optional fallback/i)).toBeInTheDocument();
+  });
 });

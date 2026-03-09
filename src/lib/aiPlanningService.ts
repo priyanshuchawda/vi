@@ -60,11 +60,6 @@ import {
   type CompilationError,
 } from './planCompiler';
 import { buildFallbackExecutionPlan, shouldUseFallback } from './fallbackPlanGenerator';
-import {
-  recordPlanningAttempt,
-  recordExecutionAttempt,
-  recordContextLimitApplied,
-} from './aiTelemetry';
 import { formatRetrievedMemoryContext, retrieveRelevantMemory } from './memoryRetrieval';
 import { getContextBudgetProfile } from './contextBudgetPolicy';
 import { truncateToolResultForModel } from './outputTruncation';
@@ -882,11 +877,6 @@ export async function generateCompletePlan(
       intent: 'plan',
       maxEntries: planContextBudget.maxRetrievedEntries,
       maxScenesPerEntry: planContextBudget.maxScenesPerEntry,
-      onLimitsApplied: (metrics) => {
-        recordContextLimitApplied({
-          droppedItems: metrics.droppedEntries + metrics.droppedScenes,
-        });
-      },
     }),
     message,
     1500,
@@ -1138,7 +1128,6 @@ If the goal is complete, return no new tool calls.`;
     normalizedIntent: options?.normalizedIntent,
     userMessage: message,
   });
-  const compileFailed = compilationResult.errors.length > 0;
 
   // If compilation found critical errors, try one retry with correction prompt
   if (shouldRetryCompilation(compilationResult.errors) && currentRound < allowedRounds) {
@@ -1228,10 +1217,6 @@ If the goal is complete, return no new tool calls.`;
   }
 
   if (shouldUseFallback(compilationResult.operations)) {
-    recordPlanningAttempt({
-      compileFailed,
-      fallbackUsed: true,
-    });
     return buildFallbackExecutionPlan(realSnapshot, aliasMap, message);
   }
 
@@ -1295,10 +1280,6 @@ If the goal is complete, return no new tool calls.`;
   };
   const planQuality = assessPlanQuality(normalizedOperations, validation);
   if (planQuality.score < MIN_PLAN_QUALITY_SCORE) {
-    recordPlanningAttempt({
-      compileFailed: true,
-      fallbackUsed: true,
-    });
     const fallback = buildFallbackExecutionPlan(realSnapshot, aliasMap, message);
     fallback.validation.corrections = [
       ...fallback.validation.corrections,
@@ -1347,10 +1328,6 @@ If the goal is complete, return no new tool calls.`;
           planReadyReason: confidenceDecision.reason,
         }
       : readiness;
-  recordPlanningAttempt({
-    compileFailed,
-    fallbackUsed: false,
-  });
   const riskNotes =
     planQuality.notes.length > 0 ? planQuality.notes : ['No major planning risks detected'];
   const contractValidation = validatePlannerOutputContract({
@@ -1416,7 +1393,6 @@ export async function executePlan(
     plan.operations.map((operation) => operation.functionCall as FunctionCall),
   );
   if (!runtimePreflight.valid) {
-    recordExecutionAttempt({ validationFailed: true });
     const details = runtimePreflight.issues
       .map(
         (issue) =>
@@ -1427,7 +1403,6 @@ export async function executePlan(
       .join('\n');
     throw new Error(`Plan validation failed before execution:\n${details}`);
   }
-  recordExecutionAttempt({ validationFailed: false });
   const executableOperations = plan.operations.map((operation, index) => ({
     ...operation,
     functionCall: runtimePreflight.normalizedCalls[index] || operation.functionCall,
@@ -1541,7 +1516,6 @@ export async function executePlan(
       });
       if (shaped.truncated) {
         budgetExhaustionCount += 1;
-        recordContextLimitApplied({ droppedItems: 1 });
       }
       return {
         toolResult: {

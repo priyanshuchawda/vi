@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore';
 import { usePublishStore } from '../../stores/usePublishStore';
+import { useAiConfigStore } from '../../stores/useAiConfigStore';
 import {
   isYouTubeAvailable,
   useYouTubeAuthStatus,
@@ -8,6 +9,8 @@ import {
   useYouTubeLogout,
   useYouTubeUpload,
 } from '../../lib/youtubeQueries';
+import { shouldPromptForYouTubeUploadCredentials } from '../../lib/aiConfigFields';
+import { YouTubeCredentialModal } from './YouTubeCredentialModal';
 
 interface UploadProgress {
   bytesUploaded: number;
@@ -23,6 +26,7 @@ const PublishPanel = () => {
   const setNotification = useProjectStore((state) => state.setNotification);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
+  const [showCredentialModal, setShowCredentialModal] = useState(false);
   const isElectronAvailable = isYouTubeAvailable();
   const authStatusQuery = useYouTubeAuthStatus();
   const authenticateMutation = useYouTubeAuthenticate();
@@ -33,6 +37,7 @@ const PublishPanel = () => {
   const isUploading = uploadMutation.isPending;
 
   const { pendingMeta, isGeneratingMeta, clearPendingMeta } = usePublishStore();
+  const loadAiConfig = useAiConfigStore((state) => state.load);
   const [aiFilled, setAiFilled] = useState(false);
 
   // Form state
@@ -59,7 +64,7 @@ const PublishPanel = () => {
     return 'Unknown error';
   };
 
-  const handleAuthenticate = async () => {
+  const runAuthenticate = async () => {
     if (!isElectronAvailable) {
       setNotification({ type: 'error', message: 'YouTube upload is not available' });
       return;
@@ -71,6 +76,11 @@ const PublishPanel = () => {
       if (success) {
         setNotification({ type: 'success', message: 'Successfully authenticated with YouTube!' });
       } else {
+        await loadAiConfig();
+        if (shouldPromptForYouTubeUploadCredentials(useAiConfigStore.getState().settings)) {
+          setShowCredentialModal(true);
+          return;
+        }
         setNotification({ type: 'warning', message: 'Authentication was cancelled' });
       }
     } catch (error: unknown) {
@@ -79,6 +89,21 @@ const PublishPanel = () => {
         message: `Authentication failed: ${getErrorMessage(error)}`,
       });
     }
+  };
+
+  const handleAuthenticate = async () => {
+    if (!isElectronAvailable) {
+      setNotification({ type: 'error', message: 'YouTube upload is not available' });
+      return;
+    }
+
+    await loadAiConfig();
+    if (shouldPromptForYouTubeUploadCredentials(useAiConfigStore.getState().settings)) {
+      setShowCredentialModal(true);
+      return;
+    }
+
+    await runAuthenticate();
   };
 
   const handleLogout = async () => {
@@ -205,106 +230,432 @@ const PublishPanel = () => {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4">
-        <div className="space-y-4 pb-4">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-1 bg-gradient-to-b from-accent to-accent/50 rounded-full"></div>
-            <h3 className="text-sm font-semibold text-text-primary">YouTube Upload</h3>
-          </div>
-
-          {/* AI generating indicator — shown at top level so it's visible while connecting */}
-          {isGeneratingMeta && (
-            <div className="flex items-center gap-3 p-3 bg-accent/10 rounded-xl border border-accent/20 animate-pulse">
-              <svg
-                className="animate-spin h-4 w-4 text-accent flex-shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-              <span className="text-xs text-accent font-medium">
-                AI is preparing your metadata…
-              </span>
+    <>
+      <div className="h-full flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4">
+          <div className="space-y-4 pb-4">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-1 bg-gradient-to-b from-accent to-accent/50 rounded-full"></div>
+              <h3 className="text-sm font-semibold text-text-primary">YouTube Upload</h3>
             </div>
-          )}
 
-          {/* AI auto-fill badge — shown once metadata has been applied */}
-          {aiFilled && !isGeneratingMeta && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-accent/8 rounded-xl border border-accent/15">
-              <svg
-                className="w-3.5 h-3.5 text-accent flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                />
-              </svg>
-              <span className="text-xs text-accent">
-                AI pre-filled fields from your project &amp; channel style — review &amp; edit
-                before uploading.
-              </span>
-              <button
-                onClick={() => setAiFilled(false)}
-                className="ml-auto text-accent/60 hover:text-accent transition-colors"
-                aria-label="Dismiss AI banner"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {/* AI generating indicator — shown at top level so it's visible while connecting */}
+            {isGeneratingMeta && (
+              <div className="flex items-center gap-3 p-3 bg-accent/10 rounded-xl border border-accent/20 animate-pulse">
+                <svg
+                  className="animate-spin h-4 w-4 text-accent flex-shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                <span className="text-xs text-accent font-medium">
+                  AI is preparing your metadata…
+                </span>
+              </div>
+            )}
+
+            {/* AI auto-fill badge — shown once metadata has been applied */}
+            {aiFilled && !isGeneratingMeta && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-accent/8 rounded-xl border border-accent/15">
+                <svg
+                  className="w-3.5 h-3.5 text-accent flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
+                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
                   />
                 </svg>
-              </button>
-            </div>
-          )}
-
-          {/* Authentication Section */}
-          <div className="bg-gradient-to-br from-bg-secondary to-bg-elevated rounded-xl p-4 space-y-3 border border-white/5 shadow-lg transition-all duration-300 hover:border-white/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                </svg>
-                <span className="text-sm text-text-primary font-medium">
-                  {isAuthenticated ? 'Connected' : 'Not Connected'}
+                <span className="text-xs text-accent">
+                  AI pre-filled fields from your project &amp; channel style — review &amp; edit
+                  before uploading.
                 </span>
-              </div>
-              {isAuthenticated ? (
                 <button
-                  onClick={handleLogout}
-                  className="px-4 py-1.5 text-xs bg-bg-primary text-text-primary rounded-lg hover:bg-bg-elevated transition-all duration-200 hover:scale-105 active:scale-95 border border-white/5"
+                  onClick={() => setAiFilled(false)}
+                  className="ml-auto text-accent/60 hover:text-accent transition-colors"
+                  aria-label="Dismiss AI banner"
                 >
-                  Logout
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
                 </button>
-              ) : (
+              </div>
+            )}
+
+            {/* Authentication Section */}
+            <div className="bg-gradient-to-br from-bg-secondary to-bg-elevated rounded-xl p-4 space-y-3 border border-white/5 shadow-lg transition-all duration-300 hover:border-white/10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                  </svg>
+                  <span className="text-sm text-text-primary font-medium">
+                    {isAuthenticated ? 'Connected' : 'Not Connected'}
+                  </span>
+                </div>
+                {isAuthenticated ? (
+                  <button
+                    onClick={handleLogout}
+                    className="px-4 py-1.5 text-xs bg-bg-primary text-text-primary rounded-lg hover:bg-bg-elevated transition-all duration-200 hover:scale-105 active:scale-95 border border-white/5"
+                  >
+                    Logout
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleAuthenticate}
+                    disabled={isAuthenticating}
+                    className="px-4 py-1.5 text-xs bg-gradient-to-r from-accent to-accent-hover text-white rounded-lg hover:shadow-lg hover:shadow-accent/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 font-medium"
+                  >
+                    {isAuthenticating ? (
+                      <span className="flex items-center gap-2">
+                        <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Authenticating...
+                      </span>
+                    ) : (
+                      'Connect YouTube'
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {!isAuthenticated && (
+                <p className="text-xs text-text-muted leading-relaxed">
+                  Connect your YouTube account to upload videos directly from QuickCut
+                </p>
+              )}
+            </div>
+
+            {/* Upload Form */}
+            {isAuthenticated && (
+              <>
+                {/* Video Path */}
+                <div className="bg-gradient-to-br from-bg-secondary to-bg-elevated rounded-xl p-4 space-y-2 border border-white/5 shadow-lg">
+                  <p className="text-xs font-semibold text-text-primary">Video File</p>
+                  <div className="text-xs text-text-secondary break-all font-mono bg-bg-primary/50 p-2 rounded-lg">
+                    {exportedVideoPath || 'No video exported yet'}
+                  </div>
+                  {!exportedVideoPath && (
+                    <div className="flex items-center gap-2 p-2 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                      <svg
+                        className="w-4 h-4 text-yellow-500 flex-shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                      </svg>
+                      <p className="text-xs text-yellow-500">
+                        Export your video first from the Export tab
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Title */}
+                <div className="space-y-2">
+                  <label
+                    htmlFor="publish-panel-title"
+                    className="text-xs font-semibold text-text-primary flex items-center gap-1"
+                  >
+                    Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="publish-panel-title"
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Enter video title"
+                    maxLength={100}
+                    className="w-full px-4 py-2.5 bg-bg-secondary text-text-primary text-sm rounded-xl border border-white/5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all duration-200 placeholder:text-text-muted/50"
+                  />
+                  <p className="text-xs text-text-muted flex justify-between items-center">
+                    <span className="opacity-0">.</span>
+                    <span className={title.length >= 90 ? 'text-yellow-500' : ''}>
+                      {title.length}/100
+                    </span>
+                  </p>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <label
+                    htmlFor="publish-panel-description"
+                    className="text-xs font-semibold text-text-primary"
+                  >
+                    Description
+                  </label>
+                  <textarea
+                    id="publish-panel-description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Enter video description"
+                    rows={4}
+                    maxLength={5000}
+                    className="w-full px-4 py-2.5 bg-bg-secondary text-text-primary text-sm rounded-xl border border-white/5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all duration-200 resize-none custom-scrollbar placeholder:text-text-muted/50"
+                  />
+                  <p className="text-xs text-text-muted flex justify-between items-center">
+                    <span className="opacity-0">.</span>
+                    <span>{description.length}/5000</span>
+                  </p>
+                </div>
+
+                {/* Tags */}
+                <div className="space-y-2">
+                  <label
+                    htmlFor="publish-panel-tags"
+                    className="text-xs font-semibold text-text-primary"
+                  >
+                    Tags
+                  </label>
+                  <input
+                    id="publish-panel-tags"
+                    type="text"
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    placeholder="tag1, tag2, tag3"
+                    className="w-full px-4 py-2.5 bg-bg-secondary text-text-primary text-sm rounded-xl border border-white/5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all duration-200 placeholder:text-text-muted/50"
+                  />
+                  <p className="text-xs text-text-muted">Separate tags with commas</p>
+                </div>
+
+                {/* Privacy Status */}
+                <div className="space-y-2">
+                  <label
+                    htmlFor="publish-panel-privacy"
+                    className="text-xs font-semibold text-text-primary"
+                  >
+                    Privacy
+                  </label>
+                  <select
+                    id="publish-panel-privacy"
+                    value={privacyStatus}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === 'public' || value === 'private' || value === 'unlisted') {
+                        setPrivacyStatus(value);
+                      }
+                    }}
+                    className="w-full px-4 py-2.5 bg-bg-secondary text-text-primary text-sm rounded-xl border border-white/5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all duration-200 cursor-pointer"
+                  >
+                    <option value="private"> Private</option>
+                    <option value="unlisted"> Unlisted</option>
+                    <option value="public"> Public</option>
+                  </select>
+                </div>
+
+                {/* Category */}
+                <div className="space-y-2">
+                  <label
+                    htmlFor="publish-panel-category"
+                    className="text-xs font-semibold text-text-primary"
+                  >
+                    Category
+                  </label>
+                  <select
+                    id="publish-panel-category"
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-bg-secondary text-text-primary text-sm rounded-xl border border-white/5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all duration-200 cursor-pointer"
+                  >
+                    <option value="1">Film & Animation</option>
+                    <option value="2">Autos & Vehicles</option>
+                    <option value="10">Music</option>
+                    <option value="15">Pets & Animals</option>
+                    <option value="17">Sports</option>
+                    <option value="19">Travel & Events</option>
+                    <option value="20">Gaming</option>
+                    <option value="22">People & Blogs</option>
+                    <option value="23">Comedy</option>
+                    <option value="24">Entertainment</option>
+                    <option value="25">News & Politics</option>
+                    <option value="26">Howto & Style</option>
+                    <option value="27">Education</option>
+                    <option value="28">Science & Technology</option>
+                  </select>
+                </div>
+
+                {/* Made for Kids */}
+                <div className="flex items-center gap-3 p-3 bg-bg-secondary/50 rounded-xl border border-white/5">
+                  <input
+                    type="checkbox"
+                    id="publish-panel-made-for-kids"
+                    checked={madeForKids}
+                    onChange={(e) => setMadeForKids(e.target.checked)}
+                    className="w-4 h-4 bg-bg-primary border border-white/10 rounded cursor-pointer accent-accent"
+                  />
+                  <label
+                    htmlFor="publish-panel-made-for-kids"
+                    className="text-xs text-text-primary cursor-pointer flex-1"
+                  >
+                    Made for kids
+                  </label>
+                </div>
+
+                {/* Upload Progress */}
+                {uploadProgress && (
+                  <div className="bg-gradient-to-br from-bg-secondary to-bg-elevated rounded-xl p-4 space-y-3 border border-white/5 shadow-lg">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-text-primary font-semibold flex items-center gap-2">
+                        {uploadProgress.status === 'uploading' && (
+                          <>
+                            <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                            Uploading...
+                          </>
+                        )}
+                        {uploadProgress.status === 'processing' && 'Processing...'}
+                        {uploadProgress.status === 'completed' && '✓ Completed!'}
+                        {uploadProgress.status === 'failed' && '✗ Failed'}
+                      </span>
+                      <span className="text-text-primary font-mono font-semibold">
+                        {uploadProgress.percentage}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-bg-primary rounded-full h-2.5 overflow-hidden shadow-inner">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          uploadProgress.status === 'failed'
+                            ? 'bg-gradient-to-r from-red-500 to-red-600'
+                            : uploadProgress.status === 'completed'
+                              ? 'bg-gradient-to-r from-green-500 to-green-600'
+                              : 'bg-gradient-to-r from-accent to-accent-hover'
+                        }`}
+                        style={{ width: `${uploadProgress.percentage}%` }}
+                      />
+                    </div>
+                    {uploadProgress.totalBytes > 0 && (
+                      <p className="text-xs text-text-muted">
+                        {formatBytes(uploadProgress.bytesUploaded)} /{' '}
+                        {formatBytes(uploadProgress.totalBytes)}
+                      </p>
+                    )}
+                    {uploadProgress.error && (
+                      <div className="flex items-start gap-2 p-2 bg-red-500/10 rounded-lg border border-red-500/20">
+                        <svg
+                          className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <p className="text-xs text-red-400">{uploadProgress.error}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Video URL */}
+                {videoUrl && (
+                  <div className="bg-gradient-to-br from-green-500/10 to-green-500/5 rounded-xl p-4 space-y-2 border border-green-500/20 shadow-lg">
+                    <p className="text-xs font-semibold text-green-500 flex items-center gap-2">
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      Video Published!
+                    </p>
+                    <a
+                      href={videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-accent hover:text-accent-hover transition-colors break-all flex items-center gap-1 group"
+                    >
+                      <span>{videoUrl}</span>
+                      <svg
+                        className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                      </svg>
+                    </a>
+                  </div>
+                )}
+
+                {/* Upload Button */}
                 <button
-                  onClick={handleAuthenticate}
-                  disabled={isAuthenticating}
-                  className="px-4 py-1.5 text-xs bg-gradient-to-r from-accent to-accent-hover text-white rounded-lg hover:shadow-lg hover:shadow-accent/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 font-medium"
+                  onClick={handleUpload}
+                  disabled={!exportedVideoPath || !title.trim() || isUploading}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-accent to-accent-hover text-white rounded-xl hover:shadow-lg hover:shadow-accent/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-semibold hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
                 >
-                  {isAuthenticating ? (
-                    <span className="flex items-center gap-2">
-                      <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                  {isUploading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                         <circle
                           className="opacity-25"
                           cx="12"
@@ -319,220 +670,12 @@ const PublishPanel = () => {
                           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                         ></path>
                       </svg>
-                      Authenticating...
-                    </span>
+                      Uploading...
+                    </>
                   ) : (
-                    'Connect YouTube'
-                  )}
-                </button>
-              )}
-            </div>
-
-            {!isAuthenticated && (
-              <p className="text-xs text-text-muted leading-relaxed">
-                Connect your YouTube account to upload videos directly from QuickCut
-              </p>
-            )}
-          </div>
-
-          {/* Upload Form */}
-          {isAuthenticated && (
-            <>
-              {/* Video Path */}
-              <div className="bg-gradient-to-br from-bg-secondary to-bg-elevated rounded-xl p-4 space-y-2 border border-white/5 shadow-lg">
-                <label className="text-xs font-semibold text-text-primary">Video File</label>
-                <div className="text-xs text-text-secondary break-all font-mono bg-bg-primary/50 p-2 rounded-lg">
-                  {exportedVideoPath || 'No video exported yet'}
-                </div>
-                {!exportedVideoPath && (
-                  <div className="flex items-center gap-2 p-2 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
-                    <svg
-                      className="w-4 h-4 text-yellow-500 flex-shrink-0"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                      />
-                    </svg>
-                    <p className="text-xs text-yellow-500">
-                      Export your video first from the Export tab
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Title */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-text-primary flex items-center gap-1">
-                  Title <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Enter video title"
-                  maxLength={100}
-                  className="w-full px-4 py-2.5 bg-bg-secondary text-text-primary text-sm rounded-xl border border-white/5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all duration-200 placeholder:text-text-muted/50"
-                />
-                <p className="text-xs text-text-muted flex justify-between items-center">
-                  <span className="opacity-0">.</span>
-                  <span className={title.length >= 90 ? 'text-yellow-500' : ''}>
-                    {title.length}/100
-                  </span>
-                </p>
-              </div>
-
-              {/* Description */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-text-primary">Description</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Enter video description"
-                  rows={4}
-                  maxLength={5000}
-                  className="w-full px-4 py-2.5 bg-bg-secondary text-text-primary text-sm rounded-xl border border-white/5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all duration-200 resize-none custom-scrollbar placeholder:text-text-muted/50"
-                />
-                <p className="text-xs text-text-muted flex justify-between items-center">
-                  <span className="opacity-0">.</span>
-                  <span>{description.length}/5000</span>
-                </p>
-              </div>
-
-              {/* Tags */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-text-primary">Tags</label>
-                <input
-                  type="text"
-                  value={tags}
-                  onChange={(e) => setTags(e.target.value)}
-                  placeholder="tag1, tag2, tag3"
-                  className="w-full px-4 py-2.5 bg-bg-secondary text-text-primary text-sm rounded-xl border border-white/5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all duration-200 placeholder:text-text-muted/50"
-                />
-                <p className="text-xs text-text-muted">Separate tags with commas</p>
-              </div>
-
-              {/* Privacy Status */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-text-primary">Privacy</label>
-                <select
-                  value={privacyStatus}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === 'public' || value === 'private' || value === 'unlisted') {
-                      setPrivacyStatus(value);
-                    }
-                  }}
-                  className="w-full px-4 py-2.5 bg-bg-secondary text-text-primary text-sm rounded-xl border border-white/5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all duration-200 cursor-pointer"
-                >
-                  <option value="private"> Private</option>
-                  <option value="unlisted"> Unlisted</option>
-                  <option value="public"> Public</option>
-                </select>
-              </div>
-
-              {/* Category */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-text-primary">Category</label>
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-bg-secondary text-text-primary text-sm rounded-xl border border-white/5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all duration-200 cursor-pointer"
-                >
-                  <option value="1">Film & Animation</option>
-                  <option value="2">Autos & Vehicles</option>
-                  <option value="10">Music</option>
-                  <option value="15">Pets & Animals</option>
-                  <option value="17">Sports</option>
-                  <option value="19">Travel & Events</option>
-                  <option value="20">Gaming</option>
-                  <option value="22">People & Blogs</option>
-                  <option value="23">Comedy</option>
-                  <option value="24">Entertainment</option>
-                  <option value="25">News & Politics</option>
-                  <option value="26">Howto & Style</option>
-                  <option value="27">Education</option>
-                  <option value="28">Science & Technology</option>
-                </select>
-              </div>
-
-              {/* Made for Kids */}
-              <div className="flex items-center gap-3 p-3 bg-bg-secondary/50 rounded-xl border border-white/5">
-                <input
-                  type="checkbox"
-                  id="madeForKids"
-                  checked={madeForKids}
-                  onChange={(e) => setMadeForKids(e.target.checked)}
-                  className="w-4 h-4 bg-bg-primary border border-white/10 rounded cursor-pointer accent-accent"
-                />
-                <label
-                  htmlFor="madeForKids"
-                  className="text-xs text-text-primary cursor-pointer flex-1"
-                >
-                  Made for kids
-                </label>
-              </div>
-
-              {/* Upload Progress */}
-              {uploadProgress && (
-                <div className="bg-gradient-to-br from-bg-secondary to-bg-elevated rounded-xl p-4 space-y-3 border border-white/5 shadow-lg">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-text-primary font-semibold flex items-center gap-2">
-                      {uploadProgress.status === 'uploading' && (
-                        <>
-                          <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            ></circle>
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            ></path>
-                          </svg>
-                          Uploading...
-                        </>
-                      )}
-                      {uploadProgress.status === 'processing' && 'Processing...'}
-                      {uploadProgress.status === 'completed' && '✓ Completed!'}
-                      {uploadProgress.status === 'failed' && '✗ Failed'}
-                    </span>
-                    <span className="text-text-primary font-mono font-semibold">
-                      {uploadProgress.percentage}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-bg-primary rounded-full h-2.5 overflow-hidden shadow-inner">
-                    <div
-                      className={`h-full transition-all duration-300 ${
-                        uploadProgress.status === 'failed'
-                          ? 'bg-gradient-to-r from-red-500 to-red-600'
-                          : uploadProgress.status === 'completed'
-                            ? 'bg-gradient-to-r from-green-500 to-green-600'
-                            : 'bg-gradient-to-r from-accent to-accent-hover'
-                      }`}
-                      style={{ width: `${uploadProgress.percentage}%` }}
-                    />
-                  </div>
-                  {uploadProgress.totalBytes > 0 && (
-                    <p className="text-xs text-text-muted">
-                      {formatBytes(uploadProgress.bytesUploaded)} /{' '}
-                      {formatBytes(uploadProgress.totalBytes)}
-                    </p>
-                  )}
-                  {uploadProgress.error && (
-                    <div className="flex items-start gap-2 p-2 bg-red-500/10 rounded-lg border border-red-500/20">
+                    <>
                       <svg
-                        className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5"
+                        className="w-4 h-4"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -541,97 +684,25 @@ const PublishPanel = () => {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth="2"
-                          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
                         />
                       </svg>
-                      <p className="text-xs text-red-400">{uploadProgress.error}</p>
-                    </div>
+                      Upload to YouTube
+                    </>
                   )}
-                </div>
-              )}
-
-              {/* Video URL */}
-              {videoUrl && (
-                <div className="bg-gradient-to-br from-green-500/10 to-green-500/5 rounded-xl p-4 space-y-2 border border-green-500/20 shadow-lg">
-                  <p className="text-xs font-semibold text-green-500 flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    Video Published!
-                  </p>
-                  <a
-                    href={videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-accent hover:text-accent-hover transition-colors break-all flex items-center gap-1 group"
-                  >
-                    <span>{videoUrl}</span>
-                    <svg
-                      className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                      />
-                    </svg>
-                  </a>
-                </div>
-              )}
-
-              {/* Upload Button */}
-              <button
-                onClick={handleUpload}
-                disabled={!exportedVideoPath || !title.trim() || isUploading}
-                className="w-full px-6 py-3 bg-gradient-to-r from-accent to-accent-hover text-white rounded-xl hover:shadow-lg hover:shadow-accent/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-semibold hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
-              >
-                {isUploading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
-                      />
-                    </svg>
-                    Upload to YouTube
-                  </>
-                )}
-              </button>
-            </>
-          )}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      <YouTubeCredentialModal
+        isOpen={showCredentialModal}
+        isConnecting={isAuthenticating}
+        onClose={() => setShowCredentialModal(false)}
+        onConnect={runAuthenticate}
+      />
+    </>
   );
 };
 

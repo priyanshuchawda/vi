@@ -44,6 +44,11 @@ import fssync from 'fs';
 import { setupAutoUpdates } from './services/updateService.js';
 import { captureMainException, initMainObservability } from './services/observabilityService.js';
 import { AiConfigService, normalizeBedrockModelIdentifier } from './services/aiConfigService.js';
+import {
+  converseWithProviderFallback,
+  type BedrockConverseInput,
+  type BedrockConverseResponse,
+} from './services/geminiFallbackService.js';
 import { log } from './utils/logger.js';
 import {
   getCloudBackendService,
@@ -230,6 +235,29 @@ function isExpiredAwsTokenError(error: unknown): boolean {
     message.includes('security token included in the request is expired') ||
     message.includes('token has expired')
   );
+}
+
+function normalizeBedrockGatewayError(
+  error: unknown,
+  aiSettings: ReturnType<typeof aiConfigService.getSettings>,
+): Error {
+  if (isExpiredAwsTokenError(error)) {
+    return new Error(
+      'AWS credentials expired for Bedrock access. Refresh them in Settings or .env and retry.',
+    );
+  }
+  if (isRetryableBedrockTransportError(error)) {
+    const endpoint = `bedrock-runtime.${aiSettings.awsRegion}.amazonaws.com`;
+    return new Error(
+      `Bedrock endpoint unreachable (${endpoint}). Check internet/firewall/VPN/proxy settings, then retry. Root cause: ${getErrorMessage(
+        error,
+        'Unknown transport error',
+      )}`,
+    );
+  }
+  return error instanceof Error
+    ? error
+    : new Error(getErrorMessage(error, 'Bedrock request failed'));
 }
 
 async function sendBedrockConverseWithRetry(
@@ -798,28 +826,28 @@ handleTrustedIpc(IPC_CHANNELS.bedrock.converse, async (_, rawInput: unknown) => 
       aiSettings.bedrockInferenceProfileId,
     );
   }
-  try {
-    const response = await sendBedrockConverseWithRetry(
-      commandInput as ConstructorParameters<typeof ConverseCommand>[0],
-    );
-    return response;
-  } catch (error) {
-    if (isExpiredAwsTokenError(error)) {
-      throw new Error(
-        'AWS credentials expired for Bedrock access. Refresh them in Settings or .env and retry.',
-      );
-    }
-    if (isRetryableBedrockTransportError(error)) {
-      const endpoint = `bedrock-runtime.${aiSettings.awsRegion}.amazonaws.com`;
-      throw new Error(
-        `Bedrock endpoint unreachable (${endpoint}). Check internet/firewall/VPN/proxy settings, then retry. Root cause: ${getErrorMessage(
-          error,
-          'Unknown transport error',
-        )}`,
-      );
-    }
-    throw error;
+  const { provider, response } = await converseWithProviderFallback({
+    commandInput: commandInput as BedrockConverseInput,
+    settings: aiSettings,
+    sendBedrock: async () => {
+      try {
+        return (await sendBedrockConverseWithRetry(
+          commandInput as ConstructorParameters<typeof ConverseCommand>[0],
+        )) as unknown as BedrockConverseResponse;
+      } catch (error) {
+        throw normalizeBedrockGatewayError(error, aiSettings);
+      }
+    },
+  });
+
+  if (provider === 'gemini') {
+    log('warn', 'AI request used Gemini fallback', {
+      geminiModelId: aiSettings.geminiModelId,
+      bedrockRegion: aiSettings.awsRegion,
+    });
   }
+
+  return response;
 });
 
 handleTrustedIpc(IPC_CHANNELS.aiConfig.get, async () => {

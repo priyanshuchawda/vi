@@ -81,6 +81,11 @@ Create `.env` from `.env.example` and set required values for AI features:
 - Optional: `AWS_S3_BUCKET`
 - Optional: `AWS_LANDING_BUCKET` (used by the landing-page deploy script)
 - Optional: `AWS_LANDING_S3_PREFIX` (deploy landing files under a bucket prefix)
+- Optional: `AWS_RELEASE_BUCKET` (public S3 bucket for Linux `.AppImage` /
+  `.deb`)
+- Optional: `AWS_RELEASE_S3_PREFIX` (defaults to `releases`)
+- Optional: `AWS_RUNTIME_LINUX_RELEASE_BASE_URL` (explicit packaged Linux
+  updater feed)
 - Optional: `AWS_BACKEND_MODE` (`direct` by default, `apigw` for the future API
   Gateway path)
 - Optional: `AWS_BACKEND_URL` (required only when `AWS_BACKEND_MODE=apigw`)
@@ -173,6 +178,13 @@ Preview the S3 sync operations without uploading:
 npm run aws:deploy:landing:dryrun
 ```
 
+Upload Linux release artifacts (`latest-linux.yml`, `.AppImage`, `.deb`) to the
+configured public S3 path:
+
+```bash
+npm run aws:upload:release-assets -- --platform linux
+```
+
 Verify the current AWS baseline after a backend or landing deploy:
 
 ```bash
@@ -192,6 +204,14 @@ The landing deploy script reads:
 - `AWS_LANDING_BUCKET`
 - Optional: `AWS_LANDING_S3_PREFIX`
 - Optional: `AWS_LANDING_DIR` (defaults to `landing`)
+
+The Linux release upload script reads:
+
+- `AWS_REGION`
+- Optional: `AWS_RELEASE_BUCKET` (falls back to `AWS_LANDING_BUCKET` or the
+  default landing bucket name)
+- Optional: `AWS_RELEASE_S3_PREFIX` (defaults to `releases`)
+- Optional: `AWS_RELEASE_SOURCE_DIR` (defaults to `D:/vi-release`)
 
 The AWS baseline verification script checks:
 
@@ -252,6 +272,9 @@ GitHub Actions workflows:
 
 - `electron-updater` is integrated for packaged app update
   checks/download/install flow.
+- Linux packages and `latest-linux.yml` are distributed from AWS S3 instead of
+  GitHub Releases when `AWS_RELEASE_BUCKET` or
+  `AWS_RUNTIME_LINUX_RELEASE_BASE_URL` is configured for packaged builds.
 - Release/publish and signing environment contract is documented in:
   [docs/release-and-updates.md](./docs/release-and-updates.md)
 

@@ -1,6 +1,7 @@
 import { app, type BrowserWindow } from 'electron';
 import electronUpdater, { type AppUpdater, type UpdateInfo } from 'electron-updater';
 import { IPC_CHANNELS } from '../ipc/contracts.js';
+import { resolveLinuxReleaseFeedUrl } from './linuxReleaseFeed.js';
 
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
@@ -41,6 +42,7 @@ function asNotes(info: UpdateInfo): string | undefined {
 export function setupAutoUpdates(mainWindow: BrowserWindow) {
   const autoUpdater = getAutoUpdater();
   const enabled = app.isPackaged && process.env.QUICKCUT_DISABLE_AUTO_UPDATE !== '1';
+  const linuxReleaseFeedUrl = resolveLinuxReleaseFeedUrl();
 
   const sendStatus = (payload: UpdateStatus) => {
     if (!mainWindow.isDestroyed()) {
@@ -59,6 +61,13 @@ export function setupAutoUpdates(mainWindow: BrowserWindow) {
       downloadUpdate: async () => ({ enabled: false, started: false, error: reason }),
       installUpdate: () => ({ enabled: false, started: false }),
     };
+  }
+
+  if (linuxReleaseFeedUrl) {
+    autoUpdater.setFeedURL({
+      provider: 'generic',
+      url: linuxReleaseFeedUrl,
+    });
   }
 
   autoUpdater.autoDownload = false;

@@ -58,6 +58,9 @@ describe('release build contract', () => {
     const distWinScript = packageJson.scripts?.['dist:win'] || '';
     const distLinuxScript = packageJson.scripts?.['dist:linux'] || '';
     const distCheckAssetsScript = packageJson.scripts?.['dist:check:assets'] || '';
+    const uploadReleaseAssetsScript = packageJson.scripts?.['aws:upload:release-assets'] || '';
+    const uploadReleaseAssetsDryRunScript =
+      packageJson.scripts?.['aws:upload:release-assets:dryrun'] || '';
     const buildScript = packageJson.scripts?.build || '';
     const artifactName = packageJson.build?.artifactName;
     const asar = packageJson.build?.asar;
@@ -74,6 +77,10 @@ describe('release build contract', () => {
     expect(packageJson.devDependencies?.['electron-updater']).toBeUndefined();
     expect(buildScript).toContain('npm run build:runtime-config');
     expect(distCheckAssetsScript).toBe('node scripts/build/check-release-assets.mjs');
+    expect(uploadReleaseAssetsScript).toBe('node scripts/aws/upload-release-assets.mjs');
+    expect(uploadReleaseAssetsDryRunScript).toBe(
+      'node scripts/aws/upload-release-assets.mjs --dryrun',
+    );
     expect(distWinScript).toContain('npm run dist:check:assets -- win');
     expect(distWinScript).toContain('--win nsis --x64 --publish never');
     expect(distLinuxScript).toContain('npm run dist:check:assets -- linux');

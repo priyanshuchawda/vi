@@ -24,6 +24,15 @@ const profilesTableName = readEnv('AWS_DYNAMODB_PROFILES_TABLE', 'quickcut-user-
 const analysisTableName = readEnv('AWS_DYNAMODB_ANALYSIS_TABLE', 'quickcut-channel-analysis');
 const userLinksTableName = readEnv('AWS_DYNAMODB_USER_LINKS_TABLE', 'quickcut-user-links');
 const backendAuthToken = readEnv('AWS_BACKEND_AUTH_TOKEN', '');
+const apiAccessLogRetentionDays = readEnv('AWS_CLOUDBACKEND_API_ACCESS_LOG_RETENTION_DAYS', '14');
+const lambdaLogRetentionDays = readEnv('AWS_CLOUDBACKEND_LAMBDA_LOG_RETENTION_DAYS', '14');
+const alarmTopicArn = readEnv('AWS_CLOUDBACKEND_ALARM_TOPIC_ARN', '');
+const lambdaErrorAlarmThreshold = readEnv('AWS_CLOUDBACKEND_LAMBDA_ERROR_ALARM_THRESHOLD', '1');
+const lambdaThrottleAlarmThreshold = readEnv(
+  'AWS_CLOUDBACKEND_LAMBDA_THROTTLE_ALARM_THRESHOLD',
+  '1',
+);
+const api5xxAlarmThreshold = readEnv('AWS_CLOUDBACKEND_API_5XX_ALARM_THRESHOLD', '1');
 
 if (!artifactBucket) {
   throw new Error('Set AWS_CLOUDBACKEND_ARTIFACT_BUCKET or AWS_S3_BUCKET before deployment.');
@@ -79,6 +88,11 @@ await execFileAsync(
     `ProfilesTableName=${profilesTableName}`,
     `AnalysisTableName=${analysisTableName}`,
     `UserLinksTableName=${userLinksTableName}`,
+    `ApiAccessLogRetentionDays=${apiAccessLogRetentionDays}`,
+    `LambdaErrorAlarmThreshold=${lambdaErrorAlarmThreshold}`,
+    `LambdaThrottleAlarmThreshold=${lambdaThrottleAlarmThreshold}`,
+    `Api5xxAlarmThreshold=${api5xxAlarmThreshold}`,
+    ...(alarmTopicArn ? [`AlarmTopicArn=${alarmTopicArn}`] : []),
     ...(backendAuthToken ? [`BackendAuthToken=${backendAuthToken}`] : []),
   ],
   { cwd: repoRoot, stdio: 'inherit' },
@@ -101,4 +115,38 @@ const { stdout } = await execFileAsync(
   { cwd: repoRoot },
 );
 
-console.log(stdout.trim());
+const outputs = JSON.parse(stdout);
+const functionName =
+  outputs.find((output) => output.OutputKey === 'FunctionName')?.OutputValue ||
+  `${projectName}-${environmentName}-storage-api`;
+const lambdaLogGroupName = `/aws/lambda/${functionName}`;
+
+try {
+  await execFileAsync(
+    'aws',
+    ['logs', 'create-log-group', '--region', region, '--log-group-name', lambdaLogGroupName],
+    { cwd: repoRoot },
+  );
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!message.includes('ResourceAlreadyExistsException')) {
+    throw error;
+  }
+}
+
+await execFileAsync(
+  'aws',
+  [
+    'logs',
+    'put-retention-policy',
+    '--region',
+    region,
+    '--log-group-name',
+    lambdaLogGroupName,
+    '--retention-in-days',
+    lambdaLogRetentionDays,
+  ],
+  { cwd: repoRoot },
+);
+
+console.log(JSON.stringify(outputs, null, 2));

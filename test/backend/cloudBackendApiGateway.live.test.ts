@@ -37,6 +37,8 @@ type RunReport = {
   analysisChannelId: string;
   aiContextKey: string;
   memoryKey: string;
+  exportedVideoKey: string | null;
+  fixtureVideoPath: string;
   createdAt: string;
 };
 
@@ -58,6 +60,10 @@ describeLive('CloudBackendService API Gateway live integration', () => {
   const channelId = `quickcut-live-channel-${runId}`;
   const aiContextKey = `live-tests/${runId}/chat-history.json`;
   const memoryKey = `live-tests/${runId}/memory.json`;
+  const fixtureVideoPath = path.resolve(
+    process.cwd(),
+    'video_test/WhatsApp Video 2026-02-13 at 6.42.00 PM.mp4',
+  );
   const cleanup: CleanupState = { s3Keys: [] };
   let service: CloudBackendService;
   let region = REGION_FALLBACK;
@@ -139,6 +145,18 @@ describeLive('CloudBackendService API Gateway live integration', () => {
     cleanup.s3Keys = cleanup.s3Keys.filter((key) => key !== `memory/${memoryKey}`);
     await expect(service.downloadMemoryFile(memoryKey)).resolves.toBeNull();
 
+    const exportRecord = await service.uploadExportedVideo(fixtureVideoPath, userId);
+    expect(exportRecord).not.toBeNull();
+    expect(exportRecord).toMatchObject({
+      fileName: path.basename(fixtureVideoPath),
+      format: 'mp4',
+    });
+
+    cleanup.s3Keys.push(exportRecord!.s3Key);
+
+    const exportedVideos = await service.listExportedVideos(userId);
+    expect(exportedVideos.some((item) => item.s3Key === exportRecord!.s3Key)).toBe(true);
+
     writeRunReport({
       runId,
       region,
@@ -149,6 +167,8 @@ describeLive('CloudBackendService API Gateway live integration', () => {
       analysisChannelId: channelId,
       aiContextKey: `ai-context/${aiContextKey}`,
       memoryKey: `memory/${memoryKey}`,
+      exportedVideoKey: exportRecord!.s3Key,
+      fixtureVideoPath,
       createdAt: new Date().toISOString(),
     });
   }, 120_000);

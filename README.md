@@ -79,6 +79,8 @@ Create `.env` from `.env.example` and set required values for AI features:
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - Optional: `AWS_S3_BUCKET`
+- Optional: `AWS_LANDING_BUCKET` (used by the landing-page deploy script)
+- Optional: `AWS_LANDING_S3_PREFIX` (deploy landing files under a bucket prefix)
 - Optional: `AWS_BACKEND_MODE` (`direct` by default, `apigw` for the future API
   Gateway path)
 - Optional: `AWS_BACKEND_URL` (required only when `AWS_BACKEND_MODE=apigw`)
@@ -148,6 +150,27 @@ Expected production artifacts:
 
 - Windows: NSIS installer `.exe`
 - Ubuntu/Linux: `.AppImage` and `.deb`
+
+## AWS Deploy Helpers
+
+Deploy the static landing site to the configured S3 bucket:
+
+```bash
+npm run aws:deploy:landing
+```
+
+Preview the S3 sync operations without uploading:
+
+```bash
+npm run aws:deploy:landing:dryrun
+```
+
+The landing deploy script reads:
+
+- `AWS_REGION`
+- `AWS_LANDING_BUCKET`
+- Optional: `AWS_LANDING_S3_PREFIX`
+- Optional: `AWS_LANDING_DIR` (defaults to `landing`)
 
 ## Test
 

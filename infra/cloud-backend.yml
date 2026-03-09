@@ -24,6 +24,28 @@ Parameters:
     Type: String
     Default: ''
     NoEcho: true
+  ApiAccessLogRetentionDays:
+    Type: Number
+    Default: 14
+    MinValue: 1
+  AlarmTopicArn:
+    Type: String
+    Default: ''
+  LambdaErrorAlarmThreshold:
+    Type: Number
+    Default: 1
+    MinValue: 1
+  LambdaThrottleAlarmThreshold:
+    Type: Number
+    Default: 1
+    MinValue: 1
+  Api5xxAlarmThreshold:
+    Type: Number
+    Default: 1
+    MinValue: 1
+
+Conditions:
+  HasAlarmTopic: !Not [!Equals [!Ref AlarmTopicArn, '']]
 
 Resources:
   StorageApiRole:
@@ -59,6 +81,7 @@ Resources:
                   - s3:PutObject
                   - s3:DeleteObject
                 Resource:
+                  - !Sub 'arn:aws:s3:::${StorageBucketName}/videos/*'
                   - !Sub 'arn:aws:s3:::${StorageBucketName}/ai-context/*'
                   - !Sub 'arn:aws:s3:::${StorageBucketName}/memory/*'
               - Effect: Allow
@@ -87,6 +110,14 @@ Resources:
           AWS_DYNAMODB_USER_LINKS_TABLE: !Ref UserLinksTableName
           AWS_BACKEND_AUTH_TOKEN: !Ref BackendAuthToken
           LOG_LEVEL: info
+      LoggingConfig:
+        LogFormat: JSON
+
+  StorageHttpApiAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${ProjectName}-${EnvironmentName}-storage-api'
+      RetentionInDays: !Ref ApiAccessLogRetentionDays
 
   StorageHttpApi:
     Type: AWS::ApiGatewayV2::Api
@@ -190,12 +221,34 @@ Resources:
       AuthorizationType: NONE
       Target: !Sub 'integrations/${StorageHttpApiIntegration}'
 
+  StorageVideosListRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'GET /videos/users/{userId}'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageVideosPresignUploadRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'POST /videos/uploads/presign'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
   StorageHttpApiStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
       ApiId: !Ref StorageHttpApi
       StageName: '$default'
       AutoDeploy: true
+      AccessLogSettings:
+        DestinationArn: !GetAtt StorageHttpApiAccessLogGroup.Arn
+        Format: >-
+          {"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","integrationError":"$context.integrationErrorMessage"}
+      DefaultRouteSettings:
+        DetailedMetricsEnabled: true
 
   StorageApiInvokePermission:
     Type: AWS::Lambda::Permission
@@ -204,6 +257,65 @@ Resources:
       FunctionName: !Ref StorageApiFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${StorageHttpApi}/*/*/*'
+
+  StorageApiLambdaErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${EnvironmentName}-storage-api-lambda-errors'
+      AlarmDescription: !Sub 'Alarm when ${ProjectName}-${EnvironmentName}-storage-api records Lambda errors.'
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: !Ref LambdaErrorAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref StorageApiFunction
+      AlarmActions: !If [HasAlarmTopic, [!Ref AlarmTopicArn], []]
+      OKActions: !If [HasAlarmTopic, [!Ref AlarmTopicArn], []]
+
+  StorageApiLambdaThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${EnvironmentName}-storage-api-lambda-throttles'
+      AlarmDescription: !Sub 'Alarm when ${ProjectName}-${EnvironmentName}-storage-api is throttled.'
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: !Ref LambdaThrottleAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref StorageApiFunction
+      AlarmActions: !If [HasAlarmTopic, [!Ref AlarmTopicArn], []]
+      OKActions: !If [HasAlarmTopic, [!Ref AlarmTopicArn], []]
+
+  StorageHttpApi5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${EnvironmentName}-storage-api-5xx'
+      AlarmDescription: !Sub 'Alarm when ${ProjectName}-${EnvironmentName}-storage-api returns API Gateway 5xx responses.'
+      Namespace: AWS/ApiGateway
+      MetricName: 5xx
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: !Ref Api5xxAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: ApiId
+          Value: !Ref StorageHttpApi
+        - Name: Stage
+          Value: '$default'
+      AlarmActions: !If [HasAlarmTopic, [!Ref AlarmTopicArn], []]
+      OKActions: !If [HasAlarmTopic, [!Ref AlarmTopicArn], []]
 
 Outputs:
   ApiId:
@@ -214,3 +326,5 @@ Outputs:
     Value: !Ref StorageApiFunction
   RoleArn:
     Value: !GetAtt StorageApiRole.Arn
+  ApiAccessLogGroupName:
+    Value: !Ref StorageHttpApiAccessLogGroup

@@ -35,9 +35,15 @@ describe('release build contract', () => {
         asar?: boolean;
         asarUnpack?: string[];
         files?: string[];
-        extraResources?: Array<{ from?: string; to?: string }>;
-        win?: { target?: Array<{ target?: string; arch?: string[] }> };
-        linux?: { target?: Array<{ target?: string; arch?: string[] }>; executableName?: string };
+        win?: {
+          target?: Array<{ target?: string; arch?: string[] }>;
+          extraResources?: Array<{ from?: string; to?: string }>;
+        };
+        linux?: {
+          target?: Array<{ target?: string; arch?: string[] }>;
+          executableName?: string;
+          extraResources?: Array<{ from?: string; to?: string }>;
+        };
         nsis?: {
           oneClick?: boolean;
           allowToChangeInstallationDirectory?: boolean;
@@ -55,7 +61,8 @@ describe('release build contract', () => {
     const winTargets = packageJson.build?.win?.target || [];
     const linuxTargets = packageJson.build?.linux?.target || [];
     const files = packageJson.build?.files || [];
-    const extraResources = packageJson.build?.extraResources || [];
+    const winExtraResources = packageJson.build?.win?.extraResources || [];
+    const linuxExtraResources = packageJson.build?.linux?.extraResources || [];
     const nsis = packageJson.build?.nsis;
 
     expect(packageJson.dependencies?.['electron-updater']).toBeTruthy();
@@ -82,8 +89,17 @@ describe('release build contract', () => {
       createDesktopShortcut: true,
     });
     expect(files).toEqual(expect.arrayContaining(['dist-electron/**/*', 'dist/**/*']));
-    expect(extraResources).toEqual(
-      expect.arrayContaining([expect.objectContaining({ from: 'resources', to: 'resources' })]),
+    expect(winExtraResources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 'resources/ffmpeg-win', to: 'resources/ffmpeg-win' }),
+        expect.objectContaining({ from: 'resources/README.md', to: 'resources/README.md' }),
+      ]),
+    );
+    expect(linuxExtraResources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 'resources/ffmpeg-linux', to: 'resources/ffmpeg-linux' }),
+        expect.objectContaining({ from: 'resources/README.md', to: 'resources/README.md' }),
+      ]),
     );
   });
 });

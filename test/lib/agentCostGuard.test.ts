@@ -126,8 +126,11 @@ describe('agentCostGuard', () => {
       recordStepCost(guard, 2, 1000, 500);
 
       const remaining = estimateRemainingStepBudget(guard);
+      const expected = Math.floor(
+        (guard.budgetUsd - guard.totalCostUsd) / (guard.totalCostUsd / guard.stepCosts.length),
+      );
       expect(remaining).toBeGreaterThan(0);
-      expect(remaining).toBeLessThan(1000);
+      expect(remaining).toBe(expected);
     });
   });
 

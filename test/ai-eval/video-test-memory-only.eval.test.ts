@@ -15,8 +15,7 @@ const projectPath = path.resolve(process.cwd(), 'video_test', 'project.quickcut'
 function loadVideoTestMemory(): MediaAnalysisEntry[] {
   const raw = fs.readFileSync(projectPath, 'utf-8');
   const parsed = JSON.parse(raw) as { memory?: MediaAnalysisEntry[] };
-  const memory = Array.isArray(parsed.memory) ? parsed.memory : [];
-  return memory.filter((entry) => entry.filePath.includes('/video_test/'));
+  return Array.isArray(parsed.memory) ? parsed.memory : [];
 }
 
 describe('video_test memory-only AI evaluation', () => {

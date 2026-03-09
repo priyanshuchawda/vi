@@ -41,6 +41,7 @@
     "aws:delete:cloud-backend": "node scripts/aws/delete-cloud-backend.mjs",
     "aws:deploy:landing": "node scripts/aws/deploy-landing.mjs",
     "aws:deploy:landing:dryrun": "node scripts/aws/deploy-landing.mjs --dryrun",
+    "aws:verify:baseline": "node scripts/aws/verify-baseline.mjs",
     "eval:ai:one": "node scripts/ai-eval/run-bedrock-eval.mjs",
     "eval:ai:batch": "node scripts/ai-eval/run-bedrock-batch.mjs",
     "lint": "eslint . --max-warnings 0",

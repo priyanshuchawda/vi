@@ -57,6 +57,7 @@ youtube-credentials.json
 resources/ffmpeg-win/
 resources/ffmpeg-mac/
 resources/ffmpeg-linux/
+resources/generated/
 
 # Local AI eval outputs/media
 test-output/

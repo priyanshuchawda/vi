@@ -105,8 +105,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
     }));
   };
 
-  const persistProfileDraft = () => {
-    const userId = profile?.userId || crypto.randomUUID();
+  const persistProfileDraft = async () => {
+    const userId = profile?.userId || (await window.electronAPI.identity.getInstallationId());
     const trimmedName = userName.trim();
     const trimmedEmail = email.trim();
     const trimmedYouTubeUrl = youtubeUrl.trim();
@@ -129,7 +129,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
     return userId;
   };
 
-  const handleProfileContinue = () => {
+  const handleProfileContinue = async () => {
     const trimmedName = userName.trim();
     const trimmedEmail = email.trim();
 
@@ -143,14 +143,14 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
       return;
     }
 
-    persistProfileDraft();
+    await persistProfileDraft();
     setStepError(null);
     setStep('ai');
   };
 
   const handleAiContinue = async () => {
     setStepError(null);
-    const userId = persistProfileDraft();
+    const userId = await persistProfileDraft();
     const result = await saveAiConfig(draftAiSettings);
 
     if (!result.success) {

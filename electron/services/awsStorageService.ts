@@ -18,6 +18,7 @@
  *  - Graceful fallback — every operation returns null/void on AWS failure
  */
 
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import {
@@ -71,6 +72,12 @@ export interface PresignedVideoUploadPlan {
   expiresAt: string;
 }
 
+export interface InstallationRegistration {
+  installationId: string;
+  installationSecret: string;
+  createdAt: number;
+}
+
 function getVideoFormat(fileName: string): string {
   return path.extname(fileName).replace('.', '') || 'mp4';
 }
@@ -106,6 +113,7 @@ export class AwsStorageService {
   private readonly profilesTable: string;
   private readonly analysisTable: string;
   private readonly userLinksTable: string;
+  private readonly installationsTable: string;
 
   constructor() {
     // Read env vars here (not at module level) so dotenv has already run.
@@ -116,6 +124,8 @@ export class AwsStorageService {
     this.profilesTable = process.env.AWS_DYNAMODB_PROFILES_TABLE ?? 'quickcut-user-profiles';
     this.analysisTable = process.env.AWS_DYNAMODB_ANALYSIS_TABLE ?? 'quickcut-channel-analysis';
     this.userLinksTable = process.env.AWS_DYNAMODB_USER_LINKS_TABLE ?? 'quickcut-user-links';
+    this.installationsTable =
+      process.env.AWS_DYNAMODB_INSTALLATIONS_TABLE ?? 'quickcut-client-installations';
 
     // Use the SDK default credential provider chain — it reads from
     // ~/.aws/credentials and auto-refreshes STS/SSO tokens on every request.
@@ -223,6 +233,70 @@ export class AwsStorageService {
       log('info', '[AWS:DDB] Linked user to channel', { userId, channelId });
     } catch (err) {
       log('warn', '[AWS:DDB] setUserLink failed', { userId, channelId, err });
+    }
+  }
+
+  async registerInstallation(): Promise<InstallationRegistration | null> {
+    const createdAt = Date.now();
+    const installationId = randomUUID();
+    const installationSecret = randomBytes(32).toString('base64url');
+    const secretHash = createHash('sha256').update(installationSecret, 'utf8').digest('hex');
+
+    try {
+      await this.dynamo.send(
+        new PutCommand({
+          TableName: this.installationsTable,
+          Item: {
+            installationId,
+            secretHash,
+            createdAt,
+          },
+        }),
+      );
+
+      return {
+        installationId,
+        installationSecret,
+        createdAt,
+      };
+    } catch (err) {
+      log('warn', '[AWS:DDB] registerInstallation failed', { installationId, err });
+      return null;
+    }
+  }
+
+  async validateInstallationCredentials(
+    installationId: string,
+    installationSecret: string,
+  ): Promise<boolean> {
+    try {
+      const result = await this.dynamo.send(
+        new GetCommand({
+          TableName: this.installationsTable,
+          Key: { installationId },
+          ProjectionExpression: 'secretHash',
+        }),
+      );
+
+      const storedSecretHash = result.Item?.['secretHash'];
+      if (typeof storedSecretHash !== 'string') {
+        return false;
+      }
+
+      const expectedHash = Buffer.from(storedSecretHash, 'utf8');
+      const receivedHash = Buffer.from(
+        createHash('sha256').update(installationSecret, 'utf8').digest('hex'),
+        'utf8',
+      );
+
+      if (expectedHash.length !== receivedHash.length) {
+        return false;
+      }
+
+      return timingSafeEqual(expectedHash, receivedHash);
+    } catch (err) {
+      log('warn', '[AWS:DDB] validateInstallationCredentials failed', { installationId, err });
+      return false;
     }
   }
 

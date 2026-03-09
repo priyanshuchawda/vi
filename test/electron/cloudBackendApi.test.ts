@@ -2,24 +2,51 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { handleCloudBackendApiRequest } from '../../electron/services/cloudBackendApi.js';
+import {
+  CLOUD_BACKEND_INSTALLATION_ID_HEADER,
+  CLOUD_BACKEND_INSTALLATION_SECRET_HEADER,
+} from '../../electron/services/cloudBackendInstallationAuth.js';
+
+function createStorageStub(overrides: Record<string, unknown> = {}) {
+  const base = {
+    getUserProfile: vi.fn(),
+    setUserProfile: vi.fn(),
+    getChannelAnalysis: vi.fn(),
+    setChannelAnalysis: vi.fn(),
+    getUserLink: vi.fn(),
+    setUserLink: vi.fn(),
+    registerInstallation: vi.fn().mockResolvedValue(null),
+    validateInstallationCredentials: vi.fn().mockResolvedValue(false),
+    createPresignedVideoUploadPlan: vi.fn(),
+    listExportedVideos: vi.fn().mockResolvedValue([]),
+    uploadAiContext: vi.fn(),
+    downloadAiContext: vi.fn(),
+    uploadMemoryFile: vi.fn(),
+    downloadMemoryFile: vi.fn(),
+    deleteMemoryFile: vi.fn(),
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  } as typeof base;
+}
 
 describe('handleCloudBackendApiRequest', () => {
   it('round-trips profile and link routes through the storage adapter', async () => {
-    const storage = {
+    const storage = createStorageStub({
       getUserProfile: vi.fn().mockResolvedValue({ userId: 'user-1', createdAt: 1, updatedAt: 2 }),
       setUserProfile: vi.fn().mockResolvedValue(undefined),
       getChannelAnalysis: vi.fn().mockResolvedValue({ summary: 'cached' }),
       setChannelAnalysis: vi.fn().mockResolvedValue(undefined),
       getUserLink: vi.fn().mockResolvedValue('channel-1'),
       setUserLink: vi.fn().mockResolvedValue(undefined),
-      createPresignedVideoUploadPlan: vi.fn(),
-      listExportedVideos: vi.fn().mockResolvedValue([]),
       uploadAiContext: vi.fn().mockResolvedValue(undefined),
       downloadAiContext: vi.fn().mockResolvedValue('{"hello":"world"}'),
       uploadMemoryFile: vi.fn().mockResolvedValue(undefined),
       downloadMemoryFile: vi.fn().mockResolvedValue('memory-body'),
       deleteMemoryFile: vi.fn().mockResolvedValue(undefined),
-    };
+    });
 
     const getProfile = await handleCloudBackendApiRequest(
       {
@@ -63,21 +90,13 @@ describe('handleCloudBackendApiRequest', () => {
   });
 
   it('supports ai-context and memory object routes', async () => {
-    const storage = {
-      getUserProfile: vi.fn(),
-      setUserProfile: vi.fn(),
-      getChannelAnalysis: vi.fn(),
-      setChannelAnalysis: vi.fn(),
-      getUserLink: vi.fn(),
-      setUserLink: vi.fn(),
-      createPresignedVideoUploadPlan: vi.fn(),
-      listExportedVideos: vi.fn().mockResolvedValue([]),
+    const storage = createStorageStub({
       uploadAiContext: vi.fn().mockResolvedValue(undefined),
       downloadAiContext: vi.fn().mockResolvedValue('context-body'),
       uploadMemoryFile: vi.fn().mockResolvedValue(undefined),
       downloadMemoryFile: vi.fn().mockResolvedValue('memory-body'),
       deleteMemoryFile: vi.fn().mockResolvedValue(undefined),
-    };
+    });
 
     const putContext = await handleCloudBackendApiRequest(
       {
@@ -116,13 +135,7 @@ describe('handleCloudBackendApiRequest', () => {
   });
 
   it('supports presigned video upload planning and listing routes', async () => {
-    const storage = {
-      getUserProfile: vi.fn(),
-      setUserProfile: vi.fn(),
-      getChannelAnalysis: vi.fn(),
-      setChannelAnalysis: vi.fn(),
-      getUserLink: vi.fn(),
-      setUserLink: vi.fn(),
+    const storage = createStorageStub({
       createPresignedVideoUploadPlan: vi.fn().mockResolvedValue({
         uploadUrl: 'https://example-bucket.s3.eu-central-1.amazonaws.com/upload',
         record: {
@@ -148,12 +161,7 @@ describe('handleCloudBackendApiRequest', () => {
           format: 'mp4',
         },
       ]),
-      uploadAiContext: vi.fn(),
-      downloadAiContext: vi.fn(),
-      uploadMemoryFile: vi.fn(),
-      downloadMemoryFile: vi.fn(),
-      deleteMemoryFile: vi.fn(),
-    };
+    });
 
     const presignResponse = await handleCloudBackendApiRequest(
       {
@@ -201,21 +209,7 @@ describe('handleCloudBackendApiRequest', () => {
   });
 
   it('returns 400 for malformed bodies', async () => {
-    const storage = {
-      getUserProfile: vi.fn(),
-      setUserProfile: vi.fn(),
-      getChannelAnalysis: vi.fn(),
-      setChannelAnalysis: vi.fn(),
-      getUserLink: vi.fn(),
-      setUserLink: vi.fn(),
-      createPresignedVideoUploadPlan: vi.fn(),
-      listExportedVideos: vi.fn(),
-      uploadAiContext: vi.fn(),
-      downloadAiContext: vi.fn(),
-      uploadMemoryFile: vi.fn(),
-      downloadMemoryFile: vi.fn(),
-      deleteMemoryFile: vi.fn(),
-    };
+    const storage = createStorageStub();
 
     const response = await handleCloudBackendApiRequest(
       {
@@ -233,21 +227,7 @@ describe('handleCloudBackendApiRequest', () => {
   });
 
   it('rejects unauthorized requests when an API auth token is configured', async () => {
-    const storage = {
-      getUserProfile: vi.fn(),
-      setUserProfile: vi.fn(),
-      getChannelAnalysis: vi.fn(),
-      setChannelAnalysis: vi.fn(),
-      getUserLink: vi.fn(),
-      setUserLink: vi.fn(),
-      createPresignedVideoUploadPlan: vi.fn(),
-      listExportedVideos: vi.fn(),
-      uploadAiContext: vi.fn(),
-      downloadAiContext: vi.fn(),
-      uploadMemoryFile: vi.fn(),
-      downloadMemoryFile: vi.fn(),
-      deleteMemoryFile: vi.fn(),
-    };
+    const storage = createStorageStub();
 
     const response = await handleCloudBackendApiRequest(
       {
@@ -263,21 +243,9 @@ describe('handleCloudBackendApiRequest', () => {
   });
 
   it('accepts authorized requests when the bearer token matches', async () => {
-    const storage = {
+    const storage = createStorageStub({
       getUserProfile: vi.fn().mockResolvedValue({ userId: 'user-1', createdAt: 1, updatedAt: 2 }),
-      setUserProfile: vi.fn(),
-      getChannelAnalysis: vi.fn(),
-      setChannelAnalysis: vi.fn(),
-      getUserLink: vi.fn(),
-      setUserLink: vi.fn(),
-      createPresignedVideoUploadPlan: vi.fn(),
-      listExportedVideos: vi.fn(),
-      uploadAiContext: vi.fn(),
-      downloadAiContext: vi.fn(),
-      uploadMemoryFile: vi.fn(),
-      downloadMemoryFile: vi.fn(),
-      deleteMemoryFile: vi.fn(),
-    };
+    });
 
     const response = await handleCloudBackendApiRequest(
       {
@@ -295,5 +263,54 @@ describe('handleCloudBackendApiRequest', () => {
     expect(JSON.parse(response.body)).toEqual({
       data: { userId: 'user-1', createdAt: 1, updatedAt: 2 },
     });
+  });
+
+  it('registers installation credentials without prior auth when installation auth is required', async () => {
+    const storage = createStorageStub({
+      registerInstallation: vi.fn().mockResolvedValue({
+        installationId: 'install-1',
+        installationSecret: 'secret-1',
+        createdAt: 1,
+      }),
+    });
+
+    const response = await handleCloudBackendApiRequest(
+      {
+        method: 'POST',
+        path: '/auth/installations/register',
+      },
+      storage,
+      { AWS_BACKEND_REQUIRE_INSTALLATION_AUTH: '1' } as NodeJS.ProcessEnv,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      installationId: 'install-1',
+      installationSecret: 'secret-1',
+      createdAt: 1,
+    });
+  });
+
+  it('accepts installation-authenticated requests when installation auth is required', async () => {
+    const storage = createStorageStub({
+      getUserProfile: vi.fn().mockResolvedValue({ userId: 'user-1', createdAt: 1, updatedAt: 2 }),
+      validateInstallationCredentials: vi.fn().mockResolvedValue(true),
+    });
+
+    const response = await handleCloudBackendApiRequest(
+      {
+        method: 'GET',
+        path: '/profiles/user-1',
+        headers: {
+          [CLOUD_BACKEND_INSTALLATION_ID_HEADER]: 'install-1',
+          [CLOUD_BACKEND_INSTALLATION_SECRET_HEADER]: 'secret-1',
+        },
+      },
+      storage,
+      { AWS_BACKEND_REQUIRE_INSTALLATION_AUTH: '1' } as NodeJS.ProcessEnv,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(storage.validateInstallationCredentials).toHaveBeenCalledWith('install-1', 'secret-1');
   });
 });

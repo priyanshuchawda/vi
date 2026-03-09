@@ -34,14 +34,14 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
     }
   }, [profile]);
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     const trimmedName = userName.trim();
     const trimmedEmail = email.trim();
     const trimmedYouTubeUrl = youtubeUrl.trim();
 
     if (!profile) {
       // Create new profile
-      const userId = crypto.randomUUID();
+      const userId = await window.electronAPI.identity.getInstallationId();
       createProfile(userId, trimmedName || undefined, trimmedEmail || undefined);
     }
 
@@ -71,12 +71,16 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
 
   return (
     <div
+      role="presentation"
       className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
+      onMouseDown={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-modal-title"
         className="bg-bg-elevated border border-border-primary rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl animate-scale-in"
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border-primary bg-bg-secondary">
@@ -97,7 +101,9 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
               </svg>
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-text-primary">User Profile</h2>
+              <h2 id="profile-modal-title" className="text-xl font-semibold text-text-primary">
+                User Profile
+              </h2>
               <p className="text-sm text-text-muted">Manage your profile and channel</p>
             </div>
           </div>

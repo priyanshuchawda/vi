@@ -2,6 +2,10 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { stat } from 'node:fs/promises';
+import {
+  CLOUD_BACKEND_INSTALLATION_ID_HEADER,
+  CLOUD_BACKEND_INSTALLATION_SECRET_HEADER,
+} from '../../electron/services/cloudBackendInstallationAuth.js';
 import { uploadFileToPresignedUrl } from '../../electron/services/presignedHttpUpload.js';
 import {
   createCloudBackendService,
@@ -65,6 +69,7 @@ describe('cloudBackendService', () => {
       env: {
         AWS_BACKEND_MODE: 'apigw',
         AWS_BACKEND_URL: 'https://example.execute-api.eu-central-1.amazonaws.com',
+        AWS_BACKEND_AUTH_TOKEN: 'test-token',
       } as NodeJS.ProcessEnv,
     });
 
@@ -76,6 +81,9 @@ describe('cloudBackendService', () => {
     );
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
       method: 'GET',
+      headers: {
+        authorization: 'Bearer test-token',
+      },
     });
   });
 
@@ -104,12 +112,58 @@ describe('cloudBackendService', () => {
     });
   });
 
+  it('auto-registers installation credentials when bearer auth is not configured', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            installationId: 'install-1',
+            installationSecret: 'secret-1',
+            createdAt: 1,
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ data: { userId: 'user-1', createdAt: 1, updatedAt: 2 } }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = createCloudBackendService({
+      env: {
+        AWS_BACKEND_MODE: 'apigw',
+        AWS_BACKEND_URL: 'https://example.execute-api.eu-central-1.amazonaws.com',
+      } as NodeJS.ProcessEnv,
+    });
+
+    await expect(service.getUserProfile('user-1')).resolves.toMatchObject({ userId: 'user-1' });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://example.execute-api.eu-central-1.amazonaws.com/auth/installations/register',
+    );
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      headers: {
+        [CLOUD_BACKEND_INSTALLATION_ID_HEADER]: 'install-1',
+        [CLOUD_BACKEND_INSTALLATION_SECRET_HEADER]: 'secret-1',
+      },
+    });
+  });
+
   it('uploads exports through a presigned URL in apigw mode', async () => {
     const service = createCloudBackendService({
       env: {
         AWS_BACKEND_MODE: 'apigw',
         AWS_BACKEND_URL: 'https://example.execute-api.eu-central-1.amazonaws.com',
       } as NodeJS.ProcessEnv,
+      authHeadersProvider: {
+        getHeaders: vi.fn().mockResolvedValue({
+          [CLOUD_BACKEND_INSTALLATION_ID_HEADER]: 'install-1',
+          [CLOUD_BACKEND_INSTALLATION_SECRET_HEADER]: 'secret-1',
+        }),
+        clearCachedCredentials: vi.fn().mockResolvedValue(undefined),
+      },
     });
 
     vi.mocked(stat).mockResolvedValue({ size: 2048 } as Awaited<ReturnType<typeof stat>>);
@@ -179,6 +233,13 @@ describe('cloudBackendService', () => {
         AWS_BACKEND_MODE: 'apigw',
         AWS_BACKEND_URL: 'https://example.execute-api.eu-central-1.amazonaws.com',
       } as NodeJS.ProcessEnv,
+      authHeadersProvider: {
+        getHeaders: vi.fn().mockResolvedValue({
+          [CLOUD_BACKEND_INSTALLATION_ID_HEADER]: 'install-1',
+          [CLOUD_BACKEND_INSTALLATION_SECRET_HEADER]: 'secret-1',
+        }),
+        clearCachedCredentials: vi.fn().mockResolvedValue(undefined),
+      },
     });
 
     await expect(service.listExportedVideos('user-1')).resolves.toEqual([

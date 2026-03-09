@@ -8,6 +8,7 @@ const repoRoot = path.resolve(new URL('../../', import.meta.url).pathname);
 loadEnv({ path: path.join(repoRoot, '.env') });
 
 const REQUIRED_ROUTES = [
+  'POST /auth/installations/register',
   'GET /profiles/{userId}',
   'PUT /profiles/{userId}',
   'GET /analysis/channels/{channelId}',
@@ -185,9 +186,29 @@ assert(
   `Expected Lambda log retention ${lambdaLogRetentionDays} days for ${lambdaLogGroupName}.`,
 );
 
-const apiSmokeHeaders = backendAuthToken
-  ? { authorization: `Bearer ${backendAuthToken}` }
-  : undefined;
+const registrationResponse = await fetchJson(
+  `${apiUrl.replace(/\/+$/, '')}/auth/installations/register`,
+  {
+    method: 'POST',
+  },
+);
+assert(
+  registrationResponse.ok &&
+    registrationResponse.body &&
+    typeof registrationResponse.body === 'object' &&
+    typeof registrationResponse.body.installationId === 'string' &&
+    typeof registrationResponse.body.installationSecret === 'string',
+  `Installation registration smoke request failed with status ${registrationResponse.status}.`,
+);
+
+const apiSmokeHeaders =
+  backendAuthToken &&
+  (!registrationResponse.body || typeof registrationResponse.body !== 'object')
+    ? { authorization: `Bearer ${backendAuthToken}` }
+    : {
+        'x-quickcut-installation-id': registrationResponse.body.installationId,
+        'x-quickcut-installation-secret': registrationResponse.body.installationSecret,
+      };
 const apiSmoke = await fetchJson(`${apiUrl.replace(/\/+$/, '')}/profiles/quickcut-smoke-check`, {
   headers: apiSmokeHeaders,
 });
@@ -218,6 +239,7 @@ console.log(
       alarmsChecked: requiredAlarmNames,
       apiAccessLogGroupName,
       lambdaLogGroupName,
+      registrationStatus: registrationResponse.status,
       apiSmokeStatus: apiSmoke.status,
       landingWebsiteUrl,
       landingStatus: landingResponse.status,

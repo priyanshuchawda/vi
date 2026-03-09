@@ -174,7 +174,10 @@ function App() {
 
     const checkSetupRequirements = async () => {
       try {
-        const knownUserId = profile?.userId ?? onboardingUserId;
+        const knownUserId =
+          profile?.userId ??
+          onboardingUserId ??
+          (await window.electronAPI.identity.getInstallationId());
         let effectiveProfile = profile;
 
         if (

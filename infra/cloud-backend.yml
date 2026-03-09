@@ -20,6 +20,9 @@ Parameters:
   UserLinksTableName:
     Type: String
     Default: quickcut-user-links
+  InstallationsTableName:
+    Type: String
+    Default: quickcut-client-installations
   BackendAuthToken:
     Type: String
     Default: ''
@@ -75,6 +78,7 @@ Resources:
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProfilesTableName}'
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AnalysisTableName}'
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserLinksTableName}'
+                  - !GetAtt ClientInstallationsTable.Arn
               - Effect: Allow
                 Action:
                   - s3:GetObject
@@ -108,10 +112,26 @@ Resources:
           AWS_DYNAMODB_PROFILES_TABLE: !Ref ProfilesTableName
           AWS_DYNAMODB_ANALYSIS_TABLE: !Ref AnalysisTableName
           AWS_DYNAMODB_USER_LINKS_TABLE: !Ref UserLinksTableName
+          AWS_DYNAMODB_INSTALLATIONS_TABLE: !Ref InstallationsTableName
           AWS_BACKEND_AUTH_TOKEN: !Ref BackendAuthToken
+          AWS_BACKEND_REQUIRE_INSTALLATION_AUTH: '1'
           LOG_LEVEL: info
       LoggingConfig:
         LogFormat: JSON
+
+  ClientInstallationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref InstallationsTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: installationId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: installationId
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
 
   StorageHttpApiAccessLogGroup:
     Type: AWS::Logs::LogGroup
@@ -138,6 +158,14 @@ Resources:
     Properties:
       ApiId: !Ref StorageHttpApi
       RouteKey: 'GET /profiles/{userId}'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${StorageHttpApiIntegration}'
+
+  StorageInstallationRegisterRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StorageHttpApi
+      RouteKey: 'POST /auth/installations/register'
       AuthorizationType: NONE
       Target: !Sub 'integrations/${StorageHttpApiIntegration}'
 

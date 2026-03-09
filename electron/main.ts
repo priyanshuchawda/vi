@@ -9,6 +9,7 @@ import {
   net,
   session,
   shell,
+  safeStorage,
 } from 'electron';
 import path from 'path';
 import fs from 'fs/promises';
@@ -44,6 +45,14 @@ import fssync from 'fs';
 import { setupAutoUpdates } from './services/updateService.js';
 import { captureMainException, initMainObservability } from './services/observabilityService.js';
 import { AiConfigService, normalizeBedrockModelIdentifier } from './services/aiConfigService.js';
+import { InstallationIdentityService } from './services/installationIdentityService.js';
+import {
+  applyRuntimeConfigEnvFallback,
+  loadRuntimeConfig,
+  resolveGeneratedRuntimeConfigPath,
+  resolvePackagedRuntimeConfigPath,
+  validateRuntimeConfig,
+} from './services/runtimeConfigService.js';
 import {
   converseWithProviderFallback,
   type BedrockConverseInput,
@@ -51,9 +60,11 @@ import {
 } from './services/geminiFallbackService.js';
 import { log } from './utils/logger.js';
 import {
+  configureCloudBackendService,
   getCloudBackendService,
   resetCloudBackendService,
 } from './services/cloudBackendService.js';
+import { createFileBackedInstallationCredentialStore } from './services/cloudBackendInstallationAuth.js';
 import {
   assertSecureWebPreferences,
   AuthorizedPathRegistry,
@@ -88,10 +99,10 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 // Load environment variables from .env file.
-// For packaged builds, first look next to the executable so users can drop a
-// .env file alongside QuickCut.exe.  Fall back to the dev-time path when
-// running from source.
-const devEnvPath = path.join(__dirname, '../.env');
+// For packaged builds, bundled runtime-config.json provides the default cloud
+// backend settings and a sidecar .env remains an override path.
+const repoRoot = path.resolve(__dirname, '..');
+const devEnvPath = path.join(repoRoot, '.env');
 const exeEnvPath = path.join(path.dirname(app.getPath('exe')), '.env');
 const resolvedEnvPath = app.isPackaged ? exeEnvPath : devEnvPath;
 config({ path: resolvedEnvPath });
@@ -99,6 +110,28 @@ config({ path: resolvedEnvPath });
 if (app.isPackaged) {
   config({ path: devEnvPath, override: false });
 }
+const runtimeConfigPath = app.isPackaged
+  ? resolvePackagedRuntimeConfigPath(process.resourcesPath)
+  : resolveGeneratedRuntimeConfigPath(repoRoot);
+const runtimeConfig = loadRuntimeConfig(runtimeConfigPath);
+if (runtimeConfig) {
+  const runtimeConfigErrors = validateRuntimeConfig(runtimeConfig);
+  if (runtimeConfigErrors.length > 0) {
+    console.warn(
+      `[runtime-config] Invalid config at ${runtimeConfigPath}: ${runtimeConfigErrors.join('; ')}`,
+    );
+  }
+  applyRuntimeConfigEnvFallback(process.env, runtimeConfig);
+} else if (app.isPackaged) {
+  console.warn(`[runtime-config] No packaged runtime config found at ${runtimeConfigPath}`);
+}
+configureCloudBackendService({
+  installationCredentialStore: createFileBackedInstallationCredentialStore(
+    path.join(app.getPath('userData'), 'cloud-backend-installation.json'),
+    safeStorage,
+    fssync,
+  ),
+});
 initMainObservability();
 
 const aiConfigService = new AiConfigService(app.getPath('userData'), {
@@ -124,6 +157,7 @@ app.setName('QuickCut');
 let mainWindow: BrowserWindow | null = null;
 let updateService: ReturnType<typeof setupAutoUpdates> | null = null;
 const authorizedPaths = new AuthorizedPathRegistry();
+const installationIdentityService = new InstallationIdentityService(app.getPath('userData'));
 
 function ipcFailure(error: unknown, code: string) {
   return {
@@ -657,7 +691,7 @@ handleTrustedIpc(IPC_CHANNELS.media.exportVideo, async (event, rawPayload) => {
     // Prefer the current profile userId so exports stay grouped per user.
     void (async () => {
       try {
-        const exportOwnerUserId = userId?.trim() || 'anonymous';
+        const exportOwnerUserId = userId?.trim() || installationIdentityService.getInstallationId();
         const record = await getCloudBackendService().uploadExportedVideo(
           outputPath,
           exportOwnerUserId,
@@ -877,6 +911,10 @@ handleTrustedIpc(IPC_CHANNELS.aiConfig.save, async (_event, rawSettings: unknown
   } catch (error) {
     return ipcFailure(error, 'AI_CONFIG_SAVE_FAILED');
   }
+});
+
+handleTrustedIpc(IPC_CHANNELS.identity.getInstallationId, async () => {
+  return installationIdentityService.getInstallationId();
 });
 
 // File reading for AI Memory analysis

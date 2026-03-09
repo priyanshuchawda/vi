@@ -212,6 +212,9 @@ export interface ElectronAPI {
       onProgress?: (progress: YouTubeUploadProgress) => void,
     ) => Promise<{ success: boolean; videoId?: string; error?: string }>;
   };
+  identity: {
+    getInstallationId: () => Promise<string>;
+  };
   updates: {
     check: () => Promise<{ enabled: boolean; started: boolean; error?: string }>;
     download: () => Promise<{ enabled: boolean; started: boolean; error?: string }>;

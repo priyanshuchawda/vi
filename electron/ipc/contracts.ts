@@ -61,6 +61,9 @@ export const IPC_CHANNELS = {
     uploadProgress: 'youtube:uploadProgress',
     checkCredentials: 'youtube:checkCredentials',
   },
+  identity: {
+    getInstallationId: 'identity:getInstallationId',
+  },
   window: {
     close: 'window:close',
   },
@@ -293,6 +296,10 @@ export type IpcInvokeContract = {
   'youtube:checkCredentials': {
     args: [];
     result: { ok: boolean; credentialsFound: boolean; apiReachable: boolean; error?: string };
+  };
+  'identity:getInstallationId': {
+    args: [];
+    result: string;
   };
   'youtube:uploadVideo': {
     args: [payload: z.infer<typeof youtubeUploadRequestSchema>];
